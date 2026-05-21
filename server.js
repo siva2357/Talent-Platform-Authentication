@@ -34,10 +34,14 @@ app.use((req, res, next) => {
 app.get("/", (req, res) => {
   res.json({
     success: true,
-    message: "Talent Hub Backend Running (Single File Mode)",
+    message: "Talent Hub Backend Running",
     env: process.env.NODE_ENV,
   });
 });
+
+/* ================= ROUTES ================= */
+app.use("/api", require("./routes/appRoutes"));
+
 
 /* ================= 404 ================= */
 app.use((req, res) => {
@@ -56,6 +60,8 @@ app.use((err, req, res, next) => {
   });
 });
 
+const { createDefaultAdmin } = require("./controllers/adminController");
+
 // Environment detection
 const isLocal = process.env.NODE_ENV !== "production" && !!process.env.MONGO_LOCAL_URI;
 const PORT = process.env.PORT || (isLocal ? 5000 : 8080);
@@ -71,6 +77,8 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
     if (MONGO_URI) {
       await mongoose.connect(MONGO_URI, { autoIndex: true });
       console.log(`📦 MongoDB Connected (${isLocal ? "LOCAL" : "PRODUCTION"})`);
+      await createDefaultAdmin();
+      console.log("👤 Default admin ready");
     } else {
       console.log("⚠️ No MongoDB URI found, running without database connection.");
     }
