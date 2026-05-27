@@ -25,5 +25,8 @@ router.use("/notifications", notificationRoutes);
 router.use("/contracts", contractRoutes);
 router.use("/applications", applicationRoutes);
 router.use("/contract-diary", contractDiaryRoutes);
+router.use("/attendance", require("./attendanceRoutes"));
+router.use("/timesheets", require("./timesheetRoutes"));
+router.use("/dashboard", require("./dashboardRoutes"));
 
 module.exports = router;

@@ -45,6 +45,10 @@ const contractSchema = new mongoose.Schema(
       enum: ["pending", "in progress", "completed"],
       default: "pending"
     },
+    spent: {
+      type: Number,
+      default: 0
+    },
     savedBy: [
   {
     type: mongoose.Schema.Types.ObjectId,

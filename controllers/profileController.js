@@ -223,6 +223,7 @@ exports.getMyProfile = async (req, res, next) => {
         profileCompleted: user.registrationDetails.profileCompleted,
         emailVerified: user.registrationDetails.emailVerified,
         mobileVerification: user.registrationDetails.mobileVerification,
+        phoneNumber: user.registrationDetails.phoneNumber,
         status: user.status
       },
       profile,
