@@ -6,7 +6,8 @@ exports.identifier = (req, res, next) => {
 
         let token =
             req.headers.authorization ||
-            req.headers.Authorization;
+            req.headers.Authorization ||
+            req.query.token;
 
         if (!token && req.cookies?.Authorization) {
             token = req.cookies.Authorization;

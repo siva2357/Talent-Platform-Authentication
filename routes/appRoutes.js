@@ -9,7 +9,8 @@ const profileRoutes = require("./profileRoutes");
 const uploadRoutes = require("./uploadRoutes");
 const notificationRoutes = require("./notificationRoutes");
 const contractRoutes = require("./contractRoutes");
-
+const applicationRoutes = require("./applicationRoutes");
+const contractDiaryRoutes = require("./contractDiaryRoutes");
 
 const router = express.Router();
 
@@ -22,5 +23,7 @@ router.use("/uploads", uploadRoutes);
 router.use("/notifications", notificationRoutes);
 
 router.use("/contracts", contractRoutes);
+router.use("/applications", applicationRoutes);
+router.use("/contract-diary", contractDiaryRoutes);
 
 module.exports = router;

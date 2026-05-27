@@ -5,7 +5,7 @@ const SECTIONS = require("../constants/uploadSections.js");
 
 exports.uploadFile = async (req, res) => {
     try {
-        const { bucketKey, section, replace } = req.body;
+        const { bucketKey, section, replace, subfolder } = req.body;
         const file = req.file;
 
         if (!bucketKey || !section) {
@@ -38,7 +38,13 @@ exports.uploadFile = async (req, res) => {
             .replace(/[^a-z0-9]+/g, "_");
 
         const sectionFolder = roleSections[section];
-        const folderPath = `${safeFullName}/${sectionFolder}`;
+        // Optional subfolder (e.g. contract title slug) for deeper organization
+        const safeSubfolder = subfolder
+            ? subfolder.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_")
+            : "";
+        const folderPath = safeSubfolder
+            ? `${safeFullName}/${sectionFolder}/${safeSubfolder}`
+            : `${safeFullName}/${sectionFolder}`;
 
         if (replace === "true") {
             await deleteFolderFromGCP(bucketName, folderPath);

@@ -13,7 +13,7 @@ const defaultAdmin = {
         },
         verified: true
     },
-    role: "admin"
+    role: "Admin"
 };
 
 exports.createDefaultAdmin = async () => {
@@ -54,6 +54,10 @@ exports.createDefaultAdmin = async () => {
 
 exports.getAdminById = async (req, res) => {
     try {
+        if (req.role !== "Admin") {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
         const admin = await AdminModel.findById(req.params.id).select('-registrationDetails.password');
         if (!admin) {
             return res.status(404).json({ message: 'Admin not found' });
@@ -66,7 +70,11 @@ exports.getAdminById = async (req, res) => {
 
 exports.getAdminProfile = async (req, res) => {
     try {
-        const adminId = req.user.userId; // ✅ from JWT middleware
+        if (req.role !== "Admin") {
+            return res.status(403).json({ message: 'Access denied' });
+        }
+
+        const adminId = req.userId || req.user?.userId; // Standard fallback to ensure ID is found
 
         const admin = await AdminModel.findById(adminId);
 

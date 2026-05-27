@@ -18,8 +18,19 @@ const protect = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     
+    // Properly extract the ID from the decoded payload
+    // If the whole user object was encoded, the ID is under decoded.id._id
+    const userId = decoded.id?._id || decoded.id;
+
     // Find the user associated with this token
-    const user = await User.findById(decoded.id);
+    let user = await User.findById(userId);
+
+    // If not found in User, check Admin collection
+    if (!user) {
+      const AdminModel = require("../models/admin");
+      user = await AdminModel.findById(userId);
+    }
+
     if (!user) {
       return res.status(401).json({
         success: false,

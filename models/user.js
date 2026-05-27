@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema({
     forgotPasswordCodeValidation: { type: Date, select: false },
     forgotPasswordVerified: { type: Boolean, default: false }
   },
-  role: { type: String, enum: ["Client", "Freelancer"], required: true },
+  role: { type: String, enum: ["Client", "Freelancer","Admin"], required: true },
   status: { type: String, enum: ["active", "inactive"], default: "inactive" }
 }, { timestamps: true });
 

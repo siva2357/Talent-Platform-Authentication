@@ -1,12 +1,15 @@
 
 const Contract = require("../models/contract");
 const ClientProfile = require("../models/clientProfile");
+const FreelancerProfile = require("../models/freelancerProfile");
+const Application = require("../models/application");
 
-// ========================================
-// Create Contract
-// ========================================
+
 exports.createContract = async (req, res) => {
   try {
+    if (req.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Only clients can access this feature" });
+    }
     const clientId = req.userId;
     const { contractTitle, budgetType, estimatedBudget, contractStartDate, contractEndDate, contractDescription } = req.body;
     if (new Date(contractEndDate) < new Date(contractStartDate)) {
@@ -40,13 +43,13 @@ exports.createContract = async (req, res) => {
   }
 };
 
-
-// ========================================
-// Get Logged In Client Contracts
-// ========================================
 exports.getMyContracts = async (req, res) => {
 
   try {
+
+    if (req.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Only clients can access this feature" });
+    }
 
     const clientId = req.userId;
 
@@ -56,9 +59,9 @@ exports.getMyContracts = async (req, res) => {
         contractDescription: 0
       }
     )
-    .sort({
-      createdAt: -1
-    });
+      .sort({
+        createdAt: -1
+      });
 
     return res.status(200).json({
 
@@ -86,17 +89,26 @@ exports.getMyContracts = async (req, res) => {
 
 };
 
-// ========================================
-// Get My Single Contract
-// ========================================
 exports.getMyContractById = async (req, res) => {
   try {
+
+    if (req.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Only clients can access this feature" });
+    }
 
     const clientId = req.userId;
 
     const contract = await Contract.findOne({
       _id: req.params.id,
       clientId
+    })
+    .populate({
+      path: 'applicants.applicationId',
+      select: 'applicationStatus'
+    })
+    .populate({
+      path: 'applicants.freelancerId',
+      select: 'registrationDetails'
     });
 
     if (!contract) {
@@ -119,11 +131,11 @@ exports.getMyContractById = async (req, res) => {
   }
 };
 
-// =============================
-// Update Full Contract
-// =============================
 exports.updateContract = async (req, res) => {
   try {
+    if (req.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Only clients can access this feature" });
+    }
     const clientId = req.userId;
     const {
       contractTitle,
@@ -199,11 +211,11 @@ exports.updateContract = async (req, res) => {
   }
 };
 
-// =============================
-// Delete Contract
-// =============================
 exports.deleteContract = async (req, res) => {
   try {
+    if (req.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Only clients can access this feature" });
+    }
     const clientId = req.userId;
 
     const contract = await Contract.findOneAndDelete({
@@ -229,12 +241,6 @@ exports.deleteContract = async (req, res) => {
     });
   }
 };
-
-
-
-// ========================================
-// Get All Contracts (Freelancer)
-// ========================================
 
 exports.getAllContracts = async (req, res) => {
 
@@ -355,14 +361,14 @@ exports.getAllContracts = async (req, res) => {
         );
 
         const hasSaved = contract.savedBy?.some(
-  (savedUserId) =>
-    savedUserId.toString() ===
-    freelancerId.toString()
-);
+          (savedUserId) =>
+            savedUserId.toString() ===
+            freelancerId.toString()
+        );
 
         return {
           _id: contract._id,
-          clientName:  contract.clientId?.registrationDetails?.fullName || "",
+          clientName: contract.clientId?.registrationDetails?.fullName || "",
           clientType: clientProfile?.professionalDetails?.clientType || "",
           website: clientProfile?.professionalDetails?.website || "",
           industry: clientProfile?.professionalDetails?.industry || "",
@@ -409,10 +415,6 @@ exports.getAllContracts = async (req, res) => {
 
 };
 
-// ========================================
-// Get Single Contract (Freelancer)
-// ========================================
-
 exports.getSingleContract = async (req, res) => {
 
   try {
@@ -449,9 +451,9 @@ exports.getSingleContract = async (req, res) => {
     // ========================================
 
 
-        const clientProfile = await ClientProfile.findOne({
-          userId: contract.clientId._id
-        });
+    const clientProfile = await ClientProfile.findOne({
+      userId: contract.clientId._id
+    });
 
 
     // ========================================
@@ -641,12 +643,13 @@ exports.getSingleContract = async (req, res) => {
 
 };
 
-// ========================================
-// Save Contract
-// ========================================
 exports.saveContract = async (req, res) => {
 
   try {
+
+    if (req.role !== "Freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
+    }
 
     const freelancerId = req.userId;
 
@@ -694,13 +697,13 @@ exports.saveContract = async (req, res) => {
 
 };
 
-
-// ========================================
-// Unsave Contract
-// ========================================
 exports.unsaveContract = async (req, res) => {
 
   try {
+
+    if (req.role !== "Freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
+    }
 
     const freelancerId = req.userId;
 
@@ -715,11 +718,10 @@ exports.unsaveContract = async (req, res) => {
 
     }
 
-    contract.savedBy = contract.savedBy.filter(
-      (id) => id.toString() !== freelancerId.toString()
+    await Contract.updateOne(
+      { _id: contract._id },
+      { $pull: { savedBy: freelancerId } }
     );
-
-    await contract.save();
 
     return res.status(200).json({
       success: true,
@@ -739,26 +741,26 @@ exports.unsaveContract = async (req, res) => {
 
 };
 
-
-// ========================================
-// Get Saved Contracts
-// ========================================
 exports.getSavedContracts = async (req, res) => {
 
   try {
+
+    if (req.role !== "Freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
+    }
 
     const freelancerId = req.userId;
 
     const contracts = await Contract.find({
       savedBy: freelancerId
     })
-    .populate(
-      "clientId",
-      "registrationDetails.fullName registrationDetails.email"
-    )
-    .sort({
-      createdAt: -1
-    });
+      .populate(
+        "clientId",
+        "registrationDetails.fullName registrationDetails.email"
+      )
+      .sort({
+        createdAt: -1
+      });
 
     return res.status(200).json({
       success: true,
@@ -779,13 +781,13 @@ exports.getSavedContracts = async (req, res) => {
 
 };
 
-
-// ========================================
-// Apply To Contract
-// ========================================
 exports.applyToContract = async (req, res) => {
 
   try {
+
+    if (req.role !== "Freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
+    }
 
     const freelancerId = req.userId;
 
@@ -802,27 +804,55 @@ exports.applyToContract = async (req, res) => {
 
     const alreadyApplied = contract.applicants.some(
       (applicant) =>
-        applicant.freelancerId.toString() === freelancerId.toString()
+        applicant.freelancerId.toString() ===
+        freelancerId.toString()
     );
 
     if (alreadyApplied) {
 
       return res.status(400).json({
         success: false,
-        message: "Already applied to this contract"
+        message: "Already applied"
       });
 
     }
 
-    contract.applicants.push({
+    // ========================================
+    // Create Application
+    // ========================================
+
+    const application = await Application.create({
+
+      contractId: contract._id,
+
+      clientId: contract.clientId,
+
       freelancerId
+
+    });
+
+    // ========================================
+    // Push Reference To Contract
+    // ========================================
+
+    contract.applicants.push({
+
+      applicationId: application._id,
+
+      freelancerId
+
     });
 
     await contract.save();
 
     return res.status(200).json({
+
       success: true,
-      message: "Applied successfully"
+
+      message: "Applied successfully",
+
+      application
+
     });
 
   }
@@ -830,41 +860,75 @@ exports.applyToContract = async (req, res) => {
   catch (error) {
 
     return res.status(500).json({
+
       success: false,
+
       message: error.message
+
     });
 
   }
 
 };
 
-
-// ========================================
-// Withdraw Contract Application
-// ========================================
 exports.withdrawContractApplication = async (req, res) => {
 
   try {
+    if (req.role !== "Freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
+    }
 
     const freelancerId = req.userId;
-
     const contract = await Contract.findById(req.params.id);
 
     if (!contract) {
-
       return res.status(404).json({
         success: false,
         message: "Contract not found"
       });
-
     }
 
-    contract.applicants = contract.applicants.filter(
-      (applicant) =>
-        applicant.freelancerId.toString() !== freelancerId.toString()
+    const application = await Application.findOne({
+      contractId: contract._id,
+      freelancerId
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found"
+      });
+    }
+
+    // ========================================
+    // Validation Rules for Withdrawal
+    // ========================================
+
+    if (application.applicationStatus !== "application received") {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot withdraw an application that has already been processed."
+      });
+    }
+
+    const timeDiffMs = Date.now() - new Date(application.createdAt).getTime();
+    const hoursPassed = timeDiffMs / (1000 * 60 * 60);
+
+    if (hoursPassed > 24) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot withdraw an application after 24 hours of submission."
+      });
+    }
+
+    await Application.findByIdAndDelete(
+      application._id
     );
 
-    await contract.save();
+    await Contract.updateOne(
+      { _id: contract._id },
+      { $pull: { applicants: { applicationId: application._id } } }
+    );
 
     return res.status(200).json({
       success: true,
@@ -874,44 +938,163 @@ exports.withdrawContractApplication = async (req, res) => {
   }
 
   catch (error) {
-
     return res.status(500).json({
       success: false,
       message: error.message
     });
-
   }
 
 };
 
-
-// ========================================
-// Get Applied Contracts
-// ========================================
 exports.getAppliedContracts = async (req, res) => {
 
   try {
 
+    if (req.role !== "Freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
+    }
+
     const freelancerId = req.userId;
 
-    const contracts = await Contract.find({
-      "applicants.freelancerId": freelancerId
-    })
-    .populate(
-      "clientId",
-      "registrationDetails.fullName registrationDetails.email"
-    )
-    .sort({
-      createdAt: -1
-    });
+    // ========================================
+    // Get Applications
+    // ========================================
+
+    const applications =
+      await Application.find({
+
+        freelancerId
+
+      })
+
+        .populate({
+
+          path: "contractId",
+
+          populate: {
+
+            path: "clientId",
+
+            select:
+              "registrationDetails.fullName registrationDetails.email"
+
+          }
+
+        })
+
+        .sort({
+          createdAt: -1
+        });
+
+    // ========================================
+    // Format Response
+    // ========================================
+
+    const formattedApplications =
+      applications.map((application) => {
+
+        const contract =
+          application.contractId;
+
+        if (!contract) return null;
+
+        return {
+
+          // ========================================
+          // Application
+          // ========================================
+
+          applicationId:
+            application._id,
+
+          applicationStatus:
+            application.applicationStatus,
+
+          appliedAt:
+            application.createdAt,
+
+
+
+          assessment:
+            application.assessment,
+
+          interview:
+            application.interview,
+
+          // ========================================
+          // Contract
+          // ========================================
+
+          contract: {
+
+            _id:
+              contract._id,
+
+            contractTitle:
+              contract.contractTitle,
+
+            budgetType:
+              contract.budgetType,
+
+            estimatedBudget:
+              contract.estimatedBudget,
+
+            contractDescription:
+              contract.contractDescription,
+
+            contractStartDate:
+              contract.contractStartDate,
+
+            contractEndDate:
+              contract.contractEndDate,
+
+            status:
+              contract.status,
+
+            totalApplicants:
+              contract.applicants?.length || 0,
+
+            createdAt:
+              contract.createdAt
+
+          },
+
+          // ========================================
+          // Client
+          // ========================================
+
+          client: {
+
+            _id:
+              contract.clientId?._id,
+
+            fullName:
+              contract.clientId
+                ?.registrationDetails
+                ?.fullName || "",
+
+            email:
+              contract.clientId
+                ?.registrationDetails
+                ?.email || ""
+
+          }
+
+        };
+
+      })
+
+        .filter(Boolean);
 
     return res.status(200).json({
 
       success: true,
 
-      totalContracts: contracts.length,
+      totalApplications:
+        formattedApplications.length,
 
-      contracts
+      applications:
+        formattedApplications
 
     });
 
@@ -920,56 +1103,403 @@ exports.getAppliedContracts = async (req, res) => {
   catch (error) {
 
     return res.status(500).json({
+
       success: false,
+
       message: error.message
+
     });
 
   }
 
 };
 
-
-
-// ========================================
-// Get Contract Applicants / Proposals
-// ========================================
 exports.getContractApplicants = async (req, res) => {
-  try {
-    const clientId = req.userId;
-    const contract = await Contract.findOne({
-      _id: req.params.id,
-      clientId
-    })
-    .populate({
-      path: "applicants.freelancerId",
-      select: `
-        registrationDetails.fullName
-        registrationDetails.email
-        role
-      `
-    });
 
-    if (!contract) {
-      return res.status(404).json({
-        success: false,
-        message: "Contract not found"
-      });
+  try {
+
+    if (req.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Only clients can access this feature" });
     }
 
+    const clientId = req.userId;
+
+    // ========================================
+    // Get Client Contracts
+    // ========================================
+
+    const contracts = await Contract.find({
+      clientId
+    })
+
+      .sort({
+        createdAt: -1
+      });
+
+    if (!contracts || contracts.length === 0) {
+
+      return res.status(404).json({
+
+        success: false,
+        message: "No contracts found"
+
+      });
+
+    }
+
+    // ========================================
+    // Format Contracts
+    // ========================================
+
+    const formattedContracts = await Promise.all(
+
+      contracts.map(async (contract) => {
+
+        // ========================================
+        // Get Applications
+        // ========================================
+
+        const applications = await Application.find({
+
+          contractId: contract._id
+
+        })
+
+          .populate({
+
+            path: "freelancerId",
+
+            select: `
+            registrationDetails.fullName
+            registrationDetails.email
+            role
+          `
+
+          })
+
+          .sort({
+            createdAt: -1
+          });
+
+        // ========================================
+        // Format Applicants
+        // ========================================
+
+        const applicants = await Promise.all(
+
+          applications.map(async (application) => {
+
+            const freelancerProfile =
+              await FreelancerProfile.findOne({
+
+                userId:
+                  application.freelancerId?._id
+
+              });
+
+            return {
+
+              // ========================================
+              // Application Details
+              // ========================================
+
+              applicationId:
+                application._id,
+
+              applicationStatus:
+                application.applicationStatus,
+
+              appliedAt:
+                application.createdAt,
+
+
+
+              // ========================================
+              // Assessment
+              // ========================================
+
+              assessment:
+                application.assessment,
+
+              // ========================================
+              // Interview
+              // ========================================
+
+              interview:
+                application.interview,
+
+              // ========================================
+              // Freelancer Details
+              // ========================================
+
+              freelancer: {
+
+                _id:
+                  application.freelancerId?._id || null,
+
+                // ========================================
+                // Basic Information
+                // ========================================
+
+                fullName:
+                  freelancerProfile?.basicInformation?.fullName
+                  || "N/A",
+
+                email:
+                  freelancerProfile?.basicInformation?.email
+                  || "N/A",
+
+                username:
+                  freelancerProfile?.basicInformation?.username
+                  || "N/A",
+
+                profilePhoto:
+                  freelancerProfile?.basicInformation?.profilePhoto
+                  || "",
+
+                professionalHeadline:
+                  freelancerProfile?.basicInformation?.professionalHeadline
+                  || "N/A",
+
+                shortBio:
+                  freelancerProfile?.basicInformation?.shortBio
+                  || "N/A",
+
+                gender:
+                  freelancerProfile?.basicInformation?.gender
+                  || "N/A",
+
+                // ========================================
+                // Professional Details
+                // ========================================
+
+                categories:
+                  freelancerProfile?.professionalDetails?.categories
+                  || [],
+
+                skills:
+                  freelancerProfile?.professionalDetails?.skills
+                  || [],
+
+                // ========================================
+                // Location
+                // ========================================
+
+                country:
+                  freelancerProfile?.location?.country
+                  || "N/A",
+
+                city:
+                  freelancerProfile?.location?.city
+                  || "N/A",
+
+                timezone:
+                  freelancerProfile?.location?.timezone
+                  || "N/A",
+
+                // ========================================
+                // Availability
+                // ========================================
+
+                availability:
+                  freelancerProfile?.availability
+                  || [],
+
+                // ========================================
+                // Verification
+                // ========================================
+
+                emailVerified:
+                  freelancerProfile?.verification?.emailAddress
+                  || false,
+
+                phoneVerified:
+                  freelancerProfile?.verification?.phoneNumber
+                  || false,
+
+                // ========================================
+                // Languages
+                // ========================================
+
+                languages:
+                  freelancerProfile?.languages
+                  || [],
+
+                // ========================================
+                // Social Links
+                // ========================================
+
+                socialLinks:
+                  freelancerProfile?.socialLinks
+                  || []
+
+              }
+
+            };
+
+          })
+
+        );
+
+        return {
+
+          // ========================================
+          // Contract Details
+          // ========================================
+
+          _id:
+            contract._id,
+
+          contractTitle:
+            contract.contractTitle,
+
+          contractDescription:
+            contract.contractDescription,
+
+          contractType:
+            contract.budgetType,
+
+          projectStage:
+            contract.status,
+
+          totalApplicants:
+            applicants.length,
+
+          // ========================================
+          // Budget
+          // ========================================
+
+          estimatedBudget:
+            contract.estimatedBudget,
+
+          sourcedSpent: 0,
+
+          availableFund:
+            contract.estimatedBudget - 0,
+
+          // ========================================
+          // Dates
+          // ========================================
+
+          contractStartDate:
+            contract.contractStartDate,
+
+          contractEndDate:
+            contract.contractEndDate,
+
+          createdAt:
+            contract.createdAt,
+
+          // ========================================
+          // Applicants
+          // ========================================
+
+          applicants
+
+        };
+
+      })
+
+    );
+
     return res.status(200).json({
+
       success: true,
-      totalApplicants: contract.applicants.length,
-      applicants: contract.applicants
+
+      totalContracts:
+        formattedContracts.length,
+
+      contracts:
+        formattedContracts
+
     });
 
   }
 
   catch (error) {
+
     return res.status(500).json({
+
       success: false,
+
       message: error.message
+
     });
 
   }
 
+};
+
+// ========================================
+// Get Hired Talents (Client)
+// ========================================
+exports.getHiredTalents = async (req, res) => {
+  try {
+    if (req.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Only clients can access hired talents" });
+    }
+
+    const clientId = req.userId;
+
+    // Find all applications for this client where status is 'shortlisted' (used for hired)
+    const hiredApplications = await Application.find({
+      clientId,
+      applicationStatus: "shortlisted"
+    })
+      .populate({
+        path: "freelancerId",
+        select: "registrationDetails.fullName registrationDetails.email registrationDetails.profilePicture"
+      })
+      .populate({
+        path: "contractId",
+        select: "contractTitle status estimatedBudget budgetType contractStartDate contractEndDate contractDescription"
+      })
+      .sort({ updatedAt: -1 });
+
+    const formattedTalents = await Promise.all(hiredApplications.map(async (application) => {
+      // Find freelancer profile
+      const FreelancerProfile = require("../models/freelancerProfile");
+      const profile = await FreelancerProfile.findOne({ userId: application.freelancerId?._id });
+
+      return {
+        applicationId: application._id,
+        appliedAt: application.createdAt,
+        hiredAt: application.updatedAt,
+        offerStatus: application.offerStatus || "none",
+        scopeOfWork: application.scopeOfWork || "",
+        additionalTerms: application.additionalTerms || "",
+        signatureImage: application.signatureImage || "",
+        signedAt: application.signedAt || null,
+        freelancer: {
+          _id: application.freelancerId?._id || null,
+          fullName: application.freelancerId?.registrationDetails?.fullName || "N/A",
+          email: application.freelancerId?.registrationDetails?.email || "N/A",
+          profilePhoto: profile?.basicInformation?.profilePhoto || "",
+          professionalHeadline: profile?.basicInformation?.professionalHeadline || "N/A",
+          skills: profile?.professionalDetails?.skills || []
+        },
+        contract: {
+          _id: application.contractId?._id || null,
+          title: application.contractId?.contractTitle || "N/A",
+          status: application.contractId?.status || "N/A",
+          estimatedBudget: application.contractId?.estimatedBudget || 0,
+          budgetType: application.contractId?.budgetType || "Fixed Price",
+          contractStartDate: application.contractId?.contractStartDate || null,
+          contractEndDate: application.contractId?.contractEndDate || null,
+          contractDescription: application.contractId?.contractDescription || ""
+        }
+      };
+    }));
+
+    return res.status(200).json({
+      success: true,
+      hiredTalents: formattedTalents
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
 };

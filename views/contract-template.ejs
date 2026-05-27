@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            color: #1e293b;
+            line-height: 1.5;
+            margin: 40px;
+            font-size: 14px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #3b82f6;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 24px;
+            font-weight: 800;
+            color: #3b82f6;
+            float: left;
+        }
+        .doc-title {
+            text-align: right;
+            font-size: 14px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            float: right;
+            margin-top: 10px;
+        }
+        .clearfix {
+            clear: both;
+        }
+        .title {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-top: 20px;
+            margin-bottom: 30px;
+            letter-spacing: 0.5px;
+            color: #0f172a;
+        }
+        .summary-box {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 25px;
+        }
+        .summary-grid {
+            display: table;
+            width: 100%;
+        }
+        .summary-row {
+            display: table-row;
+        }
+        .summary-item {
+            display: table-cell;
+            width: 50%;
+            padding-bottom: 12px;
+        }
+        .summary-item label {
+            display: block;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #64748b;
+            margin-bottom: 3px;
+        }
+        .summary-item .val {
+            font-size: 13px;
+            font-weight: bold;
+            color: #0f172a;
+        }
+        .section-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #3b82f6;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 5px;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .content {
+            font-size: 12px;
+            color: #334155;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+        }
+        .signatures {
+            margin-top: 50px;
+            width: 100%;
+        }
+        .sig-block-left {
+            width: 45%;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 10px;
+            float: left;
+        }
+        .sig-block-right {
+            width: 45%;
+            border-top: 1px solid #cbd5e1;
+            padding-top: 10px;
+            float: right;
+        }
+        .sig-title {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        .sig-name {
+            font-weight: bold;
+            color: #0f172a;
+        }
+        .signature-img {
+            max-width: 150px;
+            max-height: 60px;
+            margin-bottom: 5px;
+            display: block;
+        }
+        .watermark {
+            position: absolute;
+            top: 40%;
+            left: 15%;
+            transform: rotate(-30deg);
+            font-size: 90px;
+            color: rgba(239, 68, 68, 0.08);
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            pointer-events: none;
+            z-index: -1;
+        }
+        .verified-seal {
+            border: 2.5px solid #10b981;
+            color: #10b981;
+            font-weight: bold;
+            padding: 3px 8px;
+            border-radius: 4px;
+            text-transform: uppercase;
+            display: inline-block;
+            font-size: 9px;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+    <% if (offerStatus !== 'accepted') { %>
+        <div class="watermark">Unsigned</div>
+    <% } %>
+
+    <div class="header">
+        <div class="logo">Talent-Hub</div>
+        <div class="doc-title">Independent Contractor Agreement</div>
+        <div class="clearfix"></div>
+    </div>
+
+    <div class="title">Service Agreement</div>
+
+    <div class="summary-box">
+        <div class="summary-grid">
+            <div class="summary-row">
+                <div class="summary-item">
+                    <label>Contract Title</label>
+                    <div class="val"><%= contractTitle %></div>
+                </div>
+                <div class="summary-item">
+                    <label>Agreement Date</label>
+                    <div class="val"><%= agreementDate %></div>
+                </div>
+            </div>
+            <div class="summary-row">
+                <div class="summary-item">
+                    <label>Client</label>
+                    <div class="val"><%= clientName %> (<%= clientEmail %>)</div>
+                </div>
+                <div class="summary-item">
+                    <label>Freelancer</label>
+                    <div class="val"><%= freelancerName %> (<%= freelancerEmail %>)</div>
+                </div>
+            </div>
+            <div class="summary-row">
+                <div class="summary-item">
+                    <label>Compensation / Value</label>
+                    <div class="val"><%= estimatedBudget %> (<%= budgetType %>)</div>
+                </div>
+                <div class="summary-item">
+                    <label>Timeline</label>
+                    <div class="val">Starts: <%= startDate %> | Ends: <%= endDate %></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="section-title">1. Parties & Relationship</div>
+    <div class="content">This Agreement is made effective as of <%= agreementDate %>, by and between Client <%= clientName %> and Freelancer <%= freelancerName %>. The Freelancer acts as an independent contractor, and nothing in this Agreement shall construct a partnership, joint venture, or employer-employee relationship.</div>
+
+    <div class="section-title">2. Scope of Work</div>
+    <div class="content"><%= scopeOfWork || "The Freelancer shall perform professional services as outlined in the client's project description and finalized proposal. The Freelancer agrees to deliver high-quality assets in a timely and professional manner." %></div>
+
+    <div class="section-title">3. Compensation & Escrow Payment</div>
+    <div class="content">The Client agrees to pay <%= estimatedBudget %> (<%= budgetType %>) for the completed deliverables. Payments are facilitated securely through Talent-Hub Escrow. Funds are deposited in escrow by the Client and released to the Freelancer upon milestone approval or timesheet verification.</div>
+
+    <div class="section-title">4. Intellectual Property Rights</div>
+    <div class="content">Upon full payment, all intellectual property rights, ownership, and copyright for the work created by the Freelancer under this Agreement will be transferred to the Client. The Freelancer retains no claims, title, or interest in the deliverables once paid.</div>
+
+    <div class="section-title">5. Confidentiality & Non-Disclosure</div>
+    <div class="content">Both parties agree to protect and keep confidential any proprietary information, designs, source codes, business processes, or customer data shared during the course of the engagement. Neither party shall disclose this information to third parties without prior written consent.</div>
+
+    <% if (additionalTerms) { %>
+        <div class="section-title">6. Additional Legal Terms & Conditions</div>
+        <div class="content"><%= additionalTerms %></div>
+    <% } %>
+
+    <div class="signatures">
+        <div class="sig-block-left">
+            <div class="sig-title">Client Signature</div>
+            <div class="verified-seal" style="border-color: #3b82f6; color: #3b82f6;">Offer Sent Digitally</div>
+            <div class="sig-name"><%= clientName %></div>
+            <div style="font-size: 10px; color: #64748b; margin-top: 3px;">Date: <%= offerSentDate %></div>
+        </div>
+        <div class="sig-block-right">
+            <div class="sig-title">Freelancer Signature</div>
+            <% if (offerStatus === 'accepted' && signatureImage) { %>
+                <img src="<%= signatureImage %>" class="signature-img" />
+                <div class="verified-seal">Digitally Signed & Verified</div>
+                <div class="sig-name"><%= freelancerName %></div>
+                <div style="font-size: 10px; color: #64748b; margin-top: 3px;">Date: <%= signedDate %></div>
+            <% } else { %>
+                <div style="height: 40px; border-bottom: 1px dashed #cbd5e1; margin-bottom: 5px; font-size: 11px; color: #94a3b8; padding-top: 15px;">Pending Signature</div>
+                <div class="sig-name"><%= freelancerName %></div>
+            <% } %>
+        </div>
+        <div class="clearfix"></div>
+    </div>
+</body>
+</html>

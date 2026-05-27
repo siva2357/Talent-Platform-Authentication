@@ -53,7 +53,12 @@ const contractSchema = new mongoose.Schema(
 ],
 
 applicants: [
+
   {
+          applicationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Application"
+    },
     freelancerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"

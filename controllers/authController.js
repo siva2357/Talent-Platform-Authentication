@@ -96,11 +96,44 @@ exports.login = async (req, res, next) => {
     const lowerEmail = email.toLowerCase();
 
     // Find user and include password field for verification
-    const user = await User.findOne({ "registrationDetails.email": lowerEmail }).select("+registrationDetails.password");
+    let user = await User.findOne({ "registrationDetails.email": lowerEmail }).select("+registrationDetails.password");
+    let isAdmin = false;
+
+    // If not found in User, check Admin collection
+    if (!user) {
+      const AdminModel = require("../models/admin");
+      user = await AdminModel.findOne({ "registrationDetails.email": lowerEmail }).select("+registrationDetails.password");
+      if (user) {
+        isAdmin = true;
+      }
+    }
+
     if (!user) {
       return res.status(401).json({ success: false, message: "Invalid email or password" });
     }
 
+    if (isAdmin) {
+      const bcrypt = require("bcrypt");
+      const isMatch = await bcrypt.compare(password, user.registrationDetails.password);
+      if (!isMatch) {
+        return res.status(401).json({ success: false, message: "Invalid email or password" });
+      }
+
+      if (user.registrationDetails.verified === false) {
+         return res.status(403).json({ success: false, message: "Admin account is not verified" });
+      }
+
+      const token = generateToken(user);
+      return res.status(200).json({
+        success: true,
+        token,
+        role: user.role || "Admin",
+        profileCompleted: true,
+        mobileVerification: true
+      });
+    }
+
+    // Normal User Flow
     // Check if account is verified
     if (!user.registrationDetails.emailVerified || user.status !== "active") {
       return res.status(403).json({ success: false, message: "Please verify your email before logging in" });
