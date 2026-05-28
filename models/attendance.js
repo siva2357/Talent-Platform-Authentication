@@ -3,9 +3,7 @@ const mongoose = require("mongoose");
 const sessionSchema = new mongoose.Schema({
   checkIn: { type: Date, required: true },
   checkOut: { type: Date, default: null },
-  location: { type: String, default: "" },
-  faceImage: { type: String, default: "" },
-  faceMatch: { type: Boolean, default: true }
+  location: { type: String, default: "" }
 });
 
 const attendanceSchema = new mongoose.Schema(
@@ -33,6 +31,11 @@ const attendanceSchema = new mongoose.Schema(
       type: String,
       enum: ["Present", "Partial", "Absent", "Pending"],
       default: "Pending"
+    },
+    approvalStatus: {
+      type: String,
+      enum: ["Pending Approval", "Approved", "Rejected"],
+      default: "Pending Approval"
     }
   },
   { timestamps: true }

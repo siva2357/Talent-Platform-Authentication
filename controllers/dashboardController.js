@@ -2,7 +2,6 @@ const User = require("../models/user");
 const Contract = require("../models/contract");
 const Application = require("../models/application");
 const Attendance = require("../models/attendance");
-const Timesheet = require("../models/timesheet");
 const ContractDiary = require("../models/contractDiary");
 const ClientProfile = require("../models/clientProfile");
 const FreelancerProfile = require("../models/freelancerProfile");
@@ -41,8 +40,8 @@ exports.getDashboardStats = async (req, res) => {
 
       // 5. Total Earnings
       // Approved timesheet earnings (hours * $50 default rate)
-      const approvedTimesheets = await Timesheet.find({ freelancerId: userId, status: "Approved" });
-      const timesheetEarnings = approvedTimesheets.reduce((acc, ts) => acc + (ts.total * 50), 0);
+      const approvedAttendances = await Attendance.find({ freelancerId: userId, approvalStatus: "Approved" });
+      const timesheetEarnings = approvedAttendances.reduce((acc, att) => acc + ((att.totalHours || 0) * 50), 0);
 
       // Approved contract diary milestones earnings
       const diaries = await ContractDiary.find({ freelancerId: userId });

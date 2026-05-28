@@ -579,6 +579,7 @@ exports.getFreelancerOffers = async (req, res) => {
 
       return {
         id: app._id,
+        contractId: contract._id,
         contractTitle: contract.contractTitle,
         client: contract.clientId?.registrationDetails?.fullName || "Client",
         clientEmail: contract.clientId?.registrationDetails?.email || "",

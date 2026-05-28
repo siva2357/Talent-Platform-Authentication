@@ -1,6 +1,6 @@
 const Attendance = require("../models/attendance");
-const Timesheet = require("../models/timesheet");
 const Contract = require("../models/contract");
+const Application = require("../models/application");
 
 // Helper: Calculate week boundaries and names
 function getWeekRange(dateObj) {
@@ -55,7 +55,7 @@ exports.checkIn = async (req, res) => {
       return res.status(403).json({ success: false, message: "Only freelancers can mark attendance" });
     }
 
-    const { contractId, location, faceImage, faceMatch } = req.body;
+    const { contractId, location } = req.body;
     if (!contractId) {
       return res.status(400).json({ success: false, message: "contractId is required" });
     }
@@ -100,9 +100,7 @@ exports.checkIn = async (req, res) => {
     // Push new check-in session
     attendance.sessions.push({
       checkIn: new Date(),
-      location: location || "Unknown Location",
-      faceImage: faceImage || "",
-      faceMatch: faceMatch !== undefined ? faceMatch : true
+      location: location || "Unknown Location"
     });
 
     await attendance.save();
@@ -172,84 +170,10 @@ exports.checkOut = async (req, res) => {
 
     await attendance.save();
 
-    // ==========================================
-    // Update Weekly Timesheet
-    // ==========================================
-    const now = new Date();
-    const weekRange = getWeekRange(now);
-    const dayNames = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
-    const dayField = dayNames[now.getDay()];
-
-    let timesheet = await Timesheet.findOne({
-      contractId,
-      freelancerId,
-      weekStartDate: weekRange.weekStartDate
-    });
-
-    if (!timesheet) {
-      // Helper to initialize day structures with correct date values
-      const initDay = (dOffset) => {
-        const d = new Date(weekRange.mondayDate);
-        d.setDate(weekRange.mondayDate.getDate() + dOffset);
-        const pad = (num) => String(num).padStart(2, "0");
-        return {
-          date: `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`,
-          hours: 0,
-          attendance: "N/A",
-          faceMatch: false
-        };
-      };
-
-      timesheet = new Timesheet({
-        contractId,
-        freelancerId,
-        weekStartDate: weekRange.weekStartDate,
-        weekEndDate: weekRange.weekEndDate,
-        week: weekRange.week,
-        month: weekRange.month,
-        mon: initDay(0),
-        tue: initDay(1),
-        wed: initDay(2),
-        thu: initDay(3),
-        fri: initDay(4),
-        sat: initDay(5),
-        sun: initDay(6),
-        total: 0,
-        status: "Pending Approval"
-      });
-    }
-
-    const faceMatchResult = attendance.sessions.every(s => s.faceMatch);
-
-    timesheet[dayField] = {
-      date: timesheet[dayField].date,
-      hours: attendance.totalHours,
-      attendance: attendance.totalHours >= 8 ? "Present" : "Partial",
-      faceMatch: faceMatchResult
-    };
-
-    // Calculate sum total
-    timesheet.total = parseFloat((
-      timesheet.mon.hours +
-      timesheet.tue.hours +
-      timesheet.wed.hours +
-      timesheet.thu.hours +
-      timesheet.fri.hours +
-      timesheet.sat.hours +
-      timesheet.sun.hours
-    ).toFixed(2));
-
-    if (timesheet.total > 0 && timesheet.status !== "Pending Approval") {
-      timesheet.status = "Pending Approval";
-    }
-
-    await timesheet.save();
-
     return res.status(200).json({
       success: true,
       message: "Checked out successfully",
-      attendance,
-      timesheet
+      attendance
     });
 
   } catch (error) {
@@ -305,14 +229,36 @@ exports.getTodayStatus = async (req, res) => {
 exports.getAttendanceOverview = async (req, res) => {
   try {
     const { contractId } = req.params;
-    const freelancerId = req.userId;
-
-    const logs = await Attendance.find({
-      freelancerId,
-      contractId
-    }).sort({ date: -1 });
+    const userId = req.userId;
+    const role = req.role;
 
     const contract = await Contract.findById(contractId);
+    if (!contract) {
+      return res.status(404).json({ success: false, message: "Contract not found" });
+    }
+
+    let query = { contractId };
+
+    if (role === "Freelancer") {
+      // Find accepted application for this freelancer on this contract
+      const application = await Application.findOne({
+        contractId: contract._id,
+        freelancerId: userId,
+        offerStatus: "accepted"
+      });
+      if (!application) {
+        return res.status(403).json({ success: false, message: "Unauthorized: You are not the hired freelancer on this contract" });
+      }
+      query.freelancerId = userId;
+    } else if (role === "Client") {
+      if (contract.clientId.toString() !== userId.toString()) {
+        return res.status(403).json({ success: false, message: "Unauthorized: You are not the owner of this contract" });
+      }
+    } else {
+      return res.status(403).json({ success: false, message: "Unauthorized role" });
+    }
+
+    const logs = await Attendance.find(query).sort({ date: -1 });
     
     // Group logs by month dynamically
     const monthsMap = {};
@@ -351,8 +297,7 @@ exports.getAttendanceOverview = async (req, res) => {
           checkIn: formatTime(s.checkIn),
           checkOut: formatTime(s.checkOut),
           hours: calcHrs,
-          location: s.location,
-          faceImage: s.faceImage || "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=300"
+          location: s.location
         };
       });
 
@@ -360,6 +305,7 @@ exports.getAttendanceOverview = async (req, res) => {
       const formattedDate = dateObj.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 
       monthsMap[monthName].logs.push({
+        rawDate: log.date, // Format: YYYY-MM-DD
         date: formattedDate,
         day: dayName,
         sessions: formattedLogSessions,
