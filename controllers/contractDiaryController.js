@@ -1,5 +1,8 @@
 const ContractDiary = require("../models/contractDiary");
 const Application   = require("../models/application");
+const User          = require("../models/user");
+const Transaction   = require("../models/transaction");
+const Contract      = require("../models/contract");
 
 // ============================================================
 // Helper: fetch diary and verify ownership
@@ -52,6 +55,33 @@ exports.initializeDiary = async (req, res) => {
     if (existing)
       return res.status(409).json({ success: false, message: "A diary already exists for this contract", diaryId: existing._id });
 
+    // Validate client wallet balance
+    const totalEscrowAmount = (phases || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+    const client = await User.findById(req.userId);
+    if ((client.balance || 0) < totalEscrowAmount) {
+      return res.status(400).json({ success: false, message: `Insufficient wallet balance ($${client.balance.toFixed(2)}) to fund these initial phases (requires $${totalEscrowAmount.toFixed(2)}). Please deposit funds to your wallet first.` });
+    }
+
+    // Deduct from client balance
+    client.balance = (client.balance || 0) - totalEscrowAmount;
+    await client.save();
+
+    // Log transaction details
+    for (const p of phases || []) {
+      const phaseAmount = p.amount || 0;
+      if (phaseAmount > 0) {
+        await Transaction.create({
+          userId: req.userId,
+          contractId: application.contractId._id,
+          type: "Escrow Funded",
+          amount: phaseAmount,
+          status: "Paid",
+          description: `Escrow funded for phase: "${p.name}"`,
+          referenceId: `ESC-${Math.floor(100000 + Math.random() * 900000)}`
+        });
+      }
+    }
+
     const diary = await ContractDiary.create({
       applicationId,
       contractId:   application.contractId._id,
@@ -67,7 +97,7 @@ exports.initializeDiary = async (req, res) => {
       }))
     });
 
-    return res.status(201).json({ success: true, message: "Contract diary initialized", diary });
+    return res.status(201).json({ success: true, message: "Contract diary initialized and phases funded successfully", diary });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -89,10 +119,35 @@ exports.addPhase = async (req, res) => {
     const { name, description, deadline, amount } = req.body;
     if (!name) return res.status(400).json({ success: false, message: "Phase name is required" });
 
-    diary.phases.push({ name, description: description || "", deadline: deadline ? new Date(deadline) : undefined, amount: amount || 0, status: "pending" });
+    const phaseAmount = parseFloat(amount) || 0;
+
+    // Check balance
+    const client = await User.findById(req.userId);
+    if ((client.balance || 0) < phaseAmount) {
+      return res.status(400).json({ success: false, message: `Insufficient wallet balance ($${client.balance.toFixed(2)}) to fund this phase (requires $${phaseAmount.toFixed(2)}). Please deposit funds to your wallet first.` });
+    }
+
+    // Deduct from client balance
+    client.balance = (client.balance || 0) - phaseAmount;
+    await client.save();
+
+    // Log escrow funded transaction
+    if (phaseAmount > 0) {
+      await Transaction.create({
+        userId: req.userId,
+        contractId: diary.contractId._id,
+        type: "Escrow Funded",
+        amount: phaseAmount,
+        status: "Paid",
+        description: `Escrow funded for phase: "${name}"`,
+        referenceId: `ESC-${Math.floor(100000 + Math.random() * 900000)}`
+      });
+    }
+
+    diary.phases.push({ name, description: description || "", deadline: deadline ? new Date(deadline) : undefined, amount: phaseAmount, status: "pending" });
     await diary.save();
 
-    return res.status(200).json({ success: true, message: "Phase added", phases: diary.phases });
+    return res.status(200).json({ success: true, message: "Phase added and funded successfully", phases: diary.phases });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -117,9 +172,51 @@ exports.reviewPhase = async (req, res) => {
     const { action, clientFeedback } = req.body;
 
     if (action === "approve") {
+      if (phase.status === "approved") {
+        return res.status(400).json({ success: false, message: "This phase is already approved" });
+      }
+
       phase.status     = "approved";
       phase.approvedAt = new Date();
       phase.clientFeedback = clientFeedback || "";
+
+      // Auto-release payment to freelancer wallet
+      const phaseAmount = phase.amount || 0;
+      if (phaseAmount > 0) {
+        const freelancer = await User.findById(diary.freelancerId);
+        freelancer.balance = (freelancer.balance || 0) + phaseAmount;
+        await freelancer.save();
+
+        // Log payment released transactions (for both history sheets)
+        // 1. Client spent record
+        await Transaction.create({
+          userId: diary.clientId,
+          contractId: diary.contractId._id,
+          type: "Payment Released",
+          amount: phaseAmount,
+          status: "Paid",
+          description: `Escrow payment of $${phaseAmount} released for phase: "${phase.name}"`,
+          referenceId: `REL-${Math.floor(100000 + Math.random() * 900000)}`
+        });
+
+        // 2. Freelancer earnings record
+        await Transaction.create({
+          userId: diary.freelancerId,
+          contractId: diary.contractId._id,
+          type: "Payment Released",
+          amount: phaseAmount,
+          status: "Paid",
+          description: `Escrow payment of $${phaseAmount} received for phase: "${phase.name}"`,
+          referenceId: `REL-${Math.floor(100000 + Math.random() * 900000)}`
+        });
+
+        // Update contract spent field
+        const contract = await Contract.findById(diary.contractId._id);
+        if (contract) {
+          contract.spent = (contract.spent || 0) + phaseAmount;
+          await contract.save();
+        }
+      }
     } else if (action === "request-changes") {
       phase.status         = "changes-requested";
       phase.clientFeedback = clientFeedback || "";
@@ -148,7 +245,7 @@ exports.getClientDiaries = async (req, res) => {
       return res.status(403).json({ success: false, message: "Only clients can access this" });
 
     const diaries = await ContractDiary.find({ clientId: req.userId })
-      .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate")
+      .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate spent")
       .populate("freelancerId", "registrationDetails.fullName registrationDetails.email")
       .sort({ updatedAt: -1 });
 

@@ -19,6 +19,7 @@ const userSchema = new mongoose.Schema({
     forgotPasswordVerified: { type: Boolean, default: false }
   },
   role: { type: String, enum: ["Client", "Freelancer","Admin"], required: true },
+  balance: { type: Number, default: 0 },
   status: { type: String, enum: ["active", "inactive"], default: "inactive" }
 }, { timestamps: true });
 
