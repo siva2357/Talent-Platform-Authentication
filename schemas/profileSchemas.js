@@ -20,15 +20,18 @@ const freelancerProfileSchema = Joi.object({
     timezone: Joi.string().allow("")
   }).default(),
   availability: Joi.array().items(Joi.string()).default([]),
+  hourlyRate: Joi.number().optional().allow(null).default(0),
   verification: Joi.object({
     emailAddress: Joi.boolean().default(false),
     phoneNumber: Joi.boolean().default(true)
   }).default(),
   socialLinks: Joi.array().items(Joi.object({
+    _id: Joi.string().optional().allow(""),
     platform: Joi.string().allow(""),
     profileUrl: Joi.string().allow("")
   })).default([]),
   languages: Joi.array().items(Joi.object({
+    _id: Joi.string().optional().allow(""),
     language: Joi.string().allow(""),
     proficiency: Joi.string().allow("")
   })).default([])
@@ -45,8 +48,22 @@ const clientProfileSchema = Joi.object({
   }).default(),
   professionalDetails: Joi.object({
     clientType: Joi.string().valid("Individual", "Startup", "Agency", "Business").default("Individual"),
-    website: Joi.string().allow(""),
-    industry: Joi.string().allow("")
+    website: Joi.string().when("clientType", {
+      is: Joi.string().valid("Startup", "Agency", "Business"),
+      then: Joi.string().required().messages({
+        "any.required": "Website is required for business profiles",
+        "string.empty": "Website cannot be empty"
+      }),
+      otherwise: Joi.string().allow("").optional()
+    }),
+    industry: Joi.string().when("clientType", {
+      is: Joi.string().valid("Startup", "Agency", "Business"),
+      then: Joi.string().required().messages({
+        "any.required": "Industry is required for business profiles",
+        "string.empty": "Industry cannot be empty"
+      }),
+      otherwise: Joi.string().allow("").optional()
+    })
   }).default(),
   location: Joi.object({
     country: Joi.string().allow(""),
@@ -58,10 +75,12 @@ const clientProfileSchema = Joi.object({
     phoneNumber: Joi.boolean().default(true)
   }).default(),
   socialLinks: Joi.array().items(Joi.object({
+    _id: Joi.string().optional().allow(""),
     platform: Joi.string().allow(""),
     profileUrl: Joi.string().allow("")
   })).default([]),
   languages: Joi.array().items(Joi.object({
+    _id: Joi.string().optional().allow(""),
     language: Joi.string().allow(""),
     proficiency: Joi.string().allow("")
   })).default([])

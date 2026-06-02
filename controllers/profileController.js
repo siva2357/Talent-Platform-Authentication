@@ -9,6 +9,10 @@ const { freelancerProfileSchema, clientProfileSchema, sendPhoneOTPSchema, verify
 const twilio = require("twilio");
 
 const Contract = require("../models/contract");
+const Application = require("../models/application");
+const Attendance = require("../models/attendance");
+const ContractDiary = require("../models/contractDiary");
+
 
 
 // Helper to get twilio client if env variables exist
@@ -99,6 +103,7 @@ exports.completeProfile = async (req, res, next) => {
           timezone: location.timezone || ""
         },
         availability: validatedData.availability || [],
+        hourlyRate: validatedData.hourlyRate || 0,
         verification: {
           emailAddress: verification.emailAddress !== undefined ? verification.emailAddress : false,
           phoneNumber: verification.phoneNumber !== undefined ? verification.phoneNumber : true
@@ -203,17 +208,84 @@ exports.getMyProfile = async (req, res, next) => {
     const user = req.user;
     let profile = null;
     let contracts = [];
+    let diaries = [];
 
     if (user.role === "Freelancer") {
       profile = await FreelancerProfile.findOne({ userId: user._id });
+      const dbDiaries = await ContractDiary.find({ freelancerId: user._id })
+        .populate("contractId")
+        .populate("clientId", "registrationDetails.fullName")
+        .sort({ updatedAt: -1 });
+
+      const freelancerDiaries = [];
+      for (const diary of dbDiaries) {
+        if (!diary.contractId) continue;
+        const c = diary.contractId;
+
+        // Find any client feedback/review from diary phases
+        let review = undefined;
+        if (diary.phases) {
+          // Find the last approved phase with clientFeedback
+          const feedbackPhase = [...diary.phases]
+            .reverse()
+            .find(p => p.status === "approved" && p.clientFeedback);
+          if (feedbackPhase) {
+            review = feedbackPhase.clientFeedback;
+          }
+        }
+
+        // Fetch attendance logs for this contract and freelancer
+        const attendanceLogs = await Attendance.find({ contractId: c._id, freelancerId: user._id });
+        let attendance = null;
+        if (attendanceLogs && attendanceLogs.length > 0) {
+          const hoursTracked = attendanceLogs.reduce((sum, log) => sum + (log.totalHours || 0), 0);
+          
+          // Format dates
+          const dates = attendanceLogs.map(log => new Date(log.date));
+          const minDate = new Date(Math.min(...dates));
+          const maxDate = new Date(Math.max(...dates));
+          const formattedMin = minDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          const formattedMax = maxDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+          
+          // Calculate weekly average
+          const durationMs = maxDate.getTime() - minDate.getTime();
+          const durationWeeks = Math.max(1, Math.ceil(durationMs / (1000 * 60 * 60 * 24 * 7)));
+          const weeklyAverage = (hoursTracked / durationWeeks).toFixed(1) + " hrs/wk";
+
+          // Calculate attendance rate (Present or Partial status / total logs)
+          const validLogs = attendanceLogs.filter(log => log.status === "Present" || log.status === "Partial").length;
+          const avgAttendanceRate = Math.round((validLogs / attendanceLogs.length) * 100);
+
+          attendance = {
+            hoursTracked,
+            startDate: formattedMin,
+            endDate: formattedMax,
+            weeklyAverage,
+            avgAttendanceRate
+          };
+        }
+
+        freelancerDiaries.push({
+          _id: c._id,
+          contractTitle: c.contractTitle,
+          estimatedBudget: c.estimatedBudget,
+          contractEndDate: c.contractEndDate,
+          contractDescription: c.contractDescription,
+          status: diary.overallStatus === "in-progress" ? "in progress" : diary.overallStatus,
+          clientName: diary.clientId?.registrationDetails?.fullName || "Client",
+          review,
+          attendance
+        });
+      }
+      diaries = freelancerDiaries;
     } else if (user.role === "Client") {
       profile = await ClientProfile.findOne({ userId: user._id });
-            contracts = await Contract
+      contracts = await Contract
         .find({ clientId: user._id })
         .sort({ createdAt: -1 });
     }
 
-    res.status(200).json({
+    const responsePayload = {
       success: true,
       user: {
         id: user._id,
@@ -226,9 +298,16 @@ exports.getMyProfile = async (req, res, next) => {
         phoneNumber: user.registrationDetails.phoneNumber,
         status: user.status
       },
-      profile,
-        contracts
-    });
+      profile
+    };
+
+    if (user.role === "Freelancer") {
+      responsePayload.diaries = diaries;
+    } else if (user.role === "Client") {
+      responsePayload.contracts = contracts;
+    }
+
+    res.status(200).json(responsePayload);
   } catch (err) {
     next(err);
   }
@@ -323,6 +402,9 @@ exports.updateProfile = async (req, res, next) => {
     }
     if (role === "Freelancer" && validatedData.availability) {
       profile.availability = validatedData.availability;
+    }
+    if (role === "Freelancer" && validatedData.hourlyRate !== undefined) {
+      profile.hourlyRate = validatedData.hourlyRate;
     }
 
     await profile.save();
