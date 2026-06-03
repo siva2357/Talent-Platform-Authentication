@@ -12,7 +12,21 @@ const freelancerProfileSchema = Joi.object({
   }).default(),
   professionalDetails: Joi.object({
     categories: Joi.array().items(Joi.string()).default([]),
-    skills: Joi.array().items(Joi.string()).default([])
+    skills: Joi.array().items(Joi.string()).default([]),
+    portfolio: Joi.array().items(Joi.object({
+      _id: Joi.string().optional().allow(""),
+      title: Joi.string().required(),
+      description: Joi.string().optional().allow(""),
+      role: Joi.string().optional().allow(""),
+      projectType: Joi.string().optional().allow(""),
+      tags: Joi.array().items(Joi.string()).default([]),
+      media: Joi.array().items(Joi.object({
+        _id: Joi.string().optional().allow(""),
+        mediaType: Joi.string().valid("image", "video").default("image"),
+        url: Joi.string().optional().allow("")
+      })).default([]),
+      projectUrl: Joi.string().optional().allow("")
+    })).optional().default([])
   }).default(),
   location: Joi.object({
     country: Joi.string().allow(""),

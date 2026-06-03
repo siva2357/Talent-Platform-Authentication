@@ -40,6 +40,18 @@ const contractSchema = new mongoose.Schema(
       trim: true
     },
 
+    contractType: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
+    contractSubject: {
+      type: String,
+      required: true,
+      trim: true
+    },
+
     status: {
       type: String,
       enum: ["pending", "in progress", "completed"],

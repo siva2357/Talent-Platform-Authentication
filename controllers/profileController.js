@@ -576,3 +576,350 @@ exports.verifyPhoneOTP = async (req, res, next) => {
     next(err);
   }
 };
+
+// @desc    Get all completed freelancer profiles (with optional search & filter)
+// @route   GET /api/profile/freelancers
+// @access  Private (Authenticated)
+exports.getAllFreelancers = async (req, res, next) => {
+  try {
+    const { search, category, minRate, maxRate } = req.query;
+    
+    // We only want freelancers whose user profiles are completed
+    const activeFreelancers = await User.find({
+      role: "Freelancer",
+      "registrationDetails.profileCompleted": true
+    }).select("_id status");
+    
+    const statusMap = {};
+    activeFreelancers.forEach(u => {
+      statusMap[u._id.toString()] = u.status;
+    });
+    
+    const activeFreelancerIds = activeFreelancers.map(u => u._id);
+    
+    const query = {
+      userId: { $in: activeFreelancerIds }
+    };
+    
+    if (search) {
+      query.$or = [
+        { "basicInformation.fullName": { $regex: search, $options: "i" } },
+        { "basicInformation.professionalHeadline": { $regex: search, $options: "i" } },
+        { "professionalDetails.skills": { $regex: search, $options: "i" } }
+      ];
+    }
+    
+    if (category && category !== "All Categories") {
+      query["professionalDetails.categories"] = category;
+    }
+    
+    if (minRate || maxRate) {
+      query.hourlyRate = {};
+      if (minRate) query.hourlyRate.$gte = Number(minRate);
+      if (maxRate) query.hourlyRate.$lte = Number(maxRate);
+    }
+    
+    const freelancers = await FreelancerProfile.find(query);
+    
+    const freelancersWithContracts = [];
+    for (const freelancer of freelancers) {
+      const contractCount = await Application.countDocuments({
+        freelancerId: freelancer.userId,
+        offerStatus: "accepted"
+      });
+      const plain = freelancer.toObject();
+      plain.contractCount = contractCount;
+      plain.status = statusMap[freelancer.userId.toString()] || "inactive";
+      freelancersWithContracts.push(plain);
+    }
+    
+    res.status(200).json({
+      success: true,
+      freelancers: freelancersWithContracts
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get a single freelancer profile by ID
+// @route   GET /api/profile/freelancer/:id
+// @access  Private (Authenticated)
+exports.getFreelancerProfileById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    let profile = await FreelancerProfile.findById(id);
+    if (!profile) {
+      profile = await FreelancerProfile.findOne({ userId: id });
+    }
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Freelancer profile not found" });
+    }
+    
+    const contractCount = await Application.countDocuments({
+      freelancerId: profile.userId,
+      offerStatus: "accepted"
+    });
+    
+    const freelancerUser = await User.findById(profile.userId).select("status");
+    const plainProfile = profile.toObject();
+    plainProfile.contractCount = contractCount;
+    plainProfile.status = freelancerUser ? freelancerUser.status : "inactive";
+    
+    res.status(200).json({
+      success: true,
+      profile: plainProfile
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Save a freelancer profile to client's bookmarks
+// @route   POST /api/profile/save-talent/:id
+// @access  Private (Client only)
+exports.saveTalent = async (req, res, next) => {
+  try {
+    const clientUser = req.user;
+    if (clientUser.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Only clients can save talents." });
+    }
+    
+    const freelancerProfileId = req.params.id;
+    
+    const freelancerProfile = await FreelancerProfile.findById(freelancerProfileId);
+    if (!freelancerProfile) {
+      return res.status(404).json({ success: false, message: "Freelancer profile not found" });
+    }
+    
+    let clientProfile = await ClientProfile.findOne({ userId: clientUser._id });
+    if (!clientProfile) {
+      return res.status(404).json({ success: false, message: "Client profile not found. Please complete profile first." });
+    }
+    
+    if (clientProfile.savedTalents.includes(freelancerProfileId)) {
+      return res.status(400).json({ success: false, message: "Talent already saved." });
+    }
+    
+    clientProfile.savedTalents.push(freelancerProfileId);
+    await clientProfile.save();
+    
+    res.status(200).json({
+      success: true,
+      message: "Talent saved successfully.",
+      savedTalents: clientProfile.savedTalents
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Remove a freelancer profile from client's bookmarks
+// @route   DELETE /api/profile/unsave-talent/:id
+// @access  Private (Client only)
+exports.unsaveTalent = async (req, res, next) => {
+  try {
+    const clientUser = req.user;
+    if (clientUser.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Only clients can manage saved talents." });
+    }
+    
+    const freelancerProfileId = req.params.id;
+    
+    let clientProfile = await ClientProfile.findOne({ userId: clientUser._id });
+    if (!clientProfile) {
+      return res.status(404).json({ success: false, message: "Client profile not found." });
+    }
+    
+    clientProfile.savedTalents = clientProfile.savedTalents.filter(id => id.toString() !== freelancerProfileId.toString());
+    await clientProfile.save();
+    
+    res.status(200).json({
+      success: true,
+      message: "Talent unsaved successfully.",
+      savedTalents: clientProfile.savedTalents
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Get all saved talents for logged-in client
+// @route   GET /api/profile/saved-talents
+// @access  Private (Client only)
+exports.getSavedTalents = async (req, res, next) => {
+  try {
+    const clientUser = req.user;
+    if (clientUser.role !== "Client") {
+      return res.status(403).json({ success: false, message: "Access denied." });
+    }
+    
+    const clientProfile = await ClientProfile.findOne({ userId: clientUser._id })
+      .populate("savedTalents");
+      
+    if (!clientProfile) {
+      return res.status(404).json({ success: false, message: "Client profile not found." });
+    }
+    
+    const savedTalentsWithContracts = [];
+    if (clientProfile.savedTalents) {
+      for (const freelancer of clientProfile.savedTalents) {
+        const contractCount = await Application.countDocuments({
+          freelancerId: freelancer.userId,
+          offerStatus: "accepted"
+        });
+        const freelancerUser = await User.findById(freelancer.userId).select("status");
+        const plain = freelancer.toObject();
+        plain.contractCount = contractCount;
+        plain.status = freelancerUser ? freelancerUser.status : "inactive";
+        savedTalentsWithContracts.push(plain);
+      }
+    }
+    
+    res.status(200).json({
+      success: true,
+      savedTalents: savedTalentsWithContracts
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Add a project to freelancer's portfolio
+// @route   POST /api/profile/portfolio
+// @access  Private (Freelancer only)
+exports.addPortfolioItem = async (req, res, next) => {
+  try {
+    const freelancerUser = req.user;
+    if (freelancerUser.role !== "Freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can manage portfolios." });
+    }
+    
+    const { title, description, role, projectType, tags, media, projectUrl } = req.body;
+    
+    if (!title) {
+      return res.status(400).json({ success: false, message: "Project title is required." });
+    }
+    
+    const profile = await FreelancerProfile.findOne({ userId: freelancerUser._id });
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Freelancer profile not found." });
+    }
+    
+    const newItem = {
+      title,
+      description: description || "",
+      role: role || "",
+      projectType: projectType || "",
+      tags: tags || [],
+      media: media || [],
+      projectUrl: projectUrl || ""
+    };
+    
+    if (!profile.professionalDetails) {
+      profile.professionalDetails = { categories: [], skills: [], portfolio: [] };
+    }
+    if (!profile.professionalDetails.portfolio) {
+      profile.professionalDetails.portfolio = [];
+    }
+    
+    profile.professionalDetails.portfolio.push(newItem);
+    await profile.save();
+    
+    const addedItem = profile.professionalDetails.portfolio[profile.professionalDetails.portfolio.length - 1];
+    
+    res.status(201).json({
+      success: true,
+      message: "Portfolio item added successfully.",
+      item: addedItem,
+      portfolio: profile.professionalDetails.portfolio
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Update a project in freelancer's portfolio
+// @route   PUT /api/profile/portfolio/:itemId
+// @access  Private (Freelancer only)
+exports.updatePortfolioItem = async (req, res, next) => {
+  try {
+    const freelancerUser = req.user;
+    if (freelancerUser.role !== "Freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can manage portfolios." });
+    }
+    
+    const { itemId } = req.params;
+    const { title, description, role, projectType, tags, media, projectUrl } = req.body;
+    
+    const profile = await FreelancerProfile.findOne({ userId: freelancerUser._id });
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Freelancer profile not found." });
+    }
+    
+    if (!profile.professionalDetails || !profile.professionalDetails.portfolio) {
+      return res.status(404).json({ success: false, message: "Portfolio is empty." });
+    }
+    
+    const item = profile.professionalDetails.portfolio.id(itemId);
+    if (!item) {
+      return res.status(404).json({ success: false, message: "Portfolio item not found." });
+    }
+    
+    if (title !== undefined) item.title = title;
+    if (description !== undefined) item.description = description;
+    if (role !== undefined) item.role = role;
+    if (projectType !== undefined) item.projectType = projectType;
+    if (tags !== undefined) item.tags = tags;
+    if (media !== undefined) item.media = media;
+    if (projectUrl !== undefined) item.projectUrl = projectUrl;
+    
+    await profile.save();
+    
+    res.status(200).json({
+      success: true,
+      message: "Portfolio item updated successfully.",
+      item,
+      portfolio: profile.professionalDetails.portfolio
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Delete a project from freelancer's portfolio
+// @route   DELETE /api/profile/portfolio/:itemId
+// @access  Private (Freelancer only)
+exports.deletePortfolioItem = async (req, res, next) => {
+  try {
+    const freelancerUser = req.user;
+    if (freelancerUser.role !== "Freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can manage portfolios." });
+    }
+    
+    const { itemId } = req.params;
+    
+    const profile = await FreelancerProfile.findOne({ userId: freelancerUser._id });
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Freelancer profile not found." });
+    }
+    
+    if (!profile.professionalDetails || !profile.professionalDetails.portfolio) {
+      return res.status(404).json({ success: false, message: "Portfolio is empty." });
+    }
+    
+    profile.professionalDetails.portfolio = profile.professionalDetails.portfolio.filter(
+      item => item._id.toString() !== itemId
+    );
+    
+    await profile.save();
+    
+    res.status(200).json({
+      success: true,
+      message: "Portfolio item deleted successfully.",
+      portfolio: profile.professionalDetails.portfolio
+    });
+  } catch (err) {
+    next(err);
+  }
+};

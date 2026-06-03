@@ -11,11 +11,23 @@ exports.createContract = async (req, res) => {
       return res.status(403).json({ success: false, message: "Only clients can access this feature" });
     }
     const clientId = req.userId;
-    const { contractTitle, budgetType, estimatedBudget, contractStartDate, contractEndDate, contractDescription } = req.body;
-    if (new Date(contractEndDate) < new Date(contractStartDate)) {
+    const { contractTitle, budgetType, estimatedBudget, contractStartDate, contractEndDate, contractDescription, contractType, contractSubject } = req.body;
+    
+    const startDateObj = new Date(contractStartDate);
+    const endDateObj = new Date(contractEndDate);
+    if (endDateObj < startDateObj) {
       return res.status(400).json({
         success: false,
         message: "End date must be greater than start date"
+      });
+    }
+
+    const minEndDate = new Date(startDateObj);
+    minEndDate.setMonth(minEndDate.getMonth() + 2);
+    if (endDateObj < minEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Contract duration must be at least 2 months"
       });
     }
 
@@ -26,7 +38,9 @@ exports.createContract = async (req, res) => {
       estimatedBudget,
       contractStartDate,
       contractEndDate,
-      contractDescription
+      contractDescription,
+      contractType,
+      contractSubject
     });
 
     return res.status(201).json({
@@ -144,6 +158,8 @@ exports.updateContract = async (req, res) => {
       contractStartDate,
       contractEndDate,
       contractDescription,
+      contractType,
+      contractSubject,
       status
     } = req.body;
 
@@ -165,6 +181,25 @@ exports.updateContract = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Contract not found"
+      });
+    }
+
+    const newStartDate = contractStartDate !== undefined ? new Date(contractStartDate) : new Date(contract.contractStartDate);
+    const newEndDate = contractEndDate !== undefined ? new Date(contractEndDate) : new Date(contract.contractEndDate);
+    
+    if (newEndDate < newStartDate) {
+      return res.status(400).json({
+        success: false,
+        message: "End date must be greater than start date"
+      });
+    }
+    
+    const minAllowedEndDate = new Date(newStartDate);
+    minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + 2);
+    if (newEndDate < minAllowedEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Contract duration must be at least 2 months"
       });
     }
 
@@ -191,6 +226,16 @@ exports.updateContract = async (req, res) => {
     if (contractDescription !== undefined) {
       contract.contractDescription = contractDescription;
     }
+
+    if (contractType !== undefined) {
+      contract.contractType = contractType;
+    }
+
+    if (contractSubject !== undefined) {
+      contract.contractSubject = contractSubject;
+    }
+
+
 
     if (status !== undefined) {
       contract.status = status;
@@ -366,18 +411,22 @@ exports.getAllContracts = async (req, res) => {
             freelancerId.toString()
         );
 
+        const clientType = clientProfile?.professionalDetails?.clientType || "";
+        const isIndividual = clientType === "Individual";
         return {
           _id: contract._id,
           clientName: contract.clientId?.registrationDetails?.fullName || "",
-          clientType: clientProfile?.professionalDetails?.clientType || "",
-          website: clientProfile?.professionalDetails?.website || "",
-          industry: clientProfile?.professionalDetails?.industry || "",
+          clientType,
+          website: isIndividual ? "" : (clientProfile?.professionalDetails?.website || ""),
+          industry: isIndividual ? "" : (clientProfile?.professionalDetails?.industry || ""),
           contractTitle: contract.contractTitle,
           budgetType: contract.budgetType,
           estimatedBudget: contract.estimatedBudget,
           contractDescription: contract.contractDescription,
           contractStartDate: contract.contractStartDate,
           contractEndDate: contract.contractEndDate,
+          contractType: contract.contractType || "",
+          contractSubject: contract.contractSubject || "",
           totalDuration,
           status: contract.status,
           totalApplicants: contract.applicants?.length || 0,
@@ -582,10 +631,10 @@ exports.getSingleContract = async (req, res) => {
           clientProfile?.professionalDetails?.clientType || "",
 
         website:
-          clientProfile?.professionalDetails?.website || "",
+          (clientProfile?.professionalDetails?.clientType === "Individual") ? "" : (clientProfile?.professionalDetails?.website || ""),
 
         industry:
-          clientProfile?.professionalDetails?.industry || "",
+          (clientProfile?.professionalDetails?.clientType === "Individual") ? "" : (clientProfile?.professionalDetails?.industry || ""),
 
         contractTitle:
           contract.contractTitle,
@@ -604,6 +653,12 @@ exports.getSingleContract = async (req, res) => {
 
         contractEndDate:
           contract.contractEndDate,
+
+        contractType:
+          contract.contractType || "",
+
+        contractSubject:
+          contract.contractSubject || "",
 
         totalDuration,
 

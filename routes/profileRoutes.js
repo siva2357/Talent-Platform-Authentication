@@ -1,6 +1,21 @@
 const express = require("express");
 const { protect } = require("../middleware/authMiddleware");
-const { completeProfile, getMyProfile, updateProfile, deleteProfile, sendPhoneOTP, verifyPhoneOTP } = require("../controllers/profileController");
+const {
+  completeProfile,
+  getMyProfile,
+  updateProfile,
+  deleteProfile,
+  sendPhoneOTP,
+  verifyPhoneOTP,
+  getAllFreelancers,
+  getFreelancerProfileById,
+  saveTalent,
+  unsaveTalent,
+  getSavedTalents,
+  addPortfolioItem,
+  updatePortfolioItem,
+  deletePortfolioItem
+} = require("../controllers/profileController");
 const upload = require("../middleware/upload");
 
 const router = express.Router();
@@ -12,5 +27,19 @@ router.delete("/delete", protect, deleteProfile);
 
 router.post("/phone/send-otp", protect, sendPhoneOTP);
 router.post("/phone/verify-otp", protect, verifyPhoneOTP);
+
+// Freelancer search & detail (Client & Admin / General authenticated)
+router.get("/freelancers", protect, getAllFreelancers);
+router.get("/freelancer/:id", protect, getFreelancerProfileById);
+
+// Bookmarks/Saved Talents (Clients only)
+router.post("/save-talent/:id", protect, saveTalent);
+router.delete("/unsave-talent/:id", protect, unsaveTalent);
+router.get("/saved-talents", protect, getSavedTalents);
+
+// Portfolio Management (Freelancers only)
+router.post("/portfolio", protect, addPortfolioItem);
+router.put("/portfolio/:itemId", protect, updatePortfolioItem);
+router.delete("/portfolio/:itemId", protect, deletePortfolioItem);
 
 module.exports = router;

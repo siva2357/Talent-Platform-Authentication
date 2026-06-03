@@ -18,7 +18,19 @@ const freelancerProfileSchema = new mongoose.Schema({
   },
   professionalDetails: {
     categories: { type: [String], default: [] },
-    skills: { type: [String], default: [] }
+    skills: { type: [String], default: [] },
+    portfolio: [{
+      title: { type: String, required: true },
+      description: { type: String, default: "" },
+      role: { type: String, default: "" },
+      projectType: { type: String, default: "" },
+      tags: { type: [String], default: [] },
+      media: [{
+        mediaType: { type: String, enum: ["image", "video"], default: "image" },
+        url: { type: String, default: "" }
+      }],
+      projectUrl: { type: String, default: "" }
+    }]
   },
   location: {
     country: { type: String, default: "" },

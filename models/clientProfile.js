@@ -40,6 +40,10 @@ const clientProfileSchema = new mongoose.Schema({
   languages: [{
     language: { type: String, default: "" },
     proficiency: { type: String, default: "" }
+  }],
+  savedTalents: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "FreelancerProfile"
   }]
 }, { timestamps: true });
 
