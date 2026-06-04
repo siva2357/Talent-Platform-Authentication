@@ -1252,6 +1252,11 @@ exports.getContractApplicants = async (req, res) => {
 
               });
 
+            const contractCount = await Application.countDocuments({
+              freelancerId: application.freelancerId?._id,
+              offerStatus: "accepted"
+            });
+
             return {
 
               // ========================================
@@ -1291,6 +1296,9 @@ exports.getContractApplicants = async (req, res) => {
 
                 _id:
                   application.freelancerId?._id || null,
+
+                contractCount: contractCount || 0,
+                hourlyRate: freelancerProfile?.hourlyRate || 0,
 
                 // ========================================
                 // Basic Information

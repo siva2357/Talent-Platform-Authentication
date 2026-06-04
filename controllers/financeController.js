@@ -158,7 +158,7 @@ exports.createRazorpayOrder = async (req, res) => {
 // ==========================================
 // CLIENT: Verify Razorpay Payment
 // POST /api/finance/razorpay/verify
-// Body: { razorpay_payment_id, razorpay_order_id, razorpay_signature, amount } (amount in USD)
+// Body: { razorpay_payment_id, razorpay_order_id, razorpay_signature, amount, contractId } (amount in USD)
 // ==========================================
 exports.verifyRazorpayPayment = async (req, res) => {
   try {
@@ -166,7 +166,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
       return res.status(403).json({ success: false, message: "Only clients can deposit funds" });
     }
 
-    const { razorpay_payment_id, razorpay_order_id, razorpay_signature, amount } = req.body;
+    const { razorpay_payment_id, razorpay_order_id, razorpay_signature, amount, contractId } = req.body;
     const userId = req.userId;
 
     if (!amount || amount <= 0) {
@@ -193,25 +193,50 @@ exports.verifyRazorpayPayment = async (req, res) => {
       return res.status(400).json({ success: false, message: "Payment verification failed. Invalid signature." });
     }
 
-    // Add funds to Client's user account
+    // Add funds or fund contract independently
     const user = await User.findById(userId);
-    user.balance = (user.balance || 0) + parseFloat(amount);
-    await user.save();
-
-    // Log the transaction
     const txnRef = razorpay_payment_id || `txn_mock_${Math.random().toString(36).substring(2, 11)}`;
-    await Transaction.create({
-      userId,
-      type: "Deposit",
-      amount: parseFloat(amount),
-      status: "Paid",
-      description: `Deposited $${amount} to wallet via Razorpay`,
-      referenceId: txnRef
-    });
+
+    if (contractId) {
+      const Contract = require("../models/contract");
+      const contract = await Contract.findById(contractId);
+      if (contract) {
+        // Update contract spent ledger (leaves user wallet balance and contract status independent)
+        contract.spent = (contract.spent || 0) + parseFloat(amount);
+        await contract.save();
+
+        // Log the Payment Released transaction
+        await Transaction.create({
+          userId,
+          contractId,
+          type: "Payment Released",
+          amount: parseFloat(amount),
+          status: "Paid",
+          description: `Funded contract: ${contract.contractTitle}`,
+          referenceId: `pay_${txnRef}`
+        });
+      } else {
+        return res.status(404).json({ success: false, message: "Contract not found" });
+      }
+    } else {
+      // Wallet Deposit: credit client wallet balance
+      user.balance = (user.balance || 0) + parseFloat(amount);
+      await user.save();
+
+      // Log the Deposit transaction
+      await Transaction.create({
+        userId,
+        type: "Deposit",
+        amount: parseFloat(amount),
+        status: "Paid",
+        description: `Deposited $${amount} to wallet via Razorpay`,
+        referenceId: txnRef
+      });
+    }
 
     return res.status(200).json({
       success: true,
-      message: "Funds successfully added to your wallet!",
+      message: contractId ? "Contract successfully funded!" : "Funds successfully added to your wallet!",
       balance: user.balance
     });
   } catch (error) {
@@ -311,6 +336,96 @@ exports.getInvoices = async (req, res) => {
       invoices
     });
   } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ==========================================
+// CLIENT: Download Transaction Invoice PDF
+// GET /api/finance/invoices/:id/download
+// ==========================================
+exports.downloadInvoicePdf = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.userId;
+
+    const Transaction = require("../models/transaction");
+    const User = require("../models/user");
+    const ejs = require("ejs");
+    const puppeteer = require("puppeteer");
+    const path = require("path");
+
+    // Find the transaction
+    const txn = await Transaction.findById(id).populate("contractId");
+    if (!txn) {
+      return res.status(404).json({ success: false, message: "Transaction not found" });
+    }
+
+    // Ensure the client requesting is the owner of this transaction
+    if (txn.userId.toString() !== userId.toString()) {
+      return res.status(403).json({ success: false, message: "Unauthorized access to transaction" });
+    }
+
+    const client = await User.findById(userId);
+    if (!client) {
+      return res.status(404).json({ success: false, message: "Client not found" });
+    }
+
+    const formatDate = (dateVal) => {
+      if (!dateVal) return "N/A";
+      const d = new Date(dateVal);
+      return d.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+    };
+
+    // Prepare EJS template variables
+    const data = {
+      invoiceNumber: `INV-${txn._id.toString().substring(0, 8).toUpperCase()}`,
+      invoiceDate: formatDate(new Date()),
+      paymentDate: formatDate(txn.createdAt),
+      referenceId: txn.referenceId,
+      clientName: client.fullName || client.registrationDetails?.fullName || "Client",
+      clientEmail: client.email || "client@talenthub.com",
+      contractTitle: txn.contractId?.contractTitle || "Direct Escrow Deposit",
+      contractType: txn.contractId?.contractType || "N/A",
+      contractSubject: txn.contractId?.contractSubject || "N/A",
+      amountPaid: txn.amount.toFixed(2)
+    };
+
+    // Render EJS HTML
+    const templatePath = path.join(__dirname, "..", "views", "contract-invoice.ejs");
+    const html = await ejs.renderFile(templatePath, data);
+
+    // Launch Puppeteer to generate PDF
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      margin: {
+        top: "10mm",
+        bottom: "10mm",
+        left: "10mm",
+        right: "10mm"
+      },
+      printBackground: true
+    });
+
+    await browser.close();
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Invoice_${data.invoiceNumber}.pdf"`);
+    res.end(pdfBuffer, "binary");
+    return;
+
+  } catch (error) {
+    console.error("Invoice PDF generation error:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };
