@@ -297,8 +297,7 @@ exports.getAttendanceOverview = async (req, res) => {
           checkIn: formatTime(s.checkIn),
           checkOut: formatTime(s.checkOut),
           hours: calcHrs,
-          location: s.location,
-          faceImage: s.faceImage
+          location: s.location
         };
       });
 

@@ -390,16 +390,16 @@
                 </thead>
                 <tbody>
                     <tr>
-                        <td>Total Budget Funded by Client</td>
-                        <td class="blue-text">$<%= amountPaid %></td>
-                    </tr>
-                    <tr>
-                        <td>Talent Hub Service Fee (0%)</td>
-                        <td>-$0.00</td>
-                    </tr>
-                    <tr>
-                        <td>Net Amount Transferred to Escrow</td>
+                        <td>Base Contract Budget / Phase Amount</td>
                         <td>$<%= amountPaid %></td>
+                    </tr>
+                    <tr>
+                        <td>Talent Hub Platform Fee (10%)</td>
+                        <td>$<%= platformFee %></td>
+                    </tr>
+                    <tr>
+                        <td>Total Amount Charged</td>
+                        <td class="blue-text">$<%= totalCharged %></td>
                     </tr>
                 </tbody>
             </table>
@@ -407,11 +407,11 @@
             <!-- Highlight Banner -->
             <div class="highlight-banner">
                 <div class="banner-left">
-                    <p>Amount Paid by Client</p>
-                    <h2>$<%= amountPaid %> USD</h2>
+                    <p>Total Charged</p>
+                    <h2>$<%= totalCharged %> USD</h2>
                 </div>
                 <div class="banner-right">
-                    This payment statement confirms that the client successfully funded the contract budget through Talent Hub. The funds are held securely in escrow and will be released to the freelancer upon successful milestone approvals.
+                    This payment statement confirms that the client successfully funded the contract budget through Talent Hub, including the 10% platform service fee. The base budget is held securely in escrow and will be released to the freelancer upon successful milestone approvals.
                 </div>
             </div>
 

@@ -204,9 +204,26 @@ exports.getDashboardStats = async (req, res) => {
         applicationStatus: "application received"
       });
 
-      // 4. Total Spent
+      // 4. Total Spent & Escrow Balance calculated dynamically from ContractDiary phases
       const clientContracts = await Contract.find({ clientId: userId });
-      const totalSpent = clientContracts.reduce((acc, c) => acc + (c.spent || 0), 0);
+      const clientDiaries = await ContractDiary.find({ clientId: userId });
+
+      const diarySpentMap = new Map();
+      for (const diary of clientDiaries) {
+        const spentVal = diary.phases
+          .filter(p => p.status === "approved")
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        diarySpentMap.set(diary.contractId.toString(), spentVal);
+      }
+
+      const totalBudget = clientContracts.reduce((acc, c) => acc + (c.estimatedBudget || 0), 0);
+      const totalSpent = clientContracts.reduce((acc, c) => {
+        const contractSpent = diarySpentMap.has(c._id.toString())
+          ? diarySpentMap.get(c._id.toString())
+          : 0;
+        return acc + contractSpent;
+      }, 0);
+      const escrowBalance = Math.max(0, totalBudget - totalSpent);
 
       // 5. Recent Activities for Client
       const rawActivities = [];
@@ -301,7 +318,8 @@ exports.getDashboardStats = async (req, res) => {
         profilePhoto,
         stats: [
           { label: "Active Contracts", value: activeContractsCount.toString(), icon: "bi-briefcase", color: "primary" },
-          { label: "Total Spent", value: `$${totalSpent.toLocaleString()}`, icon: "bi-currency-dollar", color: "success" },
+          { label: "Total Spent", value: `$${totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "bi-currency-dollar", color: "danger" },
+          { label: "Escrow Balance", value: `$${escrowBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "bi-shield-check", color: "success" },
           { label: "Pending Proposals", value: pendingProposalsCount.toString(), icon: "bi-file-earmark-text", color: "warning" }
         ],
         activities: sortedActivities.length > 0 ? sortedActivities : [

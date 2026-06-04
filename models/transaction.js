@@ -33,6 +33,10 @@ const transactionSchema = new mongoose.Schema(
     referenceId: {
       type: String,
       required: true
+    },
+    platformFee: {
+      type: Number,
+      default: 0
     }
   },
   { timestamps: true }

@@ -21,6 +21,7 @@ router.use("/change-password", changePasswordRoutes);
 router.use("/forgot-password", forgotPasswordRoutes);
 router.use("/uploads", uploadRoutes);
 router.use("/notifications", notificationRoutes);
+router.use("/support", require("./supportRoutes"));
 
 router.use("/contracts", contractRoutes);
 router.use("/applications", applicationRoutes);

@@ -36,6 +36,9 @@ const phaseSchema = new mongoose.Schema({
   // Files attached by freelancer as proof of work
   attachments: [attachmentSchema],
 
+  // Files attached by client as requirements
+  clientAttachments: [attachmentSchema],
+
   approvedAt: { type: Date, default: null },
   submittedAt: { type: Date, default: null }
 

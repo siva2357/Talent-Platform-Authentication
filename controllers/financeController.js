@@ -41,24 +41,27 @@ exports.getFinanceStats = async (req, res) => {
       // 1. Available balance
       const totalBalance = user.balance || 0;
 
-      // 2. Total Lifetime Spent
-      const spentTxns = await Transaction.find({ userId, type: "Payment Released" });
-      const totalSpent = spentTxns.reduce((sum, txn) => sum + txn.amount, 0);
+      // 2. Total Lifetime Spent & Escrow Balance (calculated dynamically from ContractDiary phases)
+      const Contract = require("../models/contract");
+      const clientContracts = await Contract.find({ clientId: userId });
+      const clientDiaries = await ContractDiary.find({ clientId: userId });
 
-      // 3. Upcoming Milestones / Escrowed Funds (Funded but not yet approved/released phases)
-      const diaries = await ContractDiary.find({ clientId: userId });
-      let upcomingPayments = 0;
-      diaries.forEach(d => {
-        d.phases.forEach(p => {
-          // If the phase is pending, in-progress, submitted, or changes-requested,
-          // it means the escrow has been funded from the client but not released to the freelancer yet
-          if (p.status !== "approved" && p.status !== "pending") {
-            // Note: Since we deduct the amount from client balance when adding/initializing funded phases,
-            // we count the funded active phases.
-            upcomingPayments += (p.amount || 0);
-          }
-        });
-      });
+      const diarySpentMap = new Map();
+      for (const diary of clientDiaries) {
+        const spentVal = diary.phases
+          .filter(p => p.status === "approved")
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        diarySpentMap.set(diary.contractId.toString(), spentVal);
+      }
+
+      const totalBudget = clientContracts.reduce((sum, c) => sum + (c.estimatedBudget || 0), 0);
+      const totalSpent = clientContracts.reduce((sum, c) => {
+        const contractSpent = diarySpentMap.has(c._id.toString())
+          ? diarySpentMap.get(c._id.toString())
+          : 0;
+        return sum + contractSpent;
+      }, 0);
+      const upcomingPayments = Math.max(0, totalBudget - totalSpent);
 
       return res.status(200).json({
         success: true,
@@ -201,16 +204,19 @@ exports.verifyRazorpayPayment = async (req, res) => {
       const Contract = require("../models/contract");
       const contract = await Contract.findById(contractId);
       if (contract) {
-        // Update contract spent ledger (leaves user wallet balance and contract status independent)
-        contract.spent = (contract.spent || 0) + parseFloat(amount);
-        await contract.save();
+        // The amount passed contains the 10% platform fee.
+        // E.g. If client paid 550, then base contract fund is 500, fee is 50.
+        const grossAmount = parseFloat(amount);
+        const baseAmount = Math.round((grossAmount / 1.10) * 100) / 100;
+        const platformFee = Math.round((grossAmount - baseAmount) * 100) / 100;
 
-        // Log the Payment Released transaction
+        // Log the Escrow Funded transaction (funds are held in escrow, not spent yet)
         await Transaction.create({
           userId,
           contractId,
-          type: "Payment Released",
-          amount: parseFloat(amount),
+          type: "Escrow Funded",
+          amount: baseAmount,
+          platformFee: platformFee,
           status: "Paid",
           description: `Funded contract: ${contract.contractTitle}`,
           referenceId: `pay_${txnRef}`
@@ -228,6 +234,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
         userId,
         type: "Deposit",
         amount: parseFloat(amount),
+        platformFee: 0,
         status: "Paid",
         description: `Deposited $${amount} to wallet via Razorpay`,
         referenceId: txnRef
@@ -273,13 +280,18 @@ exports.withdrawFunds = async (req, res) => {
 
     // Log Transaction
     const referenceId = `WDN-${Math.floor(100000 + Math.random() * 900000)}`;
+    const grossAmount = parseFloat(amount);
+    const platformFee = Math.round((grossAmount * 0.10) * 100) / 100;
+    const netReceived = Math.round((grossAmount - platformFee) * 100) / 100;
+
     const transaction = await Transaction.create({
       userId,
       contractId: contractId || null,
       type: "Withdrawal",
-      amount: parseFloat(amount),
+      amount: grossAmount,
+      platformFee: platformFee,
       status: "Processed",
-      description: `Withdrew $${amount} from balance to local bank account`,
+      description: `Withdrew $${grossAmount.toFixed(2)} from balance to local bank account (Net received: $${netReceived.toFixed(2)} after 10% platform fee)`,
       referenceId
     });
 
@@ -392,7 +404,9 @@ exports.downloadInvoicePdf = async (req, res) => {
       contractTitle: txn.contractId?.contractTitle || "Direct Escrow Deposit",
       contractType: txn.contractId?.contractType || "N/A",
       contractSubject: txn.contractId?.contractSubject || "N/A",
-      amountPaid: txn.amount.toFixed(2)
+      amountPaid: txn.amount.toFixed(2),
+      platformFee: (txn.platformFee || 0).toFixed(2),
+      totalCharged: ((txn.amount || 0) + (txn.platformFee || 0)).toFixed(2)
     };
 
     // Render EJS HTML
@@ -429,3 +443,103 @@ exports.downloadInvoicePdf = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ==========================================
+// FREELANCER: Download Payment Statement PDF
+// GET /api/finance/payments/:contractId/download
+// ==========================================
+exports.downloadPaymentStatementPdf = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const userId = req.userId;
+
+    const ContractDiary = require("../models/contractDiary");
+    const User = require("../models/user");
+    const FreelancerProfile = require("../models/freelancerProfile");
+    const ejs = require("ejs");
+    const puppeteer = require("puppeteer");
+    const path = require("path");
+
+    // Find the contract diary and populate related details
+    const diary = await ContractDiary.findOne({ contractId, freelancerId: userId })
+      .populate("contractId")
+      .populate("clientId")
+      .populate("freelancerId");
+
+    if (!diary) {
+      return res.status(404).json({ success: false, message: "Contract diary not found or unauthorized access" });
+    }
+
+    const freelancerProfile = await FreelancerProfile.findOne({ userId });
+
+    const formatDate = (dateVal) => {
+      if (!dateVal) return "N/A";
+      const d = new Date(dateVal);
+      return d.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric"
+      });
+    };
+
+    // Calculate dynamic values
+    const approvedPhases = (diary.phases || []).filter(p => p.status === "approved");
+    const amountPaid = approvedPhases.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const serviceFee = Math.round((amountPaid * 0.15) * 100) / 100;
+    const earnings = Math.round((amountPaid - serviceFee) * 100) / 100;
+
+    const projectDuration = `${formatDate(diary.contractId?.contractStartDate)} - ${formatDate(diary.contractId?.contractEndDate)}`;
+
+    // Prepare EJS template variables for contract-payment.ejs
+    const data = {
+      date: formatDate(new Date()),
+      contractId: diary.contractId?._id?.toString() || contractId,
+      freelancerName: diary.freelancerId?.registrationDetails?.fullName || "Freelancer",
+      freelancerTitle: freelancerProfile?.basicInformation?.professionalHeadline || "Freelancer",
+      freelancerLocation: freelancerProfile?.location?.city && freelancerProfile?.location?.country
+        ? `${freelancerProfile.location.city}, ${freelancerProfile.location.country}`
+        : "Remote",
+      clientName: diary.clientId?.registrationDetails?.fullName || "Client",
+      contractTitle: diary.contractId?.contractTitle || "Contract Project",
+      contractType: diary.contractId?.contractType || "N/A",
+      projectDuration,
+      amountPaid: amountPaid.toFixed(2),
+      serviceFee: serviceFee.toFixed(2),
+      earnings: earnings.toFixed(2)
+    };
+
+    // Render EJS HTML
+    const templatePath = path.join(__dirname, "..", "views", "contract-payment.ejs");
+    const html = await ejs.renderFile(templatePath, data);
+
+    // Launch Puppeteer to generate PDF
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"]
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    const pdfBuffer = await page.pdf({
+      format: "A4",
+      margin: {
+        top: "10mm",
+        bottom: "10mm",
+        left: "10mm",
+        right: "10mm"
+      },
+      printBackground: true
+    });
+
+    await browser.close();
+
+    res.setHeader("Content-Type", "application/pdf");
+    res.setHeader("Content-Disposition", `attachment; filename="Payment_Statement_${data.contractId}.pdf"`);
+    res.end(pdfBuffer, "binary");
+    return;
+
+  } catch (error) {
+    console.error("Payment statement PDF generation error:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+

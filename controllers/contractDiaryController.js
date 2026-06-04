@@ -9,7 +9,7 @@ const Contract      = require("../models/contract");
 // ============================================================
 async function getDiaryAndVerify(diaryId, userId, role) {
   const diary = await ContractDiary.findById(diaryId)
-    .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack")
+    .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent")
     .populate("clientId",   "registrationDetails.fullName registrationDetails.email")
     .populate("freelancerId", "registrationDetails.fullName registrationDetails.email");
 
@@ -55,31 +55,14 @@ exports.initializeDiary = async (req, res) => {
     if (existing)
       return res.status(409).json({ success: false, message: "A diary already exists for this contract", diaryId: existing._id });
 
-    // Validate client wallet balance
-    const totalEscrowAmount = (phases || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-    const client = await User.findById(req.userId);
-    if ((client.balance || 0) < totalEscrowAmount) {
-      return res.status(400).json({ success: false, message: `Insufficient wallet balance ($${client.balance.toFixed(2)}) to fund these initial phases (requires $${totalEscrowAmount.toFixed(2)}). Please deposit funds to your wallet first.` });
-    }
+    const baseEscrowAmount = (phases || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+    const contractBudget = application.contractId?.estimatedBudget || 0;
 
-    // Deduct from client balance
-    client.balance = (client.balance || 0) - totalEscrowAmount;
-    await client.save();
-
-    // Log transaction details
-    for (const p of phases || []) {
-      const phaseAmount = p.amount || 0;
-      if (phaseAmount > 0) {
-        await Transaction.create({
-          userId: req.userId,
-          contractId: application.contractId._id,
-          type: "Escrow Funded",
-          amount: phaseAmount,
-          status: "Paid",
-          description: `Escrow funded for phase: "${p.name}"`,
-          referenceId: `ESC-${Math.floor(100000 + Math.random() * 900000)}`
-        });
-      }
+    if (baseEscrowAmount > contractBudget) {
+      return res.status(400).json({
+        success: false,
+        message: `Initial phases total budget ($${baseEscrowAmount.toFixed(2)}) exceeds overall contract budget ($${contractBudget.toFixed(2)})`
+      });
     }
 
     const diary = await ContractDiary.create({
@@ -116,35 +99,48 @@ exports.addPhase = async (req, res) => {
     const { diary, error, status } = await getDiaryAndVerify(req.params.id, req.userId, "Client");
     if (error) return res.status(status).json({ success: false, message: error });
 
-    const { name, description, deadline, amount } = req.body;
+    const { name, description, deadline, amount, clientAttachments } = req.body;
     if (!name) return res.status(400).json({ success: false, message: "Phase name is required" });
 
     const phaseAmount = parseFloat(amount) || 0;
 
-    // Check balance
-    const client = await User.findById(req.userId);
-    if ((client.balance || 0) < phaseAmount) {
-      return res.status(400).json({ success: false, message: `Insufficient wallet balance ($${client.balance.toFixed(2)}) to fund this phase (requires $${phaseAmount.toFixed(2)}). Please deposit funds to your wallet first.` });
+    // Get contract details
+    const contract = diary.contractId;
+    if (!contract) {
+      return res.status(400).json({ success: false, message: "Associated contract not found" });
     }
 
-    // Deduct from client balance
-    client.balance = (client.balance || 0) - phaseAmount;
-    await client.save();
+    const totalBudget = contract.estimatedBudget || 0;
+    const totalAllocated = diary.phases.reduce((sum, p) => sum + (p.amount || 0), 0);
+    const remainingBudget = Math.round((totalBudget - totalAllocated) * 100) / 100;
 
-    // Log escrow funded transaction
-    if (phaseAmount > 0) {
-      await Transaction.create({
-        userId: req.userId,
-        contractId: diary.contractId._id,
-        type: "Escrow Funded",
-        amount: phaseAmount,
-        status: "Paid",
-        description: `Escrow funded for phase: "${name}"`,
-        referenceId: `ESC-${Math.floor(100000 + Math.random() * 900000)}`
+    if (phaseAmount > remainingBudget) {
+      return res.status(400).json({
+        success: false,
+        message: `Insufficient remaining contract budget ($${remainingBudget.toFixed(2)}) to allocate for this phase ($${phaseAmount.toFixed(2)}). Total contract budget is $${totalBudget.toFixed(2)}.`
       });
     }
 
-    diary.phases.push({ name, description: description || "", deadline: deadline ? new Date(deadline) : undefined, amount: phaseAmount, status: "pending" });
+    const mappedClientAttachments = [];
+    if (Array.isArray(clientAttachments) && clientAttachments.length > 0) {
+      clientAttachments.forEach(a => {
+        mappedClientAttachments.push({
+          fileName: a.fileName,
+          fileUrl:  a.fileUrl,
+          fileType: a.fileType || "",
+          fileSize: a.fileSize || ""
+        });
+      });
+    }
+
+    diary.phases.push({
+      name,
+      description: description || "",
+      deadline: deadline ? new Date(deadline) : undefined,
+      amount: phaseAmount,
+      status: "pending",
+      clientAttachments: mappedClientAttachments
+    });
     await diary.save();
 
     return res.status(200).json({ success: true, message: "Phase added and funded successfully", phases: diary.phases });
@@ -194,6 +190,7 @@ exports.reviewPhase = async (req, res) => {
           contractId: diary.contractId._id,
           type: "Payment Released",
           amount: phaseAmount,
+          platformFee: 0,
           status: "Paid",
           description: `Escrow payment of $${phaseAmount} released for phase: "${phase.name}"`,
           referenceId: `REL-${Math.floor(100000 + Math.random() * 900000)}`
@@ -205,17 +202,22 @@ exports.reviewPhase = async (req, res) => {
           contractId: diary.contractId._id,
           type: "Payment Released",
           amount: phaseAmount,
+          platformFee: 0,
           status: "Paid",
           description: `Escrow payment of $${phaseAmount} received for phase: "${phase.name}"`,
           referenceId: `REL-${Math.floor(100000 + Math.random() * 900000)}`
         });
 
-        // Update contract spent field
-        const contract = await Contract.findById(diary.contractId._id);
-        if (contract) {
-          contract.spent = (contract.spent || 0) + phaseAmount;
-          await contract.save();
-        }
+      }
+
+      // Update contract spent field dynamically based on all approved phases to ensure accuracy and heal historical data
+      const contract = await Contract.findById(diary.contractId._id);
+      if (contract) {
+        const totalApprovedSpent = diary.phases.reduce((sum, p) => {
+          return p.status === "approved" ? sum + (p.amount || 0) : sum;
+        }, 0);
+        contract.spent = totalApprovedSpent;
+        await contract.save();
       }
     } else if (action === "request-changes") {
       phase.status         = "changes-requested";
@@ -249,7 +251,18 @@ exports.getClientDiaries = async (req, res) => {
       .populate("freelancerId", "registrationDetails.fullName registrationDetails.email")
       .sort({ updatedAt: -1 });
 
-    return res.status(200).json({ success: true, diaries });
+    const formattedDiaries = diaries.map(diary => {
+      const diaryObj = diary.toObject();
+      if (diaryObj.contractId) {
+        const spentVal = (diaryObj.phases || [])
+          .filter(p => p.status === "approved")
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        diaryObj.contractId.spent = spentVal;
+      }
+      return diaryObj;
+    });
+
+    return res.status(200).json({ success: true, diaries: formattedDiaries });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -265,11 +278,22 @@ exports.getFreelancerDiaries = async (req, res) => {
       return res.status(403).json({ success: false, message: "Only freelancers can access this" });
 
     const diaries = await ContractDiary.find({ freelancerId: req.userId })
-      .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack")
+      .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent")
       .populate("clientId", "registrationDetails.fullName registrationDetails.email")
       .sort({ updatedAt: -1 });
 
-    return res.status(200).json({ success: true, diaries });
+    const formattedDiaries = diaries.map(diary => {
+      const diaryObj = diary.toObject();
+      if (diaryObj.contractId) {
+        const spentVal = (diaryObj.phases || [])
+          .filter(p => p.status === "approved")
+          .reduce((sum, p) => sum + (p.amount || 0), 0);
+        diaryObj.contractId.spent = spentVal;
+      }
+      return diaryObj;
+    });
+
+    return res.status(200).json({ success: true, diaries: formattedDiaries });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -282,7 +306,7 @@ exports.getFreelancerDiaries = async (req, res) => {
 exports.getDiaryById = async (req, res) => {
   try {
     const diary = await ContractDiary.findById(req.params.id)
-      .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack")
+      .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent")
       .populate("clientId",   "registrationDetails.fullName registrationDetails.email")
       .populate("freelancerId", "registrationDetails.fullName registrationDetails.email");
 
@@ -294,7 +318,15 @@ exports.getDiaryById = async (req, res) => {
 
     if (!isOwner) return res.status(403).json({ success: false, message: "Unauthorized" });
 
-    return res.status(200).json({ success: true, diary });
+    const diaryObj = diary.toObject();
+    if (diaryObj.contractId) {
+      const spentVal = (diaryObj.phases || [])
+        .filter(p => p.status === "approved")
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+      diaryObj.contractId.spent = spentVal;
+    }
+
+    return res.status(200).json({ success: true, diary: diaryObj });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }

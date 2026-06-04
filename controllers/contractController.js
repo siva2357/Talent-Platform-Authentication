@@ -77,13 +77,32 @@ exports.getMyContracts = async (req, res) => {
         createdAt: -1
       });
 
+    const ContractDiary = require("../models/contractDiary");
+    const diaries = await ContractDiary.find({ clientId });
+    const diarySpentMap = new Map();
+    for (const diary of diaries) {
+      const spentVal = diary.phases
+        .filter(p => p.status === "approved")
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+      diarySpentMap.set(diary.contractId.toString(), spentVal);
+    }
+
+    const formattedContracts = contracts.map(contract => {
+      const contractObj = contract.toObject();
+      const dynamicSpent = diarySpentMap.has(contractObj._id.toString())
+        ? diarySpentMap.get(contractObj._id.toString())
+        : 0;
+      contractObj.spent = dynamicSpent;
+      return contractObj;
+    });
+
     return res.status(200).json({
 
       success: true,
 
-      totalContracts: contracts.length,
+      totalContracts: formattedContracts.length,
 
-      contracts
+      contracts: formattedContracts
 
     });
 
@@ -132,9 +151,20 @@ exports.getMyContractById = async (req, res) => {
       });
     }
 
+    const ContractDiary = require("../models/contractDiary");
+    const diary = await ContractDiary.findOne({ contractId: contract._id });
+    const contractObj = contract.toObject();
+    if (diary) {
+      contractObj.spent = diary.phases
+        .filter(p => p.status === "approved")
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+    } else {
+      contractObj.spent = 0;
+    }
+
     return res.status(200).json({
       success: true,
-      contract
+      contract: contractObj
     });
 
   } catch (error) {

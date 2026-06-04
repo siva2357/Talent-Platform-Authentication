@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
   },
   role: { type: String, enum: ["Client", "Freelancer","Admin"], required: true },
   balance: { type: Number, default: 0 },
-  status: { type: String, enum: ["active", "inactive"], default: "inactive" }
+  status: { type: String, enum: ["active", "inactive", "suspended", "blocked", "deactivated"], default: "inactive" }
 }, { timestamps: true });
 
 // Hash password before saving
