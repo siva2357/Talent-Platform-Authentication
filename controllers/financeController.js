@@ -74,29 +74,32 @@ exports.getFinanceStats = async (req, res) => {
         success: true,
         stats: {
           totalBalance,
-          totalSpent,
-          upcomingPayments: escrowBalance
+          totalSpent: totalSpent * 1.10,
+          upcomingPayments: escrowBalance * 1.10,
+          platformFeesPaid: totalSpent * 0.10
         }
       });
     } else if (role === "Freelancer") {
-      // 1. Balance Left (unwithdrawn earnings)
+      // 1. Balance Left (unwithdrawn earnings - net available to withdraw)
       const balanceLeft = user.balance || 0;
-
+      const netBalanceLeft = balanceLeft * 0.925;
+ 
       // 2. Total Earnings
       const earnedTxns = await Transaction.find({ userId, type: "Payment Released" });
       const totalEarnings = earnedTxns.reduce((sum, txn) => sum + txn.amount, 0);
-
-      // 3. Amount Withdrawn
+      const netEarnings = totalEarnings * 0.925;
+ 
+      // 3. Amount Withdrawn (net received in bank)
       const withdrawnTxns = await Transaction.find({ userId, type: "Withdrawal" });
-      const amountWithdrawn = withdrawnTxns.reduce((sum, txn) => sum + txn.amount, 0);
-
+      const netWithdrawn = withdrawnTxns.reduce((sum, txn) => sum + (txn.amount - (txn.platformFee || 0)), 0);
+ 
       return res.status(200).json({
         success: true,
         stats: {
-          totalEarnings,
-          paymentsReceived: totalEarnings, // release-on-approval model
-          amountWithdrawn,
-          balanceLeft
+          totalEarnings: netEarnings,
+          amountWithdrawn: netWithdrawn,
+          balanceLeft: netBalanceLeft,
+          platformFeesDeducted: totalEarnings * 0.075
         }
       });
     }
@@ -287,7 +290,7 @@ exports.withdrawFunds = async (req, res) => {
     // Log Transaction
     const referenceId = `WDN-${Math.floor(100000 + Math.random() * 900000)}`;
     const grossAmount = parseFloat(amount);
-    const platformFee = Math.round((grossAmount * 0.10) * 100) / 100;
+    const platformFee = Math.round((grossAmount * 0.075) * 100) / 100;
     const netReceived = Math.round((grossAmount - platformFee) * 100) / 100;
 
     const transaction = await Transaction.create({
@@ -297,7 +300,7 @@ exports.withdrawFunds = async (req, res) => {
       amount: grossAmount,
       platformFee: platformFee,
       status: "Processed",
-      description: `Withdrew ₹${grossAmount.toFixed(2)} from balance to local bank account (Net received: ₹${netReceived.toFixed(2)} after 10% platform fee)`,
+      description: `Withdrew ₹${grossAmount.toFixed(2)} from balance to local bank account (Net received: ₹${netReceived.toFixed(2)} after 7.5% platform fee)`,
       referenceId
     });
 
@@ -491,7 +494,7 @@ exports.downloadPaymentStatementPdf = async (req, res) => {
     // Calculate dynamic values
     const approvedPhases = (diary.phases || []).filter(p => p.status === "approved");
     const amountPaid = approvedPhases.reduce((sum, p) => sum + (p.amount || 0), 0);
-    const serviceFee = Math.round((amountPaid * 0.15) * 100) / 100;
+    const serviceFee = Math.round((amountPaid * 0.075) * 100) / 100;
     const earnings = Math.round((amountPaid - serviceFee) * 100) / 100;
 
     const projectDuration = `${formatDate(diary.contractId?.contractStartDate)} - ${formatDate(diary.contractId?.contractEndDate)}`;

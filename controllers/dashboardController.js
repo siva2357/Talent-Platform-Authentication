@@ -1,7 +1,6 @@
 const User = require("../models/user");
 const Contract = require("../models/contract");
 const Application = require("../models/application");
-// Attendance model removed
 const ContractDiary = require("../models/contractDiary");
 const ClientProfile = require("../models/clientProfile");
 const FreelancerProfile = require("../models/freelancerProfile");
@@ -66,8 +65,6 @@ exports.getDashboardStats = async (req, res) => {
           });
         }
       });
-
-      // Attendance activities removed
 
       // Add recent accepted offers
       const acceptedOffers = await Application.find({ freelancerId: userId, offerStatus: "accepted" })
@@ -221,8 +218,6 @@ exports.getDashboardStats = async (req, res) => {
           });
         }
       });
-
-      // Attendance clock logs removed
 
       // Add recent milestone / phase reviews
       const diaries = await ContractDiary.find({ clientId: userId });

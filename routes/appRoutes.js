@@ -28,5 +28,6 @@ router.use("/applications", applicationRoutes);
 router.use("/contract-diary", contractDiaryRoutes);
 router.use("/dashboard", require("./dashboardRoutes"));
 router.use("/finance", require("./financeRoutes"));
+router.use("/blogs", require("./blogRoutes"));
 
 module.exports = router;

@@ -6,7 +6,7 @@ exports.getUserNotifications = async (req, res) => {
         const role = req.role;
 
         const notifications = await Notification.find(
-            { userId, role },
+            { userId, role: role.toLowerCase() },
             { link: 0 }   // ❌ exclude link field
         ).sort({ createdAt: -1 });
 
@@ -28,7 +28,7 @@ exports.markAsRead = async (req, res) => {
         const { id } = req.params;
 
         const updated = await Notification.findOneAndUpdate(
-            { _id: id, userId: req.userId, role: req.role },
+            { _id: id, userId: req.userId, role: req.role.toLowerCase() },
             { read: true }
         );
 
@@ -47,7 +47,7 @@ exports.markAsRead = async (req, res) => {
 exports.markAllAsRead = async (req, res) => {
     try {
         await Notification.updateMany(
-            { userId: req.userId, role: req.role, read: false },
+            { userId: req.userId, role: req.role.toLowerCase(), read: false },
             { read: true }
         );
 
@@ -64,7 +64,7 @@ exports.deleteNotification = async (req, res) => {
         const deleted = await Notification.findOneAndDelete({
             _id: req.params.id,
             userId: req.userId,
-            role: req.role
+            role: req.role.toLowerCase()
         });
 
         if (!deleted) {
@@ -83,7 +83,7 @@ exports.clearUserNotifications = async (req, res) => {
     try {
         const result = await Notification.deleteMany({
             userId: req.userId,
-            role: req.role
+            role: req.role.toLowerCase()
         });
 
         res.status(200).json({

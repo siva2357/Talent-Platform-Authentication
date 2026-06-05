@@ -10,7 +10,6 @@ const twilio = require("twilio");
 
 const Contract = require("../models/contract");
 const Application = require("../models/application");
-const Attendance = require("../models/attendance");
 const ContractDiary = require("../models/contractDiary");
 
 
@@ -236,37 +235,6 @@ exports.getMyProfile = async (req, res, next) => {
           }
         }
 
-        // Fetch attendance logs for this contract and freelancer
-        const attendanceLogs = await Attendance.find({ contractId: c._id, freelancerId: user._id });
-        let attendance = null;
-        if (attendanceLogs && attendanceLogs.length > 0) {
-          const hoursTracked = attendanceLogs.reduce((sum, log) => sum + (log.totalHours || 0), 0);
-          
-          // Format dates
-          const dates = attendanceLogs.map(log => new Date(log.date));
-          const minDate = new Date(Math.min(...dates));
-          const maxDate = new Date(Math.max(...dates));
-          const formattedMin = minDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-          const formattedMax = maxDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-          
-          // Calculate weekly average
-          const durationMs = maxDate.getTime() - minDate.getTime();
-          const durationWeeks = Math.max(1, Math.ceil(durationMs / (1000 * 60 * 60 * 24 * 7)));
-          const weeklyAverage = (hoursTracked / durationWeeks).toFixed(1) + " hrs/wk";
-
-          // Calculate attendance rate (Present or Partial status / total logs)
-          const validLogs = attendanceLogs.filter(log => log.status === "Present" || log.status === "Partial").length;
-          const avgAttendanceRate = Math.round((validLogs / attendanceLogs.length) * 100);
-
-          attendance = {
-            hoursTracked,
-            startDate: formattedMin,
-            endDate: formattedMax,
-            weeklyAverage,
-            avgAttendanceRate
-          };
-        }
-
         freelancerDiaries.push({
           _id: c._id,
           contractTitle: c.contractTitle,
@@ -275,8 +243,7 @@ exports.getMyProfile = async (req, res, next) => {
           contractDescription: c.contractDescription,
           status: diary.overallStatus === "in-progress" ? "in progress" : diary.overallStatus,
           clientName: diary.clientId?.registrationDetails?.fullName || "Client",
-          review,
-          attendance
+          review
         });
       }
       diaries = freelancerDiaries;
@@ -502,8 +469,7 @@ exports.deleteProfile = async (req, res, next) => {
       await ContractDiary.deleteMany({ contractId: { $in: contractIds } });
       await ContractDiary.deleteMany({ clientId: user._id });
 
-      // 5. Purge attendance
-      await Attendance.deleteMany({ contractId: { $in: contractIds } });
+
 
       // 6. Delete contracts themselves
       await Contract.deleteMany({ clientId: user._id });
@@ -611,8 +577,7 @@ exports.deleteProfile = async (req, res, next) => {
       }
       await ContractDiary.deleteMany({ freelancerId: user._id });
 
-      // 5. Purge attendance
-      await Attendance.deleteMany({ freelancerId: user._id });
+
 
       // 6. Purge support requests
       const supportRequests = await SupportRequest.find({ userId: user._id });
