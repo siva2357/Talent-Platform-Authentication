@@ -1668,6 +1668,15 @@ exports.getHiredTalents = async (req, res) => {
         completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
       }
 
+      // Find if contract is funded
+      const Transaction = require("../models/transaction");
+      const fundedTxns = await Transaction.find({
+        contractId: application.contractId?._id,
+        type: "Escrow Funded",
+        status: "Paid"
+      });
+      const totalFunded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+
       return {
         applicationId: application._id,
         appliedAt: application.createdAt,
@@ -1694,7 +1703,8 @@ exports.getHiredTalents = async (req, res) => {
           budgetType: application.contractId?.budgetType || "Fixed Price",
           contractStartDate: application.contractId?.contractStartDate || null,
           contractEndDate: application.contractId?.contractEndDate || null,
-          contractDescription: application.contractId?.contractDescription || ""
+          contractDescription: application.contractId?.contractDescription || "",
+          funded: totalFunded
         }
       };
     }));

@@ -272,16 +272,23 @@ exports.getClientDiaries = async (req, res) => {
       .populate("freelancerId", "registrationDetails.fullName registrationDetails.email")
       .sort({ updatedAt: -1 });
 
-    const formattedDiaries = diaries.map(diary => {
+    const formattedDiaries = await Promise.all(diaries.map(async (diary) => {
       const diaryObj = diary.toObject();
       if (diaryObj.contractId) {
         const spentVal = (diaryObj.phases || [])
           .filter(p => p.status === "approved")
           .reduce((sum, p) => sum + (p.amount || 0), 0);
         diaryObj.contractId.spent = spentVal;
+
+        const fundedTxns = await Transaction.find({
+          contractId: diaryObj.contractId._id,
+          type: "Escrow Funded",
+          status: "Paid"
+        });
+        diaryObj.contractId.funded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
       }
       return diaryObj;
-    });
+    }));
 
     return res.status(200).json({ success: true, diaries: formattedDiaries });
   } catch (err) {
@@ -303,16 +310,23 @@ exports.getFreelancerDiaries = async (req, res) => {
       .populate("clientId", "registrationDetails.fullName registrationDetails.email")
       .sort({ updatedAt: -1 });
 
-    const formattedDiaries = diaries.map(diary => {
+    const formattedDiaries = await Promise.all(diaries.map(async (diary) => {
       const diaryObj = diary.toObject();
       if (diaryObj.contractId) {
         const spentVal = (diaryObj.phases || [])
           .filter(p => p.status === "approved")
           .reduce((sum, p) => sum + (p.amount || 0), 0);
         diaryObj.contractId.spent = spentVal;
+
+        const fundedTxns = await Transaction.find({
+          contractId: diaryObj.contractId._id,
+          type: "Escrow Funded",
+          status: "Paid"
+        });
+        diaryObj.contractId.funded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
       }
       return diaryObj;
-    });
+    }));
 
     return res.status(200).json({ success: true, diaries: formattedDiaries });
   } catch (err) {
@@ -345,6 +359,13 @@ exports.getDiaryById = async (req, res) => {
         .filter(p => p.status === "approved")
         .reduce((sum, p) => sum + (p.amount || 0), 0);
       diaryObj.contractId.spent = spentVal;
+
+      const fundedTxns = await Transaction.find({
+        contractId: diaryObj.contractId._id,
+        type: "Escrow Funded",
+        status: "Paid"
+      });
+      diaryObj.contractId.funded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
     }
 
     return res.status(200).json({ success: true, diary: diaryObj });

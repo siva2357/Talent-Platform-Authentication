@@ -1,7 +1,7 @@
 const User = require("../models/user");
 const Contract = require("../models/contract");
 const Application = require("../models/application");
-const Attendance = require("../models/attendance");
+// Attendance model removed
 const ContractDiary = require("../models/contractDiary");
 const ClientProfile = require("../models/clientProfile");
 const FreelancerProfile = require("../models/freelancerProfile");
@@ -34,15 +34,6 @@ exports.getDashboardStats = async (req, res) => {
         freelancerId: userId
       });
 
-      // 4. Attendance Hours Sum
-      const attendanceLogs = await Attendance.find({ freelancerId: userId });
-      const totalAttendanceHours = attendanceLogs.reduce((acc, log) => acc + (log.totalHours || 0), 0);
-
-      // 5. Total Earnings
-      // Approved timesheet earnings (hours * $50 default rate)
-      const approvedAttendances = await Attendance.find({ freelancerId: userId, approvalStatus: "Approved" });
-      const timesheetEarnings = approvedAttendances.reduce((acc, att) => acc + ((att.totalHours || 0) * 50), 0);
-
       // Approved contract diary milestones earnings
       const diaries = await ContractDiary.find({ freelancerId: userId });
       let diaryEarnings = 0;
@@ -54,7 +45,7 @@ exports.getDashboardStats = async (req, res) => {
         });
       });
 
-      const totalEarnings = timesheetEarnings + diaryEarnings;
+      const totalEarnings = diaryEarnings;
 
       // 6. Dynamic Recent Activities for Freelancer
       const rawActivities = [];
@@ -76,22 +67,7 @@ exports.getDashboardStats = async (req, res) => {
         }
       });
 
-      // Add recent attendance check-outs
-      const attendances = await Attendance.find({ freelancerId: userId, totalHours: { $gt: 0 } })
-        .populate("contractId", "contractTitle")
-        .sort({ updatedAt: -1 })
-        .limit(3);
-      attendances.forEach(att => {
-        if (att.contractId) {
-          rawActivities.push({
-            title: "Attendance Marked",
-            description: `Logged ${att.totalHours}h for ${att.contractId.contractTitle}`,
-            time: att.updatedAt,
-            icon: "bi-clock-fill",
-            status: "completed"
-          });
-        }
-      });
+      // Attendance activities removed
 
       // Add recent accepted offers
       const acceptedOffers = await Application.find({ freelancerId: userId, offerStatus: "accepted" })
@@ -142,10 +118,10 @@ exports.getDashboardStats = async (req, res) => {
         stats: [
           {
             label: "Total Earnings",
-            value: `$${totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            value: `₹${totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             trend: "+12%",
             trendType: "up",
-            icon: "bi-currency-dollar",
+            icon: "bi-currency-rupee",
             color: "blue"
           },
           {
@@ -165,14 +141,6 @@ exports.getDashboardStats = async (req, res) => {
             icon: "bi-cash-stack",
             color: "purple",
             statusText: "Pending"
-          },
-          {
-            label: "Attendance Hours",
-            value: totalAttendanceHours.toFixed(1),
-            trend: "AVAILABLE",
-            trendType: "up",
-            icon: "bi-clock-history",
-            color: "gold"
           }
         ],
         activities: sortedActivities.length > 0 ? sortedActivities : [
@@ -254,25 +222,7 @@ exports.getDashboardStats = async (req, res) => {
         }
       });
 
-      // Add recent freelancer clock logs
-      const contractIds = clientContracts.map(c => c._id);
-      const attendances = await Attendance.find({ contractId: { $in: contractIds }, totalHours: { $gt: 0 } })
-        .populate("freelancerId", "registrationDetails.fullName")
-        .populate("contractId", "contractTitle")
-        .sort({ updatedAt: -1 })
-        .limit(3);
-      attendances.forEach(att => {
-        if (att.freelancerId && att.contractId) {
-          rawActivities.push({
-            user: att.freelancerId.registrationDetails.fullName,
-            action: `logged ${att.totalHours} hours`,
-            project: att.contractId.contractTitle,
-            time: att.updatedAt,
-            icon: "bi-clock-history",
-            type: "time"
-          });
-        }
-      });
+      // Attendance clock logs removed
 
       // Add recent milestone / phase reviews
       const diaries = await ContractDiary.find({ clientId: userId });

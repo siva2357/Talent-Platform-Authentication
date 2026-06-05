@@ -123,9 +123,8 @@ exports.createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid deposit amount" });
     }
 
-    // Convert USD to INR (multiplier 80) and to paise (INR * 100)
-    const usdToInrRate = 80;
-    const amountInINR = amount * usdToInrRate;
+    // Treat the incoming amount directly as INR and convert to paise (INR * 100)
+    const amountInINR = amount;
     const amountInPaise = Math.round(amountInINR * 100);
 
     const receipt = `receipt_dep_${Date.now()}`;
@@ -243,7 +242,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
         amount: parseFloat(amount),
         platformFee: 0,
         status: "Paid",
-        description: `Deposited $${amount} to wallet via Razorpay`,
+        description: `Deposited ₹${amount} to wallet via Razorpay`,
         referenceId: txnRef
       });
     }
@@ -298,7 +297,7 @@ exports.withdrawFunds = async (req, res) => {
       amount: grossAmount,
       platformFee: platformFee,
       status: "Processed",
-      description: `Withdrew $${grossAmount.toFixed(2)} from balance to local bank account (Net received: $${netReceived.toFixed(2)} after 10% platform fee)`,
+      description: `Withdrew ₹${grossAmount.toFixed(2)} from balance to local bank account (Net received: ₹${netReceived.toFixed(2)} after 10% platform fee)`,
       referenceId
     });
 
