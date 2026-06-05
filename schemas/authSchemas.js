@@ -87,8 +87,15 @@ const acceptFpCodeSchema = Joi.object({
 });
 
 const changePasswordSchema = Joi.object({
-  newPassword: Joi.string().required().pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$')),
-  oldPassword: Joi.string().required().pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,}$'))
+  newPassword: Joi.string().min(6).required().messages({
+    "string.min": "New password must be at least 6 characters long",
+    "any.required": "New password is required",
+    "string.empty": "New password cannot be empty"
+  }),
+  oldPassword: Joi.string().required().messages({
+    "any.required": "Old password is required",
+    "string.empty": "Old password cannot be empty"
+  })
 });
 
 module.exports = {

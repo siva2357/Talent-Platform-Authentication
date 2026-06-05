@@ -91,6 +91,11 @@ const applicationSchema = new mongoose.Schema(
         type: String,
         default: "pending",
       },
+
+      feedback: {
+        type: String,
+        default: "",
+      },
     },
 
     scopeOfWork: {

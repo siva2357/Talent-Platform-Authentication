@@ -48,7 +48,16 @@ const freelancerProfileSchema = Joi.object({
     _id: Joi.string().optional().allow(""),
     language: Joi.string().allow(""),
     proficiency: Joi.string().allow("")
-  })).default([])
+  })).default([]),
+  paymentDetails: Joi.object({
+    bankName: Joi.string().allow("").optional().default(""),
+    holderName: Joi.string().allow("").optional().default(""),
+    accountNumber: Joi.string().allow("").optional().default(""),
+    ifsc: Joi.string().allow("").optional().default(""),
+    verified: Joi.boolean().optional().default(false),
+    status: Joi.string().valid("unlinked", "pending", "verified").optional().default("unlinked"),
+    legalityAccepted: Joi.boolean().optional().default(false)
+  }).optional().default()
 });
 
 const clientProfileSchema = Joi.object({
@@ -97,7 +106,16 @@ const clientProfileSchema = Joi.object({
     _id: Joi.string().optional().allow(""),
     language: Joi.string().allow(""),
     proficiency: Joi.string().allow("")
-  })).default([])
+  })).default([]),
+  paymentDetails: Joi.object({
+    bankName: Joi.string().allow("").optional().default(""),
+    holderName: Joi.string().allow("").optional().default(""),
+    accountNumber: Joi.string().allow("").optional().default(""),
+    ifsc: Joi.string().allow("").optional().default(""),
+    verified: Joi.boolean().optional().default(false),
+    status: Joi.string().valid("unlinked", "pending", "verified").optional().default("unlinked"),
+    legalityAccepted: Joi.boolean().optional().default(false)
+  }).optional().default()
 });
 
 const sendPhoneOTPSchema = Joi.object({

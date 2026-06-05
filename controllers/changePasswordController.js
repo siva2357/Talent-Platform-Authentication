@@ -18,24 +18,22 @@ exports.changePassword = async (req, res) => {
             });
         }
 
-        /* ================= SELECT MODEL ================= */
-        let UserModel;
-
-        if (role?.toLowerCase() === "admin") {
-            UserModel = require("../models/admin");
-        } else if (role?.toLowerCase() === "client" || role?.toLowerCase() === "freelancer") {
-            UserModel = User;
-        } else {
-            return res.status(400).json({
-                success: false,
-                message: "Invalid user role"
-            });
-        }
-
         /* ================= FETCH USER ================= */
-        const user = await UserModel
+        let UserModel = User;
+        let user = await UserModel
             .findById(userId)
             .select("+registrationDetails.password +registrationDetails.email +registrationDetails.emailVerified +registrationDetails.verified");
+
+        if (!user) {
+            const AdminModel = require("../models/admin");
+            user = await AdminModel
+                .findById(userId)
+                .select("+registrationDetails.password +registrationDetails.email +registrationDetails.emailVerified +registrationDetails.verified");
+            
+            if (user) {
+                UserModel = AdminModel;
+            }
+        }
 
         if (!user) {
             return res.status(404).json({
@@ -44,8 +42,10 @@ exports.changePassword = async (req, res) => {
             });
         }
 
+        const finalRole = user.role || (UserModel === User ? "Client" : "Admin");
+
         /* ================= EMAIL VERIFIED CHECK ================= */
-        const isVerified = role?.toLowerCase() === "admin"
+        const isVerified = finalRole?.toLowerCase() === "admin"
             ? user.registrationDetails?.verified
             : user.registrationDetails?.emailVerified;
 

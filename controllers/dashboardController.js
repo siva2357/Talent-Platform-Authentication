@@ -223,7 +223,14 @@ exports.getDashboardStats = async (req, res) => {
           : 0;
         return acc + contractSpent;
       }, 0);
-      const escrowBalance = Math.max(0, totalBudget - totalSpent);
+      const Transaction = require("../models/transaction");
+      const escrowFundedTxns = await Transaction.find({
+        userId,
+        type: "Escrow Funded",
+        status: "Paid"
+      });
+      const totalEscrowFunded = escrowFundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const escrowBalance = Math.max(0, totalEscrowFunded - totalSpent);
 
       // 5. Recent Activities for Client
       const rawActivities = [];
@@ -318,8 +325,8 @@ exports.getDashboardStats = async (req, res) => {
         profilePhoto,
         stats: [
           { label: "Active Contracts", value: activeContractsCount.toString(), icon: "bi-briefcase", color: "primary" },
-          { label: "Total Spent", value: `$${totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "bi-currency-dollar", color: "danger" },
-          { label: "Escrow Balance", value: `$${escrowBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "bi-shield-check", color: "success" },
+          { label: "Total Spent", value: `₹${totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "bi-currency-rupee", color: "danger" },
+          { label: "Escrow Balance", value: `₹${escrowBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "bi-shield-check", color: "success" },
           { label: "Pending Proposals", value: pendingProposalsCount.toString(), icon: "bi-file-earmark-text", color: "warning" }
         ],
         activities: sortedActivities.length > 0 ? sortedActivities : [

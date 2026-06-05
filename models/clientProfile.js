@@ -44,7 +44,16 @@ const clientProfileSchema = new mongoose.Schema({
   savedTalents: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: "FreelancerProfile"
-  }]
+  }],
+  paymentDetails: {
+    bankName: { type: String, default: "" },
+    holderName: { type: String, default: "" },
+    accountNumber: { type: String, default: "" },
+    ifsc: { type: String, default: "" },
+    verified: { type: Boolean, default: false },
+    status: { type: String, enum: ["unlinked", "pending", "verified"], default: "unlinked" },
+    legalityAccepted: { type: Boolean, default: false }
+  }
 }, { timestamps: true });
 
 module.exports = mongoose.model("ClientProfile", clientProfileSchema);

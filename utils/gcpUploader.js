@@ -38,7 +38,12 @@ exports.uploadToGCP = async (file, bucketName, folder = "uploads") => {
 
                 resolve(`https://storage.googleapis.com/${bucketName}/${fileName}`);
             } catch (err) {
-                console.error("makePublic error:", err);
+                // If uniform bucket-level access is enabled, makePublic is not allowed, but files are public if the bucket has public IAM permissions.
+                if (err.code !== 400 || !err.message.includes("uniform bucket-level access")) {
+                    console.error("makePublic error:", err);
+                } else {
+                    console.log(`ℹ️ Uniform bucket-level access is enabled on '${bucketName}'. Ensure bucket IAM allows public read access.`);
+                }
 
                 // Still return URL (file exists)
                 resolve(`https://storage.googleapis.com/${bucketName}/${fileName}`);

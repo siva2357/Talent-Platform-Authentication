@@ -1,6 +1,50 @@
 const Application = require("../models/application");
 const Contract = require("../models/contract");
 const FreelancerProfile = require("../models/freelancerProfile");
+const User = require("../models/user");
+const Notification = require("../models/notification");
+const sendMail = require("../middleware/sendMail");
+
+const notifyFreelancerStageUpdate = async (application, statusText) => {
+  try {
+    const freelancerUser = await User.findById(application.freelancerId);
+    const contract = await Contract.findById(application.contractId);
+    const clientUser = await User.findById(application.clientId);
+    const clientName = clientUser?.registrationDetails?.fullName || "Client";
+
+    // 1. Create in-app notification
+    await Notification.create({
+      userId: application.freelancerId,
+      role: "freelancer",
+      title: "Recruitment Stage Updated",
+      message: `Your application status for "${contract?.contractTitle || 'Contract'}" has been updated to "${statusText}" by ${clientName}.`,
+      link: "/user/proposals"
+    });
+
+    // 2. Send email notification
+    if (freelancerUser?.registrationDetails?.email) {
+      await sendMail.sendMail({
+        from: `"Talent Hub" <${process.env.NODE_CODE_SENDING_EMAIL_ADDRESS}>`,
+        to: freelancerUser.registrationDetails.email,
+        subject: "Talent Hub - Application Stage Updated",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+            <h2 style="color: #4A90E2; text-align: center;">Application Status Updated</h2>
+            <p>Hello ${freelancerUser.registrationDetails.fullName},</p>
+            <p>Your application for the contract <strong>${contract?.contractTitle || 'Contract'}</strong> has been updated by the client.</p>
+            <p><strong>New Status:</strong> ${statusText}</p>
+            \${application.interview?.feedback ? \`<p><strong>Feedback:</strong> \${application.interview.feedback}</p>\` : ''}
+            <p>Please log in to your account to view details or proceed with next steps.</p>
+            <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
+            <p style="text-align: center; color: #aaa; font-size: 12px;">© \${new Date().getFullYear()} Talent Hub. All rights reserved.</p>
+          </div>
+        `
+      });
+    }
+  } catch (err) {
+    console.error("Failed to notify freelancer stage update:", err);
+  }
+};
 
 exports.shortlistApplication = async (req, res) => {
   try {
@@ -30,6 +74,8 @@ exports.shortlistApplication = async (req, res) => {
     application.applicationStatus = "application shortlisted";
 
     await application.save();
+
+    await notifyFreelancerStageUpdate(application, "Shortlisted for Review");
 
     return res.status(200).json({
       success: true,
@@ -70,9 +116,9 @@ exports.rejectApplication = async (req, res) => {
 
     application.applicationStatus = "rejected";
 
-
-
     await application.save();
+
+    await notifyFreelancerStageUpdate(application, "Declined");
 
     return res.status(200).json({
       success: true,
@@ -124,6 +170,8 @@ exports.scheduleAssessment = async (req, res) => {
     };
 
     await application.save();
+
+    await notifyFreelancerStageUpdate(application, "Assessment Scheduled");
 
     return res.status(200).json({
       success: true,
@@ -218,6 +266,8 @@ exports.assessmentResult = async (req, res) => {
 
     await application.save();
 
+    await notifyFreelancerStageUpdate(application, result === "passed" ? "Assessment Passed (Interview Scheduled)" : "Assessment Failed");
+
     return res.status(200).json({
       success: true,
       message: "Assessment updated",
@@ -269,6 +319,8 @@ exports.scheduleInterview = async (req, res) => {
 
     await application.save();
 
+    await notifyFreelancerStageUpdate(application, "Interview Scheduled");
+
     return res.status(200).json({
       success: true,
       message: "Interview scheduled",
@@ -308,8 +360,13 @@ exports.interviewResult = async (req, res) => {
 
     application.applicationStatus = "interview completed";
     application.interview.status = "completed";
+    if (req.body.feedback !== undefined) {
+      application.interview.feedback = req.body.feedback;
+    }
 
     await application.save();
+
+    await notifyFreelancerStageUpdate(application, "Interview Completed");
 
     return res.status(200).json({
       success: true,
@@ -358,6 +415,8 @@ exports.finalizeApplication = async (req, res) => {
 
     await application.save();
 
+    await notifyFreelancerStageUpdate(application, result === "shortlisted" ? "Shortlisted" : "Declined");
+
     return res.status(200).json({
       success: true,
       message: `Application final status updated to ${result}`,
@@ -392,6 +451,8 @@ exports.sendOffer = async (req, res) => {
     application.applicationStatus = "shortlisted";
 
     await application.save();
+
+    await notifyFreelancerStageUpdate(application, "Contract Offer Received");
 
     return res.status(200).json({
       success: true,

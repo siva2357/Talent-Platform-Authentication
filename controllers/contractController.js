@@ -3,6 +3,9 @@ const Contract = require("../models/contract");
 const ClientProfile = require("../models/clientProfile");
 const FreelancerProfile = require("../models/freelancerProfile");
 const Application = require("../models/application");
+const User = require("../models/user");
+const Notification = require("../models/notification");
+const sendMail = require("../middleware/sendMail");
 
 
 exports.createContract = async (req, res) => {
@@ -13,6 +16,13 @@ exports.createContract = async (req, res) => {
     const clientId = req.userId;
     const { contractTitle, budgetType, estimatedBudget, contractStartDate, contractEndDate, contractDescription, contractType, contractSubject } = req.body;
     
+    if (estimatedBudget < 25000 || estimatedBudget > 75000) {
+      return res.status(400).json({
+        success: false,
+        message: "Estimated budget must be between ₹25,000 and ₹75,000"
+      });
+    }
+
     const startDateObj = new Date(contractStartDate);
     const endDateObj = new Date(contractEndDate);
     if (endDateObj < startDateObj) {
@@ -78,6 +88,8 @@ exports.getMyContracts = async (req, res) => {
       });
 
     const ContractDiary = require("../models/contractDiary");
+    const Transaction = require("../models/transaction");
+
     const diaries = await ContractDiary.find({ clientId });
     const diarySpentMap = new Map();
     for (const diary of diaries) {
@@ -87,12 +99,29 @@ exports.getMyContracts = async (req, res) => {
       diarySpentMap.set(diary.contractId.toString(), spentVal);
     }
 
+    const fundedTxns = await Transaction.find({
+      userId: clientId,
+      type: "Escrow Funded",
+      status: "Paid"
+    });
+    const contractFundedMap = new Map();
+    for (const txn of fundedTxns) {
+      if (txn.contractId) {
+        const cId = txn.contractId.toString();
+        contractFundedMap.set(cId, (contractFundedMap.get(cId) || 0) + (txn.amount || 0));
+      }
+    }
+
     const formattedContracts = contracts.map(contract => {
       const contractObj = contract.toObject();
       const dynamicSpent = diarySpentMap.has(contractObj._id.toString())
         ? diarySpentMap.get(contractObj._id.toString())
         : 0;
+      const dynamicFunded = contractFundedMap.has(contractObj._id.toString())
+        ? contractFundedMap.get(contractObj._id.toString())
+        : 0;
       contractObj.spent = dynamicSpent;
+      contractObj.funded = dynamicFunded;
       return contractObj;
     });
 
@@ -192,6 +221,13 @@ exports.updateContract = async (req, res) => {
       contractSubject,
       status
     } = req.body;
+
+    if (estimatedBudget !== undefined && (estimatedBudget < 25000 || estimatedBudget > 75000)) {
+      return res.status(400).json({
+        success: false,
+        message: "Estimated budget must be between ₹25,000 and ₹75,000"
+      });
+    }
 
     const allowedStatus = ["pending", "in progress", "completed"];
 
@@ -907,13 +943,9 @@ exports.applyToContract = async (req, res) => {
     // ========================================
 
     const application = await Application.create({
-
       contractId: contract._id,
-
       clientId: contract.clientId,
-
       freelancerId
-
     });
 
     // ========================================
@@ -921,21 +953,50 @@ exports.applyToContract = async (req, res) => {
     // ========================================
 
     contract.applicants.push({
-
       applicationId: application._id,
-
       freelancerId
-
     });
 
     await contract.save();
 
+    // Notify client
+    try {
+      const freelancerUser = await User.findById(freelancerId);
+      const clientUser = await User.findById(contract.clientId);
+      if (clientUser) {
+        await Notification.create({
+          userId: contract.clientId,
+          role: "client",
+          title: "New Contract Application",
+          message: `${freelancerUser?.registrationDetails?.fullName || "A freelancer"} has applied for your contract "${contract.contractTitle}".`,
+          link: "/user/hired-talent?tab=offers"
+        });
+
+        if (clientUser.registrationDetails?.email) {
+          await sendMail.sendMail({
+            from: `"Talent Hub" <${process.env.NODE_CODE_SENDING_EMAIL_ADDRESS}>`,
+            to: clientUser.registrationDetails.email,
+            subject: "Talent Hub - New Contract Application Received",
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                <h2 style="color: #4A90E2; text-align: center;">New Application Received</h2>
+                <p>Hello ${clientUser.registrationDetails.fullName},</p>
+                <p><strong>${freelancerUser?.registrationDetails?.fullName || "A freelancer"}</strong> has applied for your contract project: <strong>${contract.contractTitle}</strong>.</p>
+                <p>Log in to your dashboard to review their proposal and portfolio.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
+                <p style="text-align: center; color: #aaa; font-size: 12px;">© ${new Date().getFullYear()} Talent Hub. All rights reserved.</p>
+              </div>
+            `
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to notify client on application:", err);
+    }
+
     return res.status(200).json({
-
       success: true,
-
       message: "Applied successfully",
-
       application
 
     });
@@ -1005,7 +1066,6 @@ exports.withdrawContractApplication = async (req, res) => {
         message: "You cannot withdraw an application after 24 hours of submission."
       });
     }
-
     await Application.findByIdAndDelete(
       application._id
     );
@@ -1015,11 +1075,44 @@ exports.withdrawContractApplication = async (req, res) => {
       { $pull: { applicants: { applicationId: application._id } } }
     );
 
+    // Notify client
+    try {
+      const freelancerUser = await User.findById(freelancerId);
+      const clientUser = await User.findById(contract.clientId);
+      if (clientUser) {
+        await Notification.create({
+          userId: contract.clientId,
+          role: "client",
+          title: "Contract Application Withdrawn",
+          message: `${freelancerUser?.registrationDetails?.fullName || "A freelancer"} has withdrawn their application for the contract "${contract.contractTitle}".`,
+          link: "/user/hired-talent?tab=offers"
+        });
+
+        if (clientUser.registrationDetails?.email) {
+          await sendMail.sendMail({
+            from: `"Talent Hub" <${process.env.NODE_CODE_SENDING_EMAIL_ADDRESS}>`,
+            to: clientUser.registrationDetails.email,
+            subject: "Talent Hub - Contract Application Withdrawn",
+            html: `
+              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+                <h2 style="color: #D0021B; text-align: center;">Application Withdrawn</h2>
+                <p>Hello ${clientUser.registrationDetails.fullName},</p>
+                <p><strong>${freelancerUser?.registrationDetails?.fullName || "A freelancer"}</strong> has withdrawn their application for your contract: <strong>${contract.contractTitle}</strong>.</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
+                <p style="text-align: center; color: #aaa; font-size: 12px;">© ${new Date().getFullYear()} Talent Hub. All rights reserved.</p>
+              </div>
+            `
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to notify client on withdrawal:", err);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Application withdrawn successfully"
     });
-
   }
 
   catch (error) {
@@ -1287,6 +1380,15 @@ exports.getContractApplicants = async (req, res) => {
               offerStatus: "accepted"
             });
 
+            let completedContractsCount = 0;
+            if (application.freelancerId?._id) {
+              const freelancerApps = await Application.find({
+                freelancerId: application.freelancerId._id,
+                offerStatus: "accepted"
+              }).populate("contractId");
+              completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
+            }
+
             return {
 
               // ========================================
@@ -1328,6 +1430,7 @@ exports.getContractApplicants = async (req, res) => {
                   application.freelancerId?._id || null,
 
                 contractCount: contractCount || 0,
+                completedContractsCount: completedContractsCount || 0,
                 hourlyRate: freelancerProfile?.hourlyRate || 0,
 
                 // ========================================
@@ -1554,6 +1657,17 @@ exports.getHiredTalents = async (req, res) => {
       const FreelancerProfile = require("../models/freelancerProfile");
       const profile = await FreelancerProfile.findOne({ userId: application.freelancerId?._id });
 
+      // Find completed contracts count for this freelancer
+      let completedContractsCount = 0;
+      if (application.freelancerId?._id) {
+        const freelancerApps = await Application.find({
+          freelancerId: application.freelancerId._id,
+          offerStatus: "accepted"
+        }).populate("contractId");
+        
+        completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
+      }
+
       return {
         applicationId: application._id,
         appliedAt: application.createdAt,
@@ -1569,7 +1683,8 @@ exports.getHiredTalents = async (req, res) => {
           email: application.freelancerId?.registrationDetails?.email || "N/A",
           profilePhoto: profile?.basicInformation?.profilePhoto || "",
           professionalHeadline: profile?.basicInformation?.professionalHeadline || "N/A",
-          skills: profile?.professionalDetails?.skills || []
+          skills: profile?.professionalDetails?.skills || [],
+          completedContractsCount
         },
         contract: {
           _id: application.contractId?._id || null,

@@ -109,7 +109,8 @@ exports.completeProfile = async (req, res, next) => {
           phoneNumber: verification.phoneNumber !== undefined ? verification.phoneNumber : true
         },
         socialLinks: validatedData.socialLinks || [],
-        languages: validatedData.languages || []
+        languages: validatedData.languages || [],
+        paymentDetails: validatedData.paymentDetails || {}
       };
 
       // Find if profile already exists or create new
@@ -162,7 +163,8 @@ exports.completeProfile = async (req, res, next) => {
           phoneNumber: verification.phoneNumber !== undefined ? verification.phoneNumber : true
         },
         socialLinks: validatedData.socialLinks || [],
-        languages: validatedData.languages || []
+        languages: validatedData.languages || [],
+        paymentDetails: validatedData.paymentDetails || {}
       };
 
       // Find if profile already exists or create new
@@ -406,6 +408,12 @@ exports.updateProfile = async (req, res, next) => {
     if (role === "Freelancer" && validatedData.hourlyRate !== undefined) {
       profile.hourlyRate = validatedData.hourlyRate;
     }
+    if (validatedData.paymentDetails) {
+      profile.paymentDetails = {
+        ...profile.paymentDetails,
+        ...validatedData.paymentDetails
+      };
+    }
 
     await profile.save();
 
@@ -419,7 +427,7 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
-// @desc    Delete user profile
+// @desc    Delete user profile and all associated data
 // @route   DELETE /api/profile/delete
 // @access  Private (Authenticated)
 exports.deleteProfile = async (req, res, next) => {
@@ -427,32 +435,218 @@ exports.deleteProfile = async (req, res, next) => {
     const user = req.user;
     const role = user.role;
 
-    let ProfileModel = role === "Client" ? ClientProfile : FreelancerProfile;
-    const profile = await ProfileModel.findOne({ userId: user._id });
+    const Transaction = require("../models/transaction");
+    const Notification = require("../models/notification");
+    const SupportRequest = require("../models/supportRequest");
 
-    if (!profile) {
-      return res.status(404).json({ success: false, message: "Profile not found" });
-    }
+    if (role === "Client") {
+      const profile = await ClientProfile.findOne({ userId: user._id });
 
-    // 1. Delete profile photo from GCP if it exists
-    if (profile.basicInformation?.profilePhoto) {
-      try {
-        await deleteFileFromGCPByUrl(profile.basicInformation.profilePhoto);
-      } catch (delErr) {
-        console.error("Failed to delete profile photo from GCP:", delErr);
+      // 1. Delete client profile photo from GCP
+      if (profile && profile.basicInformation?.profilePhoto) {
+        try {
+          await deleteFileFromGCPByUrl(profile.basicInformation.profilePhoto);
+        } catch (delErr) {
+          console.error("Failed to delete profile photo from GCP:", delErr);
+        }
       }
+
+      // 2. Find contracts
+      const contracts = await Contract.find({ clientId: user._id });
+      const contractIds = contracts.map(c => c._id);
+
+      // 3. Purge applications (signature images + database records)
+      const applications = await Application.find({ contractId: { $in: contractIds } });
+      for (const app of applications) {
+        if (app.signatureImage) {
+          try {
+            await deleteFileFromGCPByUrl(app.signatureImage);
+          } catch (delErr) {
+            console.error("Failed to delete signature image from GCP:", delErr);
+          }
+        }
+      }
+      await Application.deleteMany({ contractId: { $in: contractIds } });
+      await Application.deleteMany({ clientId: user._id });
+
+      // 4. Purge contract diaries (attachments + database records)
+      const diaries = await ContractDiary.find({ contractId: { $in: contractIds } });
+      for (const diary of diaries) {
+        if (diary.phases) {
+          for (const phase of diary.phases) {
+            if (phase.attachments) {
+              for (const attach of phase.attachments) {
+                if (attach.fileUrl) {
+                  try {
+                    await deleteFileFromGCPByUrl(attach.fileUrl);
+                  } catch (delErr) {
+                    console.error("Failed to delete phase attachment:", delErr);
+                  }
+                }
+              }
+            }
+            if (phase.clientAttachments) {
+              for (const attach of phase.clientAttachments) {
+                if (attach.fileUrl) {
+                  try {
+                    await deleteFileFromGCPByUrl(attach.fileUrl);
+                  } catch (delErr) {
+                    console.error("Failed to delete client phase attachment:", delErr);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      await ContractDiary.deleteMany({ contractId: { $in: contractIds } });
+      await ContractDiary.deleteMany({ clientId: user._id });
+
+      // 5. Purge attendance
+      await Attendance.deleteMany({ contractId: { $in: contractIds } });
+
+      // 6. Delete contracts themselves
+      await Contract.deleteMany({ clientId: user._id });
+
+      // 7. Purge support requests (attachments + database records)
+      const supportRequests = await SupportRequest.find({ userId: user._id });
+      for (const sr of supportRequests) {
+        if (sr.attachments) {
+          for (const attach of sr.attachments) {
+            if (attach.url) {
+              try {
+                await deleteFileFromGCPByUrl(attach.url);
+              } catch (delErr) {
+                console.error("Failed to delete support attachment:", delErr);
+              }
+            }
+          }
+        }
+      }
+      await SupportRequest.deleteMany({ userId: user._id });
+
+      // 8. Purge notifications
+      await Notification.deleteMany({ userId: user._id });
+
+      // 9. Purge transactions
+      await Transaction.deleteMany({ userId: user._id });
+      if (contractIds.length > 0) {
+        await Transaction.deleteMany({ contractId: { $in: contractIds } });
+      }
+
+      // 10. Delete client profile document
+      await ClientProfile.deleteOne({ userId: user._id });
+
+    } else if (role === "Freelancer") {
+      const profile = await FreelancerProfile.findOne({ userId: user._id });
+
+      // 1. Delete profile photo from GCP
+      if (profile && profile.basicInformation?.profilePhoto) {
+        try {
+          await deleteFileFromGCPByUrl(profile.basicInformation.profilePhoto);
+        } catch (delErr) {
+          console.error("Failed to delete profile photo from GCP:", delErr);
+        }
+      }
+
+      // 2. Delete portfolio item files from GCP
+      if (profile && profile.professionalDetails?.portfolio) {
+        for (const item of profile.professionalDetails.portfolio) {
+          if (item.media) {
+            for (const mediaItem of item.media) {
+              if (mediaItem.url) {
+                try {
+                  await deleteFileFromGCPByUrl(mediaItem.url);
+                } catch (delErr) {
+                  console.error("Failed to delete portfolio media from GCP:", delErr);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // 3. Purge applications submitted by this freelancer
+      const applications = await Application.find({ freelancerId: user._id });
+      for (const app of applications) {
+        if (app.signatureImage) {
+          try {
+            await deleteFileFromGCPByUrl(app.signatureImage);
+          } catch (delErr) {
+            console.error("Failed to delete signature image from GCP:", delErr);
+          }
+        }
+      }
+      await Application.deleteMany({ freelancerId: user._id });
+
+      // 4. Purge contract diaries
+      const diaries = await ContractDiary.find({ freelancerId: user._id });
+      for (const diary of diaries) {
+        if (diary.phases) {
+          for (const phase of diary.phases) {
+            if (phase.attachments) {
+              for (const attach of phase.attachments) {
+                if (attach.fileUrl) {
+                  try {
+                    await deleteFileFromGCPByUrl(attach.fileUrl);
+                  } catch (delErr) {
+                    console.error("Failed to delete phase attachment:", delErr);
+                  }
+                }
+              }
+            }
+            if (phase.clientAttachments) {
+              for (const attach of phase.clientAttachments) {
+                if (attach.fileUrl) {
+                  try {
+                    await deleteFileFromGCPByUrl(attach.fileUrl);
+                  } catch (delErr) {
+                    console.error("Failed to delete client phase attachment:", delErr);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      await ContractDiary.deleteMany({ freelancerId: user._id });
+
+      // 5. Purge attendance
+      await Attendance.deleteMany({ freelancerId: user._id });
+
+      // 6. Purge support requests
+      const supportRequests = await SupportRequest.find({ userId: user._id });
+      for (const sr of supportRequests) {
+        if (sr.attachments) {
+          for (const attach of sr.attachments) {
+            if (attach.url) {
+              try {
+                await deleteFileFromGCPByUrl(attach.url);
+              } catch (delErr) {
+                console.error("Failed to delete support attachment:", delErr);
+              }
+            }
+          }
+        }
+      }
+      await SupportRequest.deleteMany({ userId: user._id });
+
+      // 7. Purge notifications
+      await Notification.deleteMany({ userId: user._id });
+
+      // 8. Purge transactions
+      await Transaction.deleteMany({ userId: user._id });
+
+      // 9. Delete freelancer profile document
+      await FreelancerProfile.deleteOne({ userId: user._id });
     }
 
-    // 2. Delete profile document
-    await ProfileModel.deleteOne({ userId: user._id });
-
-    // 3. Reset user profileCompleted status
-    user.registrationDetails.profileCompleted = false;
-    await user.save();
+    // Finally delete user account document
+    await User.deleteOne({ _id: user._id });
 
     res.status(200).json({
       success: true,
-      message: "Profile deleted successfully"
+      message: "Account and all associated data deleted successfully"
     });
   } catch (err) {
     next(err);
@@ -627,8 +821,15 @@ exports.getAllFreelancers = async (req, res, next) => {
         freelancerId: freelancer.userId,
         offerStatus: "accepted"
       });
+      const freelancerApps = await Application.find({
+        freelancerId: freelancer.userId,
+        offerStatus: "accepted"
+      }).populate("contractId");
+      const completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
+
       const plain = freelancer.toObject();
       plain.contractCount = contractCount;
+      plain.completedContractsCount = completedContractsCount;
       plain.status = statusMap[freelancer.userId.toString()] || "inactive";
       freelancersWithContracts.push(plain);
     }
@@ -662,8 +863,15 @@ exports.getFreelancerProfileById = async (req, res, next) => {
     });
     
     const freelancerUser = await User.findById(profile.userId).select("status");
+    const freelancerApps = await Application.find({
+      freelancerId: profile.userId,
+      offerStatus: "accepted"
+    }).populate("contractId");
+    const completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
+
     const plainProfile = profile.toObject();
     plainProfile.contractCount = contractCount;
+    plainProfile.completedContractsCount = completedContractsCount;
     plainProfile.status = freelancerUser ? freelancerUser.status : "inactive";
     
     res.status(200).json({
@@ -768,9 +976,16 @@ exports.getSavedTalents = async (req, res, next) => {
           freelancerId: freelancer.userId,
           offerStatus: "accepted"
         });
+        const freelancerApps = await Application.find({
+          freelancerId: freelancer.userId,
+          offerStatus: "accepted"
+        }).populate("contractId");
+        const completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
+
         const freelancerUser = await User.findById(freelancer.userId).select("status");
         const plain = freelancer.toObject();
         plain.contractCount = contractCount;
+        plain.completedContractsCount = completedContractsCount;
         plain.status = freelancerUser ? freelancerUser.status : "inactive";
         savedTalentsWithContracts.push(plain);
       }

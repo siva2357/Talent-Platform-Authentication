@@ -179,6 +179,27 @@ exports.reviewPhase = async (req, res) => {
       // Auto-release payment to freelancer wallet
       const phaseAmount = phase.amount || 0;
       if (phaseAmount > 0) {
+        // Calculate the funded amount for this contract
+        const fundedTxns = await Transaction.find({
+          contractId: diary.contractId._id,
+          type: "Escrow Funded",
+          status: "Paid"
+        });
+        const totalContractFunded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+        
+        // Calculate already spent amount on this contract (excluding this phase since it's not approved yet)
+        const contract = await Contract.findById(diary.contractId._id);
+        const currentContractSpent = contract ? (contract.spent || 0) : 0;
+        
+        const contractEscrowBalance = Math.round((totalContractFunded - currentContractSpent) * 100) / 100;
+        
+        if (phaseAmount > contractEscrowBalance) {
+          return res.status(400).json({
+            success: false,
+            message: `Insufficient funds in contract escrow. Funded: $${totalContractFunded.toFixed(2)}, Spent/Released: $${currentContractSpent.toFixed(2)}, Available Escrow: $${contractEscrowBalance.toFixed(2)}. Required for this phase review: $${phaseAmount.toFixed(2)}. Please fund the contract first.`
+          });
+        }
+
         const freelancer = await User.findById(diary.freelancerId);
         freelancer.balance = (freelancer.balance || 0) + phaseAmount;
         await freelancer.save();

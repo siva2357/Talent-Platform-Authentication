@@ -41,7 +41,7 @@ exports.getFinanceStats = async (req, res) => {
       // 1. Available balance
       const totalBalance = user.balance || 0;
 
-      // 2. Total Lifetime Spent & Escrow Balance (calculated dynamically from ContractDiary phases)
+      // 2. Total Lifetime Spent & Escrow Balance (calculated dynamically from ContractDiary phases & Escrow Funded transactions)
       const Contract = require("../models/contract");
       const clientContracts = await Contract.find({ clientId: userId });
       const clientDiaries = await ContractDiary.find({ clientId: userId });
@@ -54,21 +54,28 @@ exports.getFinanceStats = async (req, res) => {
         diarySpentMap.set(diary.contractId.toString(), spentVal);
       }
 
-      const totalBudget = clientContracts.reduce((sum, c) => sum + (c.estimatedBudget || 0), 0);
       const totalSpent = clientContracts.reduce((sum, c) => {
         const contractSpent = diarySpentMap.has(c._id.toString())
           ? diarySpentMap.get(c._id.toString())
           : 0;
         return sum + contractSpent;
       }, 0);
-      const upcomingPayments = Math.max(0, totalBudget - totalSpent);
+
+      // Calculate the actual amount funded to escrow by this client
+      const escrowFundedTxns = await Transaction.find({
+        userId,
+        type: "Escrow Funded",
+        status: "Paid"
+      });
+      const totalEscrowFunded = escrowFundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const escrowBalance = Math.max(0, totalEscrowFunded - totalSpent);
 
       return res.status(200).json({
         success: true,
         stats: {
           totalBalance,
           totalSpent,
-          upcomingPayments
+          upcomingPayments: escrowBalance
         }
       });
     } else if (role === "Freelancer") {
