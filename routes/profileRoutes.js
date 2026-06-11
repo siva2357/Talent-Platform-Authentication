@@ -12,9 +12,6 @@ const {
   saveTalent,
   unsaveTalent,
   getSavedTalents,
-  addPortfolioItem,
-  updatePortfolioItem,
-  deletePortfolioItem
 } = require("../controllers/profileController");
 const upload = require("../middleware/upload");
 
@@ -37,9 +34,5 @@ router.post("/save-talent/:id", protect, saveTalent);
 router.delete("/unsave-talent/:id", protect, unsaveTalent);
 router.get("/saved-talents", protect, getSavedTalents);
 
-// Portfolio Management (Freelancers only)
-router.post("/portfolio", protect, addPortfolioItem);
-router.put("/portfolio/:itemId", protect, updatePortfolioItem);
-router.delete("/portfolio/:itemId", protect, deletePortfolioItem);
 
 module.exports = router;

@@ -30,7 +30,7 @@ exports.createTicket = async (req, res) => {
       subject,
       message: description,
       attachments: attachments || [],
-      status: "Unresolved",
+      status: "Open",
       replies: []
     });
 
@@ -77,10 +77,11 @@ exports.getAllTickets = async (req, res) => {
       status: t.status,
       createdDate: t.createdAt,
       replies: t.replies.map(r => ({
-        sender: r.sender,
-        message: r.message,
-        timestamp: r.timestamp
-      }))
+  sender: r.sender,
+  message: r.message,
+  attachments: r.attachments || [],
+  timestamp: r.timestamp
+}))
     }));
 
     return res.status(200).json(formattedTickets);
@@ -92,85 +93,283 @@ exports.getAllTickets = async (req, res) => {
 // Update support request status (Admin only)
 exports.updateTicketStatus = async (req, res) => {
   try {
+
     if (req.role !== "Admin") {
-      return res.status(403).json({ success: false, message: "Access denied. Admin only." });
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Admin only."
+      });
     }
 
     const { status } = req.body;
+
     if (!status) {
-      return res.status(400).json({ success: false, message: "Status is required" });
+      return res.status(400).json({
+        success: false,
+        message: "Status is required"
+      });
     }
 
-    const ticket = await SupportRequest.findOne({ ticketId: req.params.id });
+    const allowedStatuses = [
+      "Open",
+      "WaitingForAdmin",
+      "WaitingForUser",
+      "Resolved",
+      "Closed"
+    ];
+
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid status"
+      });
+    }
+
+    const ticket = await SupportRequest.findOne({
+      ticketId: req.params.id
+    });
+
     if (!ticket) {
-      return res.status(404).json({ success: false, message: "Ticket not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
     }
 
     ticket.status = status;
+
     await ticket.save();
 
-    return res.status(200).json({ success: true, message: `Ticket status updated to ${status}` });
+    return res.status(200).json({
+      success: true,
+      message: `Ticket status updated to ${status}`,
+      ticket
+    });
+
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 };
 
 // Reply to support request (Admin only)
 exports.replyToTicket = async (req, res) => {
   try {
+
     if (req.role !== "Admin") {
-      return res.status(403).json({ success: false, message: "Access denied. Admin only." });
+      return res.status(403).json({
+        success: false,
+        message: "Access denied. Admin only."
+      });
     }
 
-    const { message } = req.body;
+    const { message, attachments = [] } = req.body;
+
     if (!message) {
-      return res.status(400).json({ success: false, message: "Message is required" });
+      return res.status(400).json({
+        success: false,
+        message: "Message is required"
+      });
     }
 
-    const ticket = await SupportRequest.findOne({ ticketId: req.params.id });
+    const ticket = await SupportRequest.findOne({
+      ticketId: req.params.id
+    });
+
     if (!ticket) {
-      return res.status(404).json({ success: false, message: "Ticket not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
     }
 
     ticket.replies.push({
       sender: "Admin",
       message,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      attachments
     });
-    
-    ticket.status = "Pending"; // Mark as Pending after Admin replies
+
+    ticket.status = "WaitingForUser";
+
     await ticket.save();
 
-    return res.status(200).json({ success: true, message: "Reply added successfully" });
+    return res.status(200).json({
+      success: true,
+      message: "Reply added successfully",
+      ticket
+    });
+
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 };
 
-// Submit user feedback and resolve (User or Admin test simulator)
-exports.submitUserFeedbackAndResolve = async (req, res) => {
+exports.resolveTicket = async (req, res) => {
   try {
-    const { feedbackText } = req.body;
-    if (!feedbackText) {
-      return res.status(400).json({ success: false, message: "Feedback text is required" });
+
+    const ticket = await SupportRequest.findOne({
+      ticketId: req.params.id
+    });
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
     }
 
-    const ticket = await SupportRequest.findOne({ ticketId: req.params.id });
+    if (ticket.userId.toString() !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized"
+      });
+    }
+
+    ticket.status = "Resolved";
+
+    await ticket.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Ticket resolved successfully"
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+exports.replyToTicketByUser = async (req, res) => {
+  try {
+
+    const { message } = req.body;
+
+    if (!message) {
+      return res.status(400).json({
+        success: false,
+        message: "Message is required"
+      });
+    }
+
+    const ticket = await SupportRequest.findOne({
+      ticketId: req.params.id
+    });
+
     if (!ticket) {
-      return res.status(404).json({ success: false, message: "Ticket not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
+    }
+
+    if (ticket.userId.toString() !== req.userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized"
+      });
     }
 
     ticket.replies.push({
       sender: "User",
-      message: feedbackText,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      message
     });
 
-    ticket.status = "Resolved";
+    ticket.status = "WaitingForAdmin";
+
     await ticket.save();
 
-    return res.status(200).json({ success: true, message: "Ticket resolved with feedback" });
+    return res.status(200).json({
+      success: true,
+      message: "Reply submitted successfully"
+    });
+
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+exports.closeTicket = async (req, res) => {
+  try {
+
+    if (req.role !== "Admin") {
+      return res.status(403).json({
+        success: false,
+        message: "Admin only"
+      });
+    }
+
+    const ticket = await SupportRequest.findOne({
+      ticketId: req.params.id
+    });
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
+    }
+
+    ticket.status = "Closed";
+
+    await ticket.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Ticket closed successfully"
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+exports.getTicketById = async (req, res) => {
+  try {
+
+    const ticket = await SupportRequest.findOne({
+      ticketId: req.params.id
+    });
+
+    if (!ticket) {
+      return res.status(404).json({
+        success: false,
+        message: "Ticket not found"
+      });
+    }
+
+    if (
+      req.role !== "Admin" &&
+      ticket.userId.toString() !== req.userId
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized"
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      ticket
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 };

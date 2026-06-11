@@ -71,7 +71,7 @@ const contractSchema = new mongoose.Schema(
 applicants: [
 
   {
-          applicationId: {
+  applicationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Application"
     },

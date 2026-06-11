@@ -4,9 +4,7 @@ const User          = require("../models/user");
 const Transaction   = require("../models/transaction");
 const Contract      = require("../models/contract");
 
-// ============================================================
-// Helper: fetch diary and verify ownership
-// ============================================================
+
 async function getDiaryAndVerify(diaryId, userId, role) {
   const diary = await ContractDiary.findById(diaryId)
     .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent")
@@ -24,73 +22,208 @@ async function getDiaryAndVerify(diaryId, userId, role) {
   return { diary };
 }
 
-// ============================================================
-// CLIENT: Initialize diary + add phases for a contract
-// POST /api/contract-diary
-// Body: { applicationId, phases: [{ name, description, deadline, amount }] }
-// ============================================================
+
+async function syncContractStatus(diary) {
+
+  const contract = await Contract.findById(
+    diary.contractId._id || diary.contractId
+  );
+
+  if (!contract) return;
+
+  const phases = diary.phases || [];
+
+
+  const allApproved =
+    phases.length > 0 &&
+    phases.every(p => p.status === "approved");
+
+  if (allApproved) {
+
+    diary.overallStatus = "completed";
+
+    contract.status = "completed";
+
+  } else if (
+    phases.some(p =>
+      [
+        "in-progress",
+        "submitted",
+        "changes-requested",
+        "approved"
+      ].includes(p.status)
+    )
+  ) {
+
+    diary.overallStatus = "in-progress";
+
+    contract.status = "in progress";
+
+  } else {
+
+    diary.overallStatus = "not-started";
+
+    contract.status = "pending";
+
+  }
+
+  contract.spent =
+    phases
+      .filter(p => p.status === "approved")
+      .reduce(
+        (sum, p) => sum + (p.amount || 0),
+        0
+      );
+
+  await contract.save();
+}
+
+
 exports.initializeDiary = async (req, res) => {
   try {
-    if (req.role !== "Client")
-      return res.status(403).json({ success: false, message: "Only clients can initialize a contract diary" });
+
+    if (req.role !== "Client") {
+      return res.status(403).json({
+        success: false,
+        message: "Only clients can initialize a contract diary"
+      });
+    }
 
     const { applicationId, phases } = req.body;
 
-    if (!applicationId)
-      return res.status(400).json({ success: false, message: "applicationId is required" });
+    if (!applicationId) {
+      return res.status(400).json({
+        success: false,
+        message: "applicationId is required"
+      });
+    }
 
-    // Ensure the application exists and belongs to this client
-    const application = await Application.findById(applicationId).populate("contractId");
-    if (!application)
-      return res.status(404).json({ success: false, message: "Application not found" });
+    const application = await Application
+      .findById(applicationId)
+      .populate("contractId");
 
-    if (application.clientId.toString() !== req.userId.toString())
-      return res.status(403).json({ success: false, message: "Unauthorized" });
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: "Application not found"
+      });
+    }
 
-    if (application.offerStatus !== "accepted")
-      return res.status(400).json({ success: false, message: "Diary can only be created for accepted offers" });
+    if (
+      application.clientId.toString() !==
+      req.userId.toString()
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Unauthorized"
+      });
+    }
 
-    // Check if diary already exists
-    const existing = await ContractDiary.findOne({ applicationId });
-    if (existing)
-      return res.status(409).json({ success: false, message: "A diary already exists for this contract", diaryId: existing._id });
+    if (
+      application.offerStatus !== "accepted"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Diary can only be created for accepted offers"
+      });
+    }
 
-    const baseEscrowAmount = (phases || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-    const contractBudget = application.contractId?.estimatedBudget || 0;
+    const existing =
+      await ContractDiary.findOne({
+        applicationId
+      });
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message:
+          "A diary already exists for this contract",
+        diaryId: existing._id
+      });
+    }
+
+    const baseEscrowAmount =
+      (phases || []).reduce(
+        (sum, p) => sum + (p.amount || 0),
+        0
+      );
+
+    const contractBudget =
+      application.contractId?.estimatedBudget || 0;
 
     if (baseEscrowAmount > contractBudget) {
       return res.status(400).json({
         success: false,
-        message: `Initial phases total budget ($${baseEscrowAmount.toFixed(2)}) exceeds overall contract budget ($${contractBudget.toFixed(2)})`
+        message:
+          `Initial phases total budget ($${baseEscrowAmount.toFixed(2)}) exceeds overall contract budget ($${contractBudget.toFixed(2)})`
       });
     }
 
-    const diary = await ContractDiary.create({
-      applicationId,
-      contractId:   application.contractId._id,
-      clientId:     application.clientId,
-      freelancerId: application.freelancerId,
-      overallStatus: "in-progress",
-      phases: (phases || []).map(p => ({
-        name:        p.name        || "Phase",
-        description: p.description || "",
-        deadline:    p.deadline    ? new Date(p.deadline) : undefined,
-        amount:      p.amount      || 0,
-        status:      "pending"
-      }))
+    const diary =
+      await ContractDiary.create({
+
+        applicationId,
+
+        contractId:
+          application.contractId._id,
+
+        clientId:
+          application.clientId,
+
+        freelancerId:
+          application.freelancerId,
+
+        overallStatus:
+          "not-started",
+
+        phases: (phases || []).map(
+          p => ({
+            name:
+              p.name || "Phase",
+
+            description:
+              p.description || "",
+
+            deadline:
+              p.deadline
+                ? new Date(
+                    p.deadline
+                  )
+                : undefined,
+
+            amount:
+              p.amount || 0,
+
+            status:
+              "pending"
+          })
+        )
+
+      });
+
+    await syncContractStatus(
+      diary
+    );
+
+    await diary.save();
+
+    return res.status(201).json({
+      success: true,
+      message:
+        "Contract diary initialized successfully",
+      diary
     });
 
-    return res.status(201).json({ success: true, message: "Contract diary initialized and phases funded successfully", diary });
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
   }
 };
 
-// ============================================================
-// CLIENT: Add a phase to an existing diary
-// POST /api/contract-diary/:id/phases
-// Body: { name, description, deadline, amount }
-// ============================================================
 exports.addPhase = async (req, res) => {
   try {
     if (req.role !== "Client")
@@ -141,7 +274,11 @@ exports.addPhase = async (req, res) => {
       status: "pending",
       clientAttachments: mappedClientAttachments
     });
-    await diary.save();
+    await syncContractStatus(
+  diary
+);
+
+await diary.save();
 
     return res.status(200).json({ success: true, message: "Phase added and funded successfully", phases: diary.phases });
   } catch (err) {
@@ -149,119 +286,241 @@ exports.addPhase = async (req, res) => {
   }
 };
 
-// ============================================================
-// CLIENT: Update phase status (approve / request changes)
-// PUT /api/contract-diary/:id/phases/:phaseId/review
-// Body: { action: "approve" | "request-changes", clientFeedback? }
-// ============================================================
 exports.reviewPhase = async (req, res) => {
   try {
-    if (req.role !== "Client")
-      return res.status(403).json({ success: false, message: "Only clients can review phases" });
 
-    const { diary, error, status } = await getDiaryAndVerify(req.params.id, req.userId, "Client");
-    if (error) return res.status(status).json({ success: false, message: error });
+    if (req.role !== "Client") {
+      return res.status(403).json({
+        success: false,
+        message: "Only clients can review phases"
+      });
+    }
 
-    const phase = diary.phases.id(req.params.phaseId);
-    if (!phase) return res.status(404).json({ success: false, message: "Phase not found" });
+    const { diary, error, status } = await getDiaryAndVerify(
+      req.params.id,
+      req.userId,
+      "Client"
+    );
 
-    const { action, clientFeedback } = req.body;
+    if (error) {
+      return res.status(status).json({
+        success: false,
+        message: error
+      });
+    }
+
+    const phase = diary.phases.id(
+      req.params.phaseId
+    );
+
+    if (!phase) {
+      return res.status(404).json({
+        success: false,
+        message: "Phase not found"
+      });
+    }
+
+    const latestRevision =
+      phase.revisions[
+        phase.revisions.length - 1
+      ];
+
+    if (!latestRevision) {
+      return res.status(400).json({
+        success: false,
+        message: "No submission found for this phase"
+      });
+    }
+
+    const {
+      action,
+      clientFeedback
+    } = req.body;
 
     if (action === "approve") {
+
       if (phase.status === "approved") {
-        return res.status(400).json({ success: false, message: "This phase is already approved" });
+        return res.status(400).json({
+          success: false,
+          message: "This phase is already approved"
+        });
       }
 
-      phase.status     = "approved";
-      phase.approvedAt = new Date();
-      phase.clientFeedback = clientFeedback || "";
+      latestRevision.status =
+        "approved";
 
-      // Auto-release payment to freelancer wallet
-      const phaseAmount = phase.amount || 0;
+      latestRevision.clientFeedback =
+        clientFeedback || "";
+
+      latestRevision.reviewedAt =
+        new Date();
+
+      phase.status =
+        "approved";
+
+      phase.approvedAt =
+        new Date();
+
+      const phaseAmount =
+        phase.amount || 0;
+
       if (phaseAmount > 0) {
-        // Calculate the funded amount for this contract
-        const fundedTxns = await Transaction.find({
-          contractId: diary.contractId._id,
-          type: "Escrow Funded",
-          status: "Paid"
-        });
-        const totalContractFunded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
-        
-        // Calculate already spent amount on this contract (excluding this phase since it's not approved yet)
-        const contract = await Contract.findById(diary.contractId._id);
-        const currentContractSpent = contract ? (contract.spent || 0) : 0;
-        
-        const contractEscrowBalance = Math.round((totalContractFunded - currentContractSpent) * 100) / 100;
-        
-        if (phaseAmount > contractEscrowBalance) {
+
+        const fundedTxns =
+          await Transaction.find({
+            contractId:
+              diary.contractId._id,
+            type:
+              "Escrow Funded",
+            status:
+              "Paid"
+          });
+
+        const totalContractFunded =
+          fundedTxns.reduce(
+            (sum, txn) =>
+              sum + (txn.amount || 0),
+            0
+          );
+
+        const contract =
+          await Contract.findById(
+            diary.contractId._id
+          );
+
+        const currentContractSpent =
+          contract?.spent || 0;
+
+        const contractEscrowBalance =
+          totalContractFunded -
+          currentContractSpent;
+
+        if (
+          phaseAmount >
+          contractEscrowBalance
+        ) {
           return res.status(400).json({
             success: false,
-            message: `Insufficient funds in contract escrow. Funded: $${totalContractFunded.toFixed(2)}, Spent/Released: $${currentContractSpent.toFixed(2)}, Available Escrow: $${contractEscrowBalance.toFixed(2)}. Required for this phase review: $${phaseAmount.toFixed(2)}. Please fund the contract first.`
+            message:
+              "Insufficient contract escrow balance"
           });
         }
 
-        const freelancer = await User.findById(diary.freelancerId);
-        freelancer.balance = (freelancer.balance || 0) + phaseAmount;
+        const freelancer =
+          await User.findById(
+            diary.freelancerId
+          );
+
+        if (!freelancer) {
+          return res.status(404).json({
+            success: false,
+            message:
+              "Freelancer not found"
+          });
+        }
+
+        freelancer.balance =
+          (freelancer.balance || 0) +
+          phaseAmount;
+
         await freelancer.save();
 
-        // Log payment released transactions (for both history sheets)
-        // 1. Client spent record
         await Transaction.create({
-          userId: diary.clientId,
-          contractId: diary.contractId._id,
-          type: "Payment Released",
-          amount: phaseAmount,
-          platformFee: 0,
-          status: "Paid",
-          description: `Escrow payment of $${phaseAmount} released for phase: "${phase.name}"`,
-          referenceId: `REL-${Math.floor(100000 + Math.random() * 900000)}`
+          userId:
+            diary.clientId,
+          contractId:
+            diary.contractId._id,
+          type:
+            "Payment Released",
+          amount:
+            phaseAmount,
+          platformFee:
+            0,
+          status:
+            "Paid",
+          description:
+            `Escrow payment released for phase "${phase.name}"`,
+          referenceId:
+            `REL-${Math.floor(
+              100000 +
+              Math.random() * 900000
+            )}`
         });
 
-        // 2. Freelancer earnings record
         await Transaction.create({
-          userId: diary.freelancerId,
-          contractId: diary.contractId._id,
-          type: "Payment Released",
-          amount: phaseAmount,
-          platformFee: 0,
-          status: "Paid",
-          description: `Escrow payment of $${phaseAmount} received for phase: "${phase.name}"`,
-          referenceId: `REL-${Math.floor(100000 + Math.random() * 900000)}`
+          userId:
+            diary.freelancerId,
+          contractId:
+            diary.contractId._id,
+          type:
+            "Payment Released",
+          amount:
+            phaseAmount,
+          platformFee:
+            0,
+          status:
+            "Paid",
+          description:
+            `Escrow payment received for phase "${phase.name}"`,
+          referenceId:
+            `REL-${Math.floor(
+              100000 +
+              Math.random() * 900000
+            )}`
         });
 
       }
 
-      // Update contract spent field dynamically based on all approved phases to ensure accuracy and heal historical data
-      const contract = await Contract.findById(diary.contractId._id);
-      if (contract) {
-        const totalApprovedSpent = diary.phases.reduce((sum, p) => {
-          return p.status === "approved" ? sum + (p.amount || 0) : sum;
-        }, 0);
-        contract.spent = totalApprovedSpent;
-        await contract.save();
-      }
-    } else if (action === "request-changes") {
-      phase.status         = "changes-requested";
-      phase.clientFeedback = clientFeedback || "";
+    } else if (
+      action ===
+      "request-changes"
+    ) {
+
+      latestRevision.status =
+        "changes-requested";
+
+      latestRevision.clientFeedback =
+        clientFeedback || "";
+
+      latestRevision.reviewedAt =
+        new Date();
+
+      phase.status =
+        "changes-requested";
+
     } else {
-      return res.status(400).json({ success: false, message: "action must be 'approve' or 'request-changes'" });
+
+      return res.status(400).json({
+        success: false,
+        message:
+          "action must be 'approve' or 'request-changes'"
+      });
+
     }
 
-    // Auto-update overall status if all phases are approved
-    const allApproved = diary.phases.every(p => p.status === "approved");
-    if (allApproved) diary.overallStatus = "completed";
+    await syncContractStatus(
+      diary
+    );
 
     await diary.save();
-    return res.status(200).json({ success: true, message: `Phase ${action}d`, phase });
+
+    return res.status(200).json({
+      success: true,
+      message:
+        `Phase ${action}d successfully`,
+      phase
+    });
+
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
   }
 };
 
-// ============================================================
-// CLIENT: Get all diaries for this client's contracts
-// GET /api/contract-diary/my-diaries
-// ============================================================
 exports.getClientDiaries = async (req, res) => {
   try {
     if (req.role !== "Client")
@@ -296,10 +555,6 @@ exports.getClientDiaries = async (req, res) => {
   }
 };
 
-// ============================================================
-// FREELANCER: Get all diaries assigned to this freelancer
-// GET /api/contract-diary/my-diary
-// ============================================================
 exports.getFreelancerDiaries = async (req, res) => {
   try {
     if (req.role !== "Freelancer")
@@ -334,10 +589,6 @@ exports.getFreelancerDiaries = async (req, res) => {
   }
 };
 
-// ============================================================
-// SHARED: Get single diary by ID (client or freelancer)
-// GET /api/contract-diary/:id
-// ============================================================
 exports.getDiaryById = async (req, res) => {
   try {
     const diary = await ContractDiary.findById(req.params.id)
@@ -374,53 +625,83 @@ exports.getDiaryById = async (req, res) => {
   }
 };
 
-// ============================================================
-// FREELANCER: Submit a phase update (progress note + attachments)
-// PUT /api/contract-diary/:id/phases/:phaseId/submit
-// Body: { freelancerNote, attachments: [{ fileName, fileUrl, fileType, fileSize }] }
-// ============================================================
 exports.submitPhaseUpdate = async (req, res) => {
   try {
-    if (req.role !== "Freelancer")
-      return res.status(403).json({ success: false, message: "Only freelancers can submit phase updates" });
 
-    const { diary, error, status } = await getDiaryAndVerify(req.params.id, req.userId, "Freelancer");
-    if (error) return res.status(status).json({ success: false, message: error });
-
-    const phase = diary.phases.id(req.params.phaseId);
-    if (!phase) return res.status(404).json({ success: false, message: "Phase not found" });
-
-    const { freelancerNote, attachments } = req.body;
-
-    phase.freelancerNote = freelancerNote || phase.freelancerNote;
-    phase.status         = "submitted";
-    phase.submittedAt    = new Date();
-
-    if (Array.isArray(attachments) && attachments.length > 0) {
-      attachments.forEach(a => {
-        phase.attachments.push({
-          fileName: a.fileName,
-          fileUrl:  a.fileUrl,
-          fileType: a.fileType  || "",
-          fileSize: a.fileSize  || ""
-        });
+    if (req.role !== "Freelancer") {
+      return res.status(403).json({
+        success: false,
+        message: "Only freelancers can submit phase updates"
       });
     }
 
-    // Update overall status to in-progress if not already
-    if (diary.overallStatus === "not-started") diary.overallStatus = "in-progress";
+    const { diary, error, status } = await getDiaryAndVerify(
+      req.params.id,
+      req.userId,
+      "Freelancer"
+    );
 
-    await diary.save();
-    return res.status(200).json({ success: true, message: "Phase update submitted", phase });
+    if (error) {
+      return res.status(status).json({
+        success: false,
+        message: error
+      });
+    }
+
+    const phase = diary.phases.id(req.params.phaseId);
+
+    if (!phase) {
+      return res.status(404).json({
+        success: false,
+        message: "Phase not found"
+      });
+    }
+
+    const {
+      freelancerNote,
+      attachments = []
+    } = req.body;
+
+    const revisionAttachments = attachments.map(file => ({
+      fileName: file.fileName,
+      fileUrl: file.fileUrl,
+      fileType: file.fileType || "",
+      fileSize: file.fileSize || ""
+    }));
+
+    phase.revisions.push({
+      freelancerNote: freelancerNote || "",
+      attachments: revisionAttachments,
+      status: "submitted",
+      submittedAt: new Date()
+    });
+
+    phase.revisionCount += 1;
+    phase.status = "submitted";
+    phase.submittedAt = new Date();
+
+await syncContractStatus(
+  diary
+);
+
+await diary.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Phase update submitted successfully",
+      phase
+    });
+
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
   }
 };
 
-// ============================================================
-// FREELANCER: Mark a phase as in-progress
-// PUT /api/contract-diary/:id/phases/:phaseId/start
-// ============================================================
 exports.startPhase = async (req, res) => {
   try {
     if (req.role !== "Freelancer")
@@ -436,9 +717,13 @@ exports.startPhase = async (req, res) => {
       return res.status(400).json({ success: false, message: "Phase cannot be started in its current state" });
 
     phase.status = "in-progress";
-    if (diary.overallStatus === "not-started") diary.overallStatus = "in-progress";
 
-    await diary.save();
+await syncContractStatus(
+  diary
+);
+
+await diary.save();
+
     return res.status(200).json({ success: true, message: "Phase started", phase });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

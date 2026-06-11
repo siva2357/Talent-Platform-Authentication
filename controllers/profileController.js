@@ -12,7 +12,7 @@ const Contract = require("../models/contract");
 const Application = require("../models/application");
 const ContractDiary = require("../models/contractDiary");
 
-
+const Portfolio = require("../models/portfolio");
 
 // Helper to get twilio client if env variables exist
 const getTwilioClient = () => {
@@ -29,9 +29,7 @@ const getTwilioClient = () => {
   return null;
 };
 
-// @desc    Complete user profile with picture and metadata
-// @route   POST /api/profile/complete
-// @access  Private (Authenticated)
+
 exports.completeProfile = async (req, res, next) => {
   try {
     const user = req.user;
@@ -201,9 +199,7 @@ exports.completeProfile = async (req, res, next) => {
   }
 };
 
-// @desc    Get logged in user profile
-// @route   GET /api/profile/me
-// @access  Private (Authenticated)
+
 exports.getMyProfile = async (req, res, next) => {
   try {
     const user = req.user;
@@ -271,8 +267,15 @@ exports.getMyProfile = async (req, res, next) => {
     };
 
     if (user.role === "Freelancer") {
-      responsePayload.diaries = diaries;
-    } else if (user.role === "Client") {
+
+  const portfolio = await Portfolio.find({
+    freelancerId: user._id
+  }).sort({ createdAt: -1 });
+
+  responsePayload.diaries = diaries;
+  responsePayload.portfolio = portfolio;
+
+} else if (user.role === "Client") {
       responsePayload.contracts = contracts;
     }
 
@@ -282,9 +285,7 @@ exports.getMyProfile = async (req, res, next) => {
   }
 };
 
-// @desc    Update user profile
-// @route   PUT /api/profile/update
-// @access  Private (Authenticated)
+
 exports.updateProfile = async (req, res, next) => {
   try {
     const user = req.user;
@@ -394,9 +395,7 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
-// @desc    Delete user profile and all associated data
-// @route   DELETE /api/profile/delete
-// @access  Private (Authenticated)
+
 exports.deleteProfile = async (req, res, next) => {
   try {
     const user = req.user;
@@ -503,108 +502,192 @@ exports.deleteProfile = async (req, res, next) => {
       // 10. Delete client profile document
       await ClientProfile.deleteOne({ userId: user._id });
 
-    } else if (role === "Freelancer") {
-      const profile = await FreelancerProfile.findOne({ userId: user._id });
+} else if (role === "Freelancer") {
 
-      // 1. Delete profile photo from GCP
-      if (profile && profile.basicInformation?.profilePhoto) {
-        try {
-          await deleteFileFromGCPByUrl(profile.basicInformation.profilePhoto);
-        } catch (delErr) {
-          console.error("Failed to delete profile photo from GCP:", delErr);
-        }
-      }
+  const profile = await FreelancerProfile.findOne({
+    userId: user._id
+  });
 
-      // 2. Delete portfolio item files from GCP
-      if (profile && profile.professionalDetails?.portfolio) {
-        for (const item of profile.professionalDetails.portfolio) {
-          if (item.media) {
-            for (const mediaItem of item.media) {
-              if (mediaItem.url) {
-                try {
-                  await deleteFileFromGCPByUrl(mediaItem.url);
-                } catch (delErr) {
-                  console.error("Failed to delete portfolio media from GCP:", delErr);
-                }
-              }
-            }
-          }
-        }
-      }
-
-      // 3. Purge applications submitted by this freelancer
-      const applications = await Application.find({ freelancerId: user._id });
-      for (const app of applications) {
-        if (app.signatureImage) {
-          try {
-            await deleteFileFromGCPByUrl(app.signatureImage);
-          } catch (delErr) {
-            console.error("Failed to delete signature image from GCP:", delErr);
-          }
-        }
-      }
-      await Application.deleteMany({ freelancerId: user._id });
-
-      // 4. Purge contract diaries
-      const diaries = await ContractDiary.find({ freelancerId: user._id });
-      for (const diary of diaries) {
-        if (diary.phases) {
-          for (const phase of diary.phases) {
-            if (phase.attachments) {
-              for (const attach of phase.attachments) {
-                if (attach.fileUrl) {
-                  try {
-                    await deleteFileFromGCPByUrl(attach.fileUrl);
-                  } catch (delErr) {
-                    console.error("Failed to delete phase attachment:", delErr);
-                  }
-                }
-              }
-            }
-            if (phase.clientAttachments) {
-              for (const attach of phase.clientAttachments) {
-                if (attach.fileUrl) {
-                  try {
-                    await deleteFileFromGCPByUrl(attach.fileUrl);
-                  } catch (delErr) {
-                    console.error("Failed to delete client phase attachment:", delErr);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      await ContractDiary.deleteMany({ freelancerId: user._id });
-
-
-
-      // 6. Purge support requests
-      const supportRequests = await SupportRequest.find({ userId: user._id });
-      for (const sr of supportRequests) {
-        if (sr.attachments) {
-          for (const attach of sr.attachments) {
-            if (attach.url) {
-              try {
-                await deleteFileFromGCPByUrl(attach.url);
-              } catch (delErr) {
-                console.error("Failed to delete support attachment:", delErr);
-              }
-            }
-          }
-        }
-      }
-      await SupportRequest.deleteMany({ userId: user._id });
-
-      // 7. Purge notifications
-      await Notification.deleteMany({ userId: user._id });
-
-      // 8. Purge transactions
-      await Transaction.deleteMany({ userId: user._id });
-
-      // 9. Delete freelancer profile document
-      await FreelancerProfile.deleteOne({ userId: user._id });
+  // 1. Delete profile photo from GCP
+  if (profile?.basicInformation?.profilePhoto) {
+    try {
+      await deleteFileFromGCPByUrl(
+        profile.basicInformation.profilePhoto
+      );
+    } catch (delErr) {
+      console.error(
+        "Failed to delete profile photo from GCP:",
+        delErr
+      );
     }
+  }
+
+  // 2. Delete portfolio media files
+  const portfolios = await Portfolio.find({
+    freelancerId: user._id
+  });
+
+  for (const portfolio of portfolios) {
+
+    if (!portfolio.media?.length) continue;
+
+    for (const media of portfolio.media) {
+
+      if (!media.url) continue;
+
+      try {
+        await deleteFileFromGCPByUrl(media.url);
+      } catch (err) {
+        console.error(
+          "Failed to delete portfolio media:",
+          err
+        );
+      }
+
+    }
+
+  }
+
+  // 3. Delete portfolio records
+  await Portfolio.deleteMany({
+    freelancerId: user._id
+  });
+
+  // 4. Purge applications submitted by freelancer
+  const applications = await Application.find({
+    freelancerId: user._id
+  });
+
+  for (const app of applications) {
+
+    if (!app.signatureImage) continue;
+
+    try {
+      await deleteFileFromGCPByUrl(
+        app.signatureImage
+      );
+    } catch (delErr) {
+      console.error(
+        "Failed to delete signature image from GCP:",
+        delErr
+      );
+    }
+
+  }
+
+  await Application.deleteMany({
+    freelancerId: user._id
+  });
+
+  // 5. Purge contract diaries
+  const diaries = await ContractDiary.find({
+    freelancerId: user._id
+  });
+
+  for (const diary of diaries) {
+
+    if (!diary.phases?.length) continue;
+
+    for (const phase of diary.phases) {
+
+      if (phase.attachments?.length) {
+
+        for (const attach of phase.attachments) {
+
+          if (!attach.fileUrl) continue;
+
+          try {
+            await deleteFileFromGCPByUrl(
+              attach.fileUrl
+            );
+          } catch (delErr) {
+            console.error(
+              "Failed to delete phase attachment:",
+              delErr
+            );
+          }
+
+        }
+
+      }
+
+      if (phase.clientAttachments?.length) {
+
+        for (const attach of phase.clientAttachments) {
+
+          if (!attach.fileUrl) continue;
+
+          try {
+            await deleteFileFromGCPByUrl(
+              attach.fileUrl
+            );
+          } catch (delErr) {
+            console.error(
+              "Failed to delete client phase attachment:",
+              delErr
+            );
+          }
+
+        }
+
+      }
+
+    }
+
+  }
+
+  await ContractDiary.deleteMany({
+    freelancerId: user._id
+  });
+
+  // 6. Purge support requests
+  const supportRequests = await SupportRequest.find({
+    userId: user._id
+  });
+
+  for (const sr of supportRequests) {
+
+    if (!sr.attachments?.length) continue;
+
+    for (const attach of sr.attachments) {
+
+      if (!attach.url) continue;
+
+      try {
+        await deleteFileFromGCPByUrl(
+          attach.url
+        );
+      } catch (delErr) {
+        console.error(
+          "Failed to delete support attachment:",
+          delErr
+        );
+      }
+
+    }
+
+  }
+
+  await SupportRequest.deleteMany({
+    userId: user._id
+  });
+
+  // 7. Purge notifications
+  await Notification.deleteMany({
+    userId: user._id
+  });
+
+  // 8. Purge transactions
+  await Transaction.deleteMany({
+    userId: user._id
+  });
+
+  // 9. Delete freelancer profile
+  await FreelancerProfile.deleteOne({
+    userId: user._id
+  });
+
+}
 
     // Finally delete user account document
     await User.deleteOne({ _id: user._id });
@@ -618,9 +701,7 @@ exports.deleteProfile = async (req, res, next) => {
   }
 };
 
-// @desc    Send OTP to phone number
-// @route   POST /api/profile/phone/send-otp
-// @access  Private (Authenticated)
+
 exports.sendPhoneOTP = async (req, res, next) => {
   try {
     const { error, value } = sendPhoneOTPSchema.validate(req.body);
@@ -675,9 +756,7 @@ exports.sendPhoneOTP = async (req, res, next) => {
   }
 };
 
-// @desc    Verify phone OTP code
-// @route   POST /api/profile/phone/verify-otp
-// @access  Private (Authenticated)
+
 exports.verifyPhoneOTP = async (req, res, next) => {
   try {
     const { error, value } = verifyPhoneOTPSchema.validate(req.body);
@@ -736,9 +815,7 @@ exports.verifyPhoneOTP = async (req, res, next) => {
   }
 };
 
-// @desc    Get all completed freelancer profiles (with optional search & filter)
-// @route   GET /api/profile/freelancers
-// @access  Private (Authenticated)
+
 exports.getAllFreelancers = async (req, res, next) => {
   try {
     const { search, category, minRate, maxRate } = req.query;
@@ -808,49 +885,70 @@ exports.getAllFreelancers = async (req, res, next) => {
   }
 };
 
-// @desc    Get a single freelancer profile by ID
-// @route   GET /api/profile/freelancer/:id
-// @access  Private (Authenticated)
+
 exports.getFreelancerProfileById = async (req, res, next) => {
   try {
+
     const { id } = req.params;
+
     let profile = await FreelancerProfile.findById(id);
+
     if (!profile) {
-      profile = await FreelancerProfile.findOne({ userId: id });
+      profile = await FreelancerProfile.findOne({
+        userId: id
+      });
     }
+
     if (!profile) {
-      return res.status(404).json({ success: false, message: "Freelancer profile not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Freelancer profile not found"
+      });
     }
-    
+
     const contractCount = await Application.countDocuments({
       freelancerId: profile.userId,
       offerStatus: "accepted"
     });
-    
-    const freelancerUser = await User.findById(profile.userId).select("status");
+
+    const freelancerUser = await User.findById(
+      profile.userId
+    ).select("status");
+
     const freelancerApps = await Application.find({
       freelancerId: profile.userId,
       offerStatus: "accepted"
     }).populate("contractId");
-    const completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
+
+    const completedContractsCount = freelancerApps.filter(
+      app => app.contractId &&
+      app.contractId.status === "completed"
+    ).length;
+
+    const portfolio = await Portfolio.find({
+      freelancerId: profile.userId
+    }).sort({ createdAt: -1 });
 
     const plainProfile = profile.toObject();
+
     plainProfile.contractCount = contractCount;
     plainProfile.completedContractsCount = completedContractsCount;
-    plainProfile.status = freelancerUser ? freelancerUser.status : "inactive";
-    
+    plainProfile.status = freelancerUser
+      ? freelancerUser.status
+      : "inactive";
+
     res.status(200).json({
       success: true,
-      profile: plainProfile
+      profile: plainProfile,
+      portfolio: portfolio
     });
+
   } catch (err) {
     next(err);
   }
 };
 
-// @desc    Save a freelancer profile to client's bookmarks
-// @route   POST /api/profile/save-talent/:id
-// @access  Private (Client only)
+
 exports.saveTalent = async (req, res, next) => {
   try {
     const clientUser = req.user;
@@ -887,9 +985,7 @@ exports.saveTalent = async (req, res, next) => {
   }
 };
 
-// @desc    Remove a freelancer profile from client's bookmarks
-// @route   DELETE /api/profile/unsave-talent/:id
-// @access  Private (Client only)
+
 exports.unsaveTalent = async (req, res, next) => {
   try {
     const clientUser = req.user;
@@ -917,9 +1013,7 @@ exports.unsaveTalent = async (req, res, next) => {
   }
 };
 
-// @desc    Get all saved talents for logged-in client
-// @route   GET /api/profile/saved-talents
-// @access  Private (Client only)
+
 exports.getSavedTalents = async (req, res, next) => {
   try {
     const clientUser = req.user;
@@ -965,141 +1059,3 @@ exports.getSavedTalents = async (req, res, next) => {
   }
 };
 
-// @desc    Add a project to freelancer's portfolio
-// @route   POST /api/profile/portfolio
-// @access  Private (Freelancer only)
-exports.addPortfolioItem = async (req, res, next) => {
-  try {
-    const freelancerUser = req.user;
-    if (freelancerUser.role !== "Freelancer") {
-      return res.status(403).json({ success: false, message: "Only freelancers can manage portfolios." });
-    }
-    
-    const { title, description, role, projectType, tags, media, projectUrl } = req.body;
-    
-    if (!title) {
-      return res.status(400).json({ success: false, message: "Project title is required." });
-    }
-    
-    const profile = await FreelancerProfile.findOne({ userId: freelancerUser._id });
-    if (!profile) {
-      return res.status(404).json({ success: false, message: "Freelancer profile not found." });
-    }
-    
-    const newItem = {
-      title,
-      description: description || "",
-      role: role || "",
-      projectType: projectType || "",
-      tags: tags || [],
-      media: media || [],
-      projectUrl: projectUrl || ""
-    };
-    
-    if (!profile.professionalDetails) {
-      profile.professionalDetails = { categories: [], skills: [], portfolio: [] };
-    }
-    if (!profile.professionalDetails.portfolio) {
-      profile.professionalDetails.portfolio = [];
-    }
-    
-    profile.professionalDetails.portfolio.push(newItem);
-    await profile.save();
-    
-    const addedItem = profile.professionalDetails.portfolio[profile.professionalDetails.portfolio.length - 1];
-    
-    res.status(201).json({
-      success: true,
-      message: "Portfolio item added successfully.",
-      item: addedItem,
-      portfolio: profile.professionalDetails.portfolio
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Update a project in freelancer's portfolio
-// @route   PUT /api/profile/portfolio/:itemId
-// @access  Private (Freelancer only)
-exports.updatePortfolioItem = async (req, res, next) => {
-  try {
-    const freelancerUser = req.user;
-    if (freelancerUser.role !== "Freelancer") {
-      return res.status(403).json({ success: false, message: "Only freelancers can manage portfolios." });
-    }
-    
-    const { itemId } = req.params;
-    const { title, description, role, projectType, tags, media, projectUrl } = req.body;
-    
-    const profile = await FreelancerProfile.findOne({ userId: freelancerUser._id });
-    if (!profile) {
-      return res.status(404).json({ success: false, message: "Freelancer profile not found." });
-    }
-    
-    if (!profile.professionalDetails || !profile.professionalDetails.portfolio) {
-      return res.status(404).json({ success: false, message: "Portfolio is empty." });
-    }
-    
-    const item = profile.professionalDetails.portfolio.id(itemId);
-    if (!item) {
-      return res.status(404).json({ success: false, message: "Portfolio item not found." });
-    }
-    
-    if (title !== undefined) item.title = title;
-    if (description !== undefined) item.description = description;
-    if (role !== undefined) item.role = role;
-    if (projectType !== undefined) item.projectType = projectType;
-    if (tags !== undefined) item.tags = tags;
-    if (media !== undefined) item.media = media;
-    if (projectUrl !== undefined) item.projectUrl = projectUrl;
-    
-    await profile.save();
-    
-    res.status(200).json({
-      success: true,
-      message: "Portfolio item updated successfully.",
-      item,
-      portfolio: profile.professionalDetails.portfolio
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// @desc    Delete a project from freelancer's portfolio
-// @route   DELETE /api/profile/portfolio/:itemId
-// @access  Private (Freelancer only)
-exports.deletePortfolioItem = async (req, res, next) => {
-  try {
-    const freelancerUser = req.user;
-    if (freelancerUser.role !== "Freelancer") {
-      return res.status(403).json({ success: false, message: "Only freelancers can manage portfolios." });
-    }
-    
-    const { itemId } = req.params;
-    
-    const profile = await FreelancerProfile.findOne({ userId: freelancerUser._id });
-    if (!profile) {
-      return res.status(404).json({ success: false, message: "Freelancer profile not found." });
-    }
-    
-    if (!profile.professionalDetails || !profile.professionalDetails.portfolio) {
-      return res.status(404).json({ success: false, message: "Portfolio is empty." });
-    }
-    
-    profile.professionalDetails.portfolio = profile.professionalDetails.portfolio.filter(
-      item => item._id.toString() !== itemId
-    );
-    
-    await profile.save();
-    
-    res.status(200).json({
-      success: true,
-      message: "Portfolio item deleted successfully.",
-      portfolio: profile.professionalDetails.portfolio
-    });
-  } catch (err) {
-    next(err);
-  }
-};
