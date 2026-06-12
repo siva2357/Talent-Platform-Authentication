@@ -3,6 +3,8 @@ module.exports = {
         PROFILE_PHOTO: "profile-photo",
         SUPPORT_REQUEST: "support-requests",
         CONTRACT_FILES: "contract-files",
+        AADHAAR_CARD: 'AadhaarCard',
+        PAN_CARD:'PanCard',
     },
 
     freelancer: {

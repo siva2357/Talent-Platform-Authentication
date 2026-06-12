@@ -1,4 +1,4 @@
-const { banks } = require('../constants/banks');
+const banks = require('../constants/banks');
 
 exports.getBanks = async (req, res) => {
   try {

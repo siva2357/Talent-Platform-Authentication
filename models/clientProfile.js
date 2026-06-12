@@ -46,7 +46,7 @@ const clientProfileSchema = new mongoose.Schema({
     ref: "FreelancerProfile"
   }],
   paymentDetails: {
-    bankName: { type: String, default: "" },
+    bankCode: { type: String, default: "" },
     holderName: { type: String, default: "" },
     accountNumber: { type: String, default: "" },
     ifsc: { type: String, default: "" },

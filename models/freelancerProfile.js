@@ -52,7 +52,7 @@ const freelancerProfileSchema = new mongoose.Schema(
       },
     ],
     paymentDetails: {
-  bankName: { type: String, default: '' },
+  bankCode: { type: String, default: '' },
   holderName: { type: String, default: '' },
   accountNumber: { type: String, default: '' },
   ifsc: { type: String, default: '' },

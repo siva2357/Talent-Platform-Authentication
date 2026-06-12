@@ -107,15 +107,24 @@ const clientProfileSchema = Joi.object({
     language: Joi.string().allow(""),
     proficiency: Joi.string().allow("")
   })).default([]),
-  paymentDetails: Joi.object({
-    bankName: Joi.string().allow("").optional().default(""),
-    holderName: Joi.string().allow("").optional().default(""),
-    accountNumber: Joi.string().allow("").optional().default(""),
-    ifsc: Joi.string().allow("").optional().default(""),
-    verified: Joi.boolean().optional().default(false),
-    status: Joi.string().valid("unlinked", "pending", "verified").optional().default("unlinked"),
-    legalityAccepted: Joi.boolean().optional().default(false)
-  }).optional().default()
+paymentDetails: Joi.object({
+  bankCode: Joi.string().allow('', null),
+  bankName: Joi.string().allow('', null),
+
+  holderName: Joi.string().allow('', null),
+  accountNumber: Joi.string().allow('', null),
+  ifsc: Joi.string().allow('', null),
+
+  panNumber: Joi.string().allow('', null),
+  aadhaarNumber: Joi.string().allow('', null),
+
+  panCardUrl: Joi.string().allow('', null),
+  aadhaarCardUrl: Joi.string().allow('', null),
+
+  verified: Joi.boolean(),
+  status: Joi.string().allow('', null),
+  legalityAccepted: Joi.boolean()
+}).default()
 });
 
 const sendPhoneOTPSchema = Joi.object({

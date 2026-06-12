@@ -5,6 +5,6 @@ const {
   getBanks
 } = require('../controllers/bankController');
 
-router.get('/banks', getBanks);
+router.get('/', getBanks);
 
 module.exports = router;

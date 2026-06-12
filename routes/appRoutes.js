@@ -34,6 +34,6 @@ router.use("/dashboard", require("./dashboardRoutes"));
 router.use("/finance", require("./financeRoutes"));
 router.use("/blogs", require("./blogRoutes"));
 
-router.use('/api/banks', bankRoutes);
+router.use('/banks', bankRoutes);
 
 module.exports = router;
