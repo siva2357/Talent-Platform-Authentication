@@ -2,14 +2,15 @@ const express = require("express");
 const router  = express.Router();
 
 const {
-  initializeDiary,
   addPhase,
   reviewPhase,
   getClientDiaries,
   getFreelancerDiaries,
   getDiaryById,
   submitPhaseUpdate,
-  startPhase
+  startPhase,
+  getDiaryByContractId,
+  getFreelancerAllDiaries
 } = require("../controllers/contractDiaryController");
 
 const { identifier } = require("../middleware/identifier");
@@ -20,16 +21,16 @@ const { identifier } = require("../middleware/identifier");
 
 // CLIENT:     GET  /api/contract-diary/my-diaries
 router.get("/my-diaries",   identifier, getClientDiaries);
+router.get( "/my-diaries-freelancer", identifier, getFreelancerAllDiaries);
 
 // FREELANCER: GET  /api/contract-diary/my-diary
-router.get("/my-diary",     identifier, getFreelancerDiaries);
+router.get("/my-diary/:contractId",     identifier, getFreelancerDiaries);
+
+router.get("/contract/:contractId", identifier, getDiaryByContractId);
 
 // ============================================================
 // Diary CRUD
 // ============================================================
-
-// CLIENT:  POST /api/contract-diary  (initialize diary + phases)
-router.post("/",            identifier, initializeDiary);
 
 // SHARED:  GET  /api/contract-diary/:id
 router.get("/:id",          identifier, getDiaryById);

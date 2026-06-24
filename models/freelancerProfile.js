@@ -51,31 +51,15 @@ const freelancerProfileSchema = new mongoose.Schema(
         proficiency: { type: String, default: "" },
       },
     ],
-    paymentDetails: {
-  bankCode: { type: String, default: '' },
-  holderName: { type: String, default: '' },
-  accountNumber: { type: String, default: '' },
-  ifsc: { type: String, default: '' },
-
-  panNumber: { type: String, default: '' },
-  aadhaarNumber: { type: String, default: '' },
-
-  panCardUrl: { type: String, default: '' },
-  aadhaarCardUrl: { type: String, default: '' },
-
-  verified: { type: Boolean, default: false },
-
-  status: {
-    type: String,
-    enum: ['unlinked', 'pending', 'verified'],
-    default: 'unlinked'
-  },
-
-  legalityAccepted: {
-    type: Boolean,
-    default: false
+paymentDetails: {
+    bankCode: { type: String, default: "" },
+    holderName: { type: String, default: "" },
+    accountNumber: { type: String, default: "" },
+    ifsc: { type: String, default: "" },
+    verified: { type: Boolean, default: false },
+    status: { type: String, enum: ["unlinked", "pending", "verified"], default: "unlinked" },
+    legalityAccepted: { type: Boolean, default: false }
   }
-}
   },
   { timestamps: true },
 );

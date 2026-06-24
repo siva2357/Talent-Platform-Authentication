@@ -30,7 +30,7 @@ const { identifier } = require("../middleware/identifier");
 // Client Routes
 // ========================================
 router.get("/my-contracts/applicants", identifier, getContractApplicants);
-router.get("/hired-talents", identifier, getHiredTalents);
+router.get("/hired-talents/:contractId", identifier, getHiredTalents);
 router.post("/", identifier, createContract);
 router.get("/my-contracts", identifier, getMyContracts);
 router.get("/my-contracts/:id", identifier, getMyContractById);

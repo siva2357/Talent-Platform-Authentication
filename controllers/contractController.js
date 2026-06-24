@@ -77,15 +77,9 @@ exports.getMyContracts = async (req, res) => {
 
     const clientId = req.userId;
 
-    const contracts = await Contract.find(
-      { clientId },
-      {
-        contractDescription: 0
-      }
-    )
-      .sort({
-        createdAt: -1
-      });
+    const contracts = await Contract.find({ clientId })
+      .select("contractTitle budgetType estimatedBudget contractStartDate contractEndDate contractType contractSubject status createdAt")
+      .sort({ createdAt: -1 });
 
     const ContractDiary = require("../models/contractDiary");
     const Transaction = require("../models/transaction");
@@ -305,6 +299,20 @@ exports.updateContract = async (req, res) => {
 
     if (status !== undefined) {
       contract.status = status;
+      
+      // Pass the same status to the ContractDiary if it exists
+      const ContractDiary = require("../models/contractDiary");
+      const diary = await ContractDiary.findOne({ contractId: contract._id });
+      if (diary) {
+        if (status === 'completed') {
+          diary.overallStatus = 'completed';
+        } else if (status === 'in progress') {
+          diary.overallStatus = 'in-progress';
+        } else if (status === 'pending') {
+          diary.overallStatus = 'not-started';
+        }
+        await diary.save();
+      }
     }
 
     await contract.save();
@@ -1293,431 +1301,211 @@ exports.getAppliedContracts = async (req, res) => {
 };
 
 exports.getContractApplicants = async (req, res) => {
-
   try {
 
     if (req.role !== "Client") {
-      return res.status(403).json({ success: false, message: "Only clients can access this feature" });
+      return res.status(403).json({
+        success: false,
+        message: "Only clients can access this feature"
+      });
+    }
+
+    const { contractId } = req.query;
+
+    if (!contractId) {
+      return res.status(400).json({
+        success: false,
+        message: "contractId is required"
+      });
+    }
+
+    const contract = await Contract.findOne({
+      _id: contractId,
+      clientId: req.userId
+    });
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: "Contract not found"
+      });
+    }
+
+    const applications = await Application.find({
+      contractId
+    })
+      .populate({
+        path: "freelancerId",
+        select: `
+          registrationDetails.fullName
+          registrationDetails.email
+          role
+        `
+      })
+      .sort({ createdAt: -1 });
+
+    const applicants = await Promise.all(
+      applications.map(async (application) => {
+
+        const freelancerId =
+          application.freelancerId?._id;
+
+        const freelancerProfile =
+          freelancerId
+            ? await FreelancerProfile.findOne({
+                userId: freelancerId
+              })
+            : null;
+
+        let completedContractsCount = 0;
+
+        if (freelancerId) {
+
+          const freelancerApps =
+            await Application.find({
+              freelancerId,
+              offerStatus: "accepted"
+            }).populate("contractId");
+
+          completedContractsCount =
+            freelancerApps.filter(
+              app =>
+                app.contractId &&
+                app.contractId.status === "completed"
+            ).length;
+        }
+
+return {
+  applicationId: application._id,
+  applicationStatus: application.applicationStatus,
+  offerStatus: application.offerStatus || "none",
+
+  appliedAt: application.createdAt,
+  assessment: application.assessment,
+  interview: application.interview,
+
+  freelancer: {
+    _id: freelancerId || null,
+    completedContractsCount,
+    hourlyRate: freelancerProfile?.hourlyRate || 0,
+    fullName: freelancerProfile?.basicInformation?.fullName || "N/A",
+    email: freelancerProfile?.basicInformation?.email || "N/A",
+    username: freelancerProfile?.basicInformation?.username || "N/A",
+    profilePhoto: freelancerProfile?.basicInformation?.profilePhoto || "",
+    professionalHeadline: freelancerProfile?.basicInformation?.professionalHeadline || "N/A",
+    shortBio: freelancerProfile?.basicInformation?.shortBio || "N/A",
+    gender: freelancerProfile?.basicInformation?.gender || "N/A",
+    categories: freelancerProfile?.professionalDetails?.categories || [],
+    skills: freelancerProfile?.professionalDetails?.skills || [],
+    country: freelancerProfile?.location?.country || "N/A",
+    city: freelancerProfile?.location?.city || "N/A",
+    timezone: freelancerProfile?.location?.timezone || "N/A",
+    availability: freelancerProfile?.availability || [],
+    emailVerified: freelancerProfile?.verification?.emailAddress || false,
+    phoneVerified: freelancerProfile?.verification?.phoneNumber || false,
+    languages: freelancerProfile?.languages || [],
+    socialLinks: freelancerProfile?.socialLinks || []
+  }
+};
+
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      contractId,
+      totalApplicants: applicants.length,
+      applicants
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+
+  }
+};
+
+exports.getHiredTalents = async (req, res) => {
+  try {
+
+    if (req.role !== "Client") {
+      return res.status(403).json({
+        success: false,
+        message: "Only clients can access hired talents"
+      });
     }
 
     const clientId = req.userId;
+    const { contractId } = req.params;
 
-    // ========================================
-    // Get Client Contracts
-    // ========================================
-
-    const contracts = await Contract.find({
-      clientId
-    })
-
-      .sort({
-        createdAt: -1
-      });
-
-    if (!contracts || contracts.length === 0) {
-
-      return res.status(404).json({
-
+    if (!contractId) {
+      return res.status(400).json({
         success: false,
-        message: "No contracts found"
-
+        message: "Contract ID is required"
       });
-
     }
 
-    // ========================================
-    // Format Contracts
-    // ========================================
+    const hiredApplications = await Application.find({ clientId, contractId, offerStatus: "accepted"})
+      .populate({
+        path: "freelancerId",
+        select: ` registrationDetails.fullName registrationDetails.email`
+      }).sort({ updatedAt: -1 });
 
-    const formattedContracts = await Promise.all(
+    const hiredTalents = await Promise.all(
+      hiredApplications.map(async (application) => {
+        const freelancerId = application.freelancerId?._id;
+        let profile = null;
+        let completedContractsCount = 0;
+        if (freelancerId) {
 
-      contracts.map(async (contract) => {
-
-        // ========================================
-        // Get Applications
-        // ========================================
-
-        const applications = await Application.find({
-
-          contractId: contract._id
-
-        })
-
-          .populate({
-
-            path: "freelancerId",
-
-            select: `
-            registrationDetails.fullName
-            registrationDetails.email
-            role
-          `
-
-          })
-
-          .sort({
-            createdAt: -1
+          profile = await FreelancerProfile.findOne({
+            userId: freelancerId
           });
 
-        // ========================================
-        // Format Applicants
-        // ========================================
+          completedContractsCount = await Application.countDocuments({
+            freelancerId,
+            offerStatus: "accepted",
+            applicationStatus: "completed"
+          });
 
-        const applicants = await Promise.all(
-
-          applications.map(async (application) => {
-
-            const freelancerProfile =
-              await FreelancerProfile.findOne({
-
-                userId:
-                  application.freelancerId?._id
-
-              });
-
-            const contractCount = await Application.countDocuments({
-              freelancerId: application.freelancerId?._id,
-              offerStatus: "accepted"
-            });
-
-            let completedContractsCount = 0;
-            if (application.freelancerId?._id) {
-              const freelancerApps = await Application.find({
-                freelancerId: application.freelancerId._id,
-                offerStatus: "accepted"
-              }).populate("contractId");
-              completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
-            }
-
-            return {
-
-              // ========================================
-              // Application Details
-              // ========================================
-
-              applicationId:
-                application._id,
-
-              applicationStatus:
-                application.applicationStatus,
-
-              appliedAt:
-                application.createdAt,
-
-
-
-              // ========================================
-              // Assessment
-              // ========================================
-
-              assessment:
-                application.assessment,
-
-              // ========================================
-              // Interview
-              // ========================================
-
-              interview:
-                application.interview,
-
-              // ========================================
-              // Freelancer Details
-              // ========================================
-
-              freelancer: {
-
-                _id:
-                  application.freelancerId?._id || null,
-
-                contractCount: contractCount || 0,
-                completedContractsCount: completedContractsCount || 0,
-                hourlyRate: freelancerProfile?.hourlyRate || 0,
-
-                // ========================================
-                // Basic Information
-                // ========================================
-
-                fullName:
-                  freelancerProfile?.basicInformation?.fullName
-                  || "N/A",
-
-                email:
-                  freelancerProfile?.basicInformation?.email
-                  || "N/A",
-
-                username:
-                  freelancerProfile?.basicInformation?.username
-                  || "N/A",
-
-                profilePhoto:
-                  freelancerProfile?.basicInformation?.profilePhoto
-                  || "",
-
-                professionalHeadline:
-                  freelancerProfile?.basicInformation?.professionalHeadline
-                  || "N/A",
-
-                shortBio:
-                  freelancerProfile?.basicInformation?.shortBio
-                  || "N/A",
-
-                gender:
-                  freelancerProfile?.basicInformation?.gender
-                  || "N/A",
-
-                // ========================================
-                // Professional Details
-                // ========================================
-
-                categories:
-                  freelancerProfile?.professionalDetails?.categories
-                  || [],
-
-                skills:
-                  freelancerProfile?.professionalDetails?.skills
-                  || [],
-
-                // ========================================
-                // Location
-                // ========================================
-
-                country:
-                  freelancerProfile?.location?.country
-                  || "N/A",
-
-                city:
-                  freelancerProfile?.location?.city
-                  || "N/A",
-
-                timezone:
-                  freelancerProfile?.location?.timezone
-                  || "N/A",
-
-                // ========================================
-                // Availability
-                // ========================================
-
-                availability:
-                  freelancerProfile?.availability
-                  || [],
-
-                // ========================================
-                // Verification
-                // ========================================
-
-                emailVerified:
-                  freelancerProfile?.verification?.emailAddress
-                  || false,
-
-                phoneVerified:
-                  freelancerProfile?.verification?.phoneNumber
-                  || false,
-
-                // ========================================
-                // Languages
-                // ========================================
-
-                languages:
-                  freelancerProfile?.languages
-                  || [],
-
-                // ========================================
-                // Social Links
-                // ========================================
-
-                socialLinks:
-                  freelancerProfile?.socialLinks
-                  || []
-
-              }
-
-            };
-
-          })
-
-        );
+        }
 
         return {
-
-          // ========================================
-          // Contract Details
-          // ========================================
-
-          _id:
-            contract._id,
-
-          contractTitle:
-            contract.contractTitle,
-
-          contractDescription:
-            contract.contractDescription,
-
-          contractType:
-            contract.budgetType,
-
-          projectStage:
-            contract.status,
-
-          totalApplicants:
-            applicants.length,
-
-          // ========================================
-          // Budget
-          // ========================================
-
-          estimatedBudget:
-            contract.estimatedBudget,
-
-          sourcedSpent: 0,
-
-          availableFund:
-            contract.estimatedBudget - 0,
-
-          // ========================================
-          // Dates
-          // ========================================
-
-          contractStartDate:
-            contract.contractStartDate,
-
-          contractEndDate:
-            contract.contractEndDate,
-
-          createdAt:
-            contract.createdAt,
-
-          // ========================================
-          // Applicants
-          // ========================================
-
-          applicants
+          applicationId: application._id,
+          appliedAt: application.createdAt,
+          hiredAt: application.signedAt || application.updatedAt,
+          applicationStatus: application.applicationStatus,
+          offerStatus: application.offerStatus,
+          signatureImage: application.signatureImage || "",
+          signedAt: application.signedAt || null,
+          freelancer: {
+            _id: freelancerId || null,
+            fullName: application.freelancerId?.registrationDetails?.fullName || "N/A",
+            email: application.freelancerId?.registrationDetails?.email || "N/A",
+            profilePhoto: profile?.basicInformation?.profilePhoto || "",
+          }
 
         };
 
       })
-
     );
 
     return res.status(200).json({
-
       success: true,
-
-      totalContracts:
-        formattedContracts.length,
-
-      contracts:
-        formattedContracts
-
-    });
-
-  }
-
-  catch (error) {
-
-    return res.status(500).json({
-
-      success: false,
-
-      message: error.message
-
-    });
-
-  }
-
-};
-
-// ========================================
-// Get Hired Talents (Client)
-// ========================================
-exports.getHiredTalents = async (req, res) => {
-  try {
-    if (req.role !== "Client") {
-      return res.status(403).json({ success: false, message: "Only clients can access hired talents" });
-    }
-
-    const clientId = req.userId;
-
-    // Find all applications for this client where status is 'shortlisted' (used for hired)
-    const hiredApplications = await Application.find({
-      clientId,
-      applicationStatus: "shortlisted"
-    })
-      .populate({
-        path: "freelancerId",
-        select: "registrationDetails.fullName registrationDetails.email registrationDetails.profilePicture"
-      })
-      .populate({
-        path: "contractId",
-        select: "contractTitle status estimatedBudget budgetType contractStartDate contractEndDate contractDescription"
-      })
-      .sort({ updatedAt: -1 });
-
-    const formattedTalents = await Promise.all(hiredApplications.map(async (application) => {
-      // Find freelancer profile
-      const FreelancerProfile = require("../models/freelancerProfile");
-      const profile = await FreelancerProfile.findOne({ userId: application.freelancerId?._id });
-
-      // Find completed contracts count for this freelancer
-      let completedContractsCount = 0;
-      if (application.freelancerId?._id) {
-        const freelancerApps = await Application.find({
-          freelancerId: application.freelancerId._id,
-          offerStatus: "accepted"
-        }).populate("contractId");
-        
-        completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
-      }
-
-      // Find if contract is funded
-      const Transaction = require("../models/transaction");
-      const fundedTxns = await Transaction.find({
-        contractId: application.contractId?._id,
-        type: "Escrow Funded",
-        status: "Paid"
-      });
-      const totalFunded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
-
-      return {
-        applicationId: application._id,
-        appliedAt: application.createdAt,
-        hiredAt: application.updatedAt,
-        offerStatus: application.offerStatus || "none",
-        scopeOfWork: application.scopeOfWork || "",
-        additionalTerms: application.additionalTerms || "",
-        signatureImage: application.signatureImage || "",
-        signedAt: application.signedAt || null,
-        freelancer: {
-          _id: application.freelancerId?._id || null,
-          fullName: application.freelancerId?.registrationDetails?.fullName || "N/A",
-          email: application.freelancerId?.registrationDetails?.email || "N/A",
-          profilePhoto: profile?.basicInformation?.profilePhoto || "",
-          professionalHeadline: profile?.basicInformation?.professionalHeadline || "N/A",
-          skills: profile?.professionalDetails?.skills || [],
-          completedContractsCount
-        },
-        contract: {
-          _id: application.contractId?._id || null,
-          title: application.contractId?.contractTitle || "N/A",
-          status: application.contractId?.status || "N/A",
-          estimatedBudget: application.contractId?.estimatedBudget || 0,
-          budgetType: application.contractId?.budgetType || "Fixed Price",
-          contractStartDate: application.contractId?.contractStartDate || null,
-          contractEndDate: application.contractId?.contractEndDate || null,
-          contractDescription: application.contractId?.contractDescription || "",
-          funded: totalFunded
-        }
-      };
-    }));
-
-    return res.status(200).json({
-      success: true,
-      hiredTalents: formattedTalents
+      contractId,
+      totalHiredTalents: hiredTalents.length,
+      hiredTalents
     });
 
   } catch (error) {
+
     return res.status(500).json({
       success: false,
       message: error.message
     });
+
   }
 };

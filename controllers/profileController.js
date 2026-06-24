@@ -857,38 +857,60 @@ exports.getAllFreelancers = async (req, res, next) => {
     
     const freelancers = await FreelancerProfile.find(query);
     
-    const freelancersWithContracts = [];
-    for (const freelancer of freelancers) {
-      const contractCount = await Application.countDocuments({
-        freelancerId: freelancer.userId,
-        offerStatus: "accepted"
-      });
-      const freelancerApps = await Application.find({
-        freelancerId: freelancer.userId,
-        offerStatus: "accepted"
-      }).populate("contractId");
-      const completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
+const freelancersWithContracts = [];
 
-      const plain = freelancer.toObject();
-      plain.contractCount = contractCount;
-      plain.completedContractsCount = completedContractsCount;
-      plain.status = statusMap[freelancer.userId.toString()] || "inactive";
-      freelancersWithContracts.push(plain);
-    }
+for (const freelancer of freelancers) {
+  const  activeContracts = await Application.countDocuments({
+    freelancerId: freelancer.userId,
+    offerStatus: "accepted",
+  });
+
+  const freelancerApps = await Application.find({
+    freelancerId: freelancer.userId,
+    offerStatus: "accepted",
+  }).populate("contractId");
+
+  const completedContracts = freelancerApps.filter(
+    (app) => app.contractId && app.contractId.status === "completed"
+  ).length;
+
+  const plain = freelancer.toObject();
+
+  freelancersWithContracts.push({
+    _id: plain._id,
+    userId: plain.userId,
+    profilePhoto: plain.basicInformation?.profilePhoto,
+    fullName: plain.basicInformation?.fullName,
+    email: plain.basicInformation?.email,
+    gender: plain.basicInformation?.gender,
+    professionalHeadline: plain.basicInformation?.professionalHeadline,
+    categories: plain.professionalDetails?.categories || [],
+    skills: plain.professionalDetails?.skills || [],
+    country: plain.location?.country,
+    city: plain.location?.city,
+    timezone: plain.location?.timezone,
+    availability: plain.availability || [],
+    hourlyRate: plain.hourlyRate,
+    createdAt: plain.createdAt,
+    updatedAt: plain.updatedAt,
+    activeContracts,
+    completedContracts,
+    status: statusMap[freelancer.userId.toString()] || "inactive",
+  });
+}
     
-    res.status(200).json({
-      success: true,
-      freelancers: freelancersWithContracts
-    });
+res.status(200).json({
+  success: true,
+  total_count: freelancersWithContracts.length,
+  items: freelancersWithContracts,
+});
   } catch (err) {
     next(err);
   }
 };
 
-
 exports.getFreelancerProfileById = async (req, res, next) => {
   try {
-
     const { id } = req.params;
 
     let profile = await FreelancerProfile.findById(id);
@@ -906,7 +928,7 @@ exports.getFreelancerProfileById = async (req, res, next) => {
       });
     }
 
-    const contractCount = await Application.countDocuments({
+    const activeContracts = await Application.countDocuments({
       freelancerId: profile.userId,
       offerStatus: "accepted"
     });
@@ -920,9 +942,10 @@ exports.getFreelancerProfileById = async (req, res, next) => {
       offerStatus: "accepted"
     }).populate("contractId");
 
-    const completedContractsCount = freelancerApps.filter(
-      app => app.contractId &&
-      app.contractId.status === "completed"
+    const completedContracts = freelancerApps.filter(
+      app =>
+        app.contractId &&
+        app.contractId.status === "completed"
     ).length;
 
     const portfolio = await Portfolio.find({
@@ -931,23 +954,38 @@ exports.getFreelancerProfileById = async (req, res, next) => {
 
     const plainProfile = profile.toObject();
 
-    plainProfile.contractCount = contractCount;
-    plainProfile.completedContractsCount = completedContractsCount;
-    plainProfile.status = freelancerUser
-      ? freelancerUser.status
-      : "inactive";
+    // Remove sensitive fields
+    delete plainProfile.paymentDetails;
+    delete plainProfile.verification;
 
-    res.status(200).json({
-      success: true,
-      profile: plainProfile,
-      portfolio: portfolio
-    });
+    // Flatten nested objects
+    const responseProfile = {
+      ...plainProfile,
+      ...(plainProfile.basicInformation || {}),
+      ...(plainProfile.professionalDetails || {}),
+      ...(plainProfile.location || {}),
+      activeContracts,
+      completedContracts,
+      status: freelancerUser ? freelancerUser.status : "inactive"
+    };
 
+    // Remove original nested objects
+    delete responseProfile.basicInformation;
+    delete responseProfile.professionalDetails;
+    delete responseProfile.location;
+
+return res.status(200).json({
+  requestId: req.id, // optional
+  data: {
+    success: true,
+    profile: responseProfile,
+    portfolio
+  }
+});
   } catch (err) {
     next(err);
   }
 };
-
 
 exports.saveTalent = async (req, res, next) => {
   try {

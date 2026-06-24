@@ -552,3 +552,139 @@ exports.downloadPaymentStatementPdf = async (req, res) => {
   }
 };
 
+// ==========================================
+// CLIENT: Get Contract-wise Transactions (for Accordion UI)
+// GET /api/finance/contract-transactions
+// ==========================================
+exports.getContractTransactions = async (req, res) => {
+  try {
+    if (req.role !== "Client") {
+       return res.status(403).json({ success: false, message: "Only clients can access this" });
+    }
+    
+    // Fetch ContractDiaries, populating just what we need
+    const diaries = await ContractDiary.find({ clientId: req.userId })
+      .select("contractId freelancerId phases overallStatus")
+      .populate("contractId", "contractTitle estimatedBudget budgetType")
+      .populate("freelancerId", "registrationDetails.fullName")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    // Strip out heavy phase data (revisions, attachments, descriptions)
+    const strippedDiaries = diaries.map(diary => {
+      return {
+        _id: diary._id,
+        overallStatus: diary.overallStatus,
+        contractId: diary.contractId,
+        freelancerId: diary.freelancerId,
+        phases: (diary.phases || []).map(p => ({
+          _id: p._id,
+          name: p.name,
+          deadline: p.deadline,
+          amount: p.amount,
+          status: p.status
+        }))
+      };
+    });
+
+    return res.status(200).json({ success: true, diaries: strippedDiaries });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ==========================================
+// FREELANCER: Get Finance Report (Combined Diaries & Txns)
+// GET /api/finance/freelancer-report
+// ==========================================
+exports.getFreelancerFinanceReport = async (req, res) => {
+  try {
+    if (req.role !== "Freelancer") {
+       return res.status(403).json({ success: false, message: "Only freelancers can access this" });
+    }
+
+    const userId = req.userId;
+    
+    // 1. Get all contract diaries for this freelancer
+    const diaries = await ContractDiary.find({ freelancerId: userId })
+      .populate("contractId", "contractTitle budgetType contractStartDate contractEndDate estimatedBudget")
+      .populate("clientId", "registrationDetails.fullName")
+      .sort({ updatedAt: -1 })
+      .lean();
+
+    // 2. Get all transactions for this freelancer
+    const txns = await Transaction.find({ userId }).lean();
+
+    // 3. Map and calculate finance data per contract
+    const reportData = diaries.map(diary => {
+      const contractId = diary.contractId?._id?.toString() || null;
+
+      // Filter transactions associated with this contract
+      const contractTxns = txns.filter(t => t.contractId && t.contractId.toString() === contractId);
+
+      const receivedAmount = contractTxns
+        .filter(t => t.type === 'Payment Released')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const withdrawnAmount = contractTxns
+        .filter(t => t.type === 'Withdrawal')
+        .reduce((sum, t) => sum + t.amount, 0);
+
+      const balance = Math.max(0, receivedAmount - withdrawnAmount);
+
+      const approvedPhases = (diary.phases || []).filter(p => p.status === 'approved');
+      const earned = approvedPhases.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const budget = (diary.phases || []).reduce((sum, p) => sum + (p.amount || 0), 0);
+      const totalPhases = (diary.phases || []).length;
+      const completion = totalPhases > 0 ? Math.round((approvedPhases.length / totalPhases) * 100) : 0;
+
+      let mappedStatus = 'Ongoing';
+      if (diary.overallStatus === 'completed') mappedStatus = 'Completed';
+      else if (diary.overallStatus === 'cancelled') mappedStatus = 'Cancelled';
+
+      // Find last payment date
+      let lastPaymentDate = null;
+      if (approvedPhases.length > 0) {
+        const sorted = approvedPhases.sort((a, b) => new Date(b.approvedAt).getTime() - new Date(a.approvedAt).getTime());
+        lastPaymentDate = sorted[0].approvedAt;
+      }
+
+      const strippedPhases = (diary.phases || []).map(p => {
+        let pStatus = 'Pending';
+        if (p.status === 'approved') pStatus = 'Paid';
+        else if (p.status === 'submitted') pStatus = 'In Review';
+        else if (p.status === 'changes-requested') pStatus = 'Changes Requested';
+        else if (p.status === 'in-progress') pStatus = 'In Progress';
+
+        return {
+          name: p.name,
+          amount: p.amount || 0,
+          status: pStatus,
+          date: p.approvedAt || null
+        };
+      });
+
+      return {
+        contractId,
+        title: diary.contractId?.contractTitle || 'Contract',
+        client: diary.clientId?.registrationDetails?.fullName || 'Client',
+        budget,
+        earned,
+        status: mappedStatus,
+        type: diary.contractId?.budgetType || 'Fixed Price',
+        startDate: diary.contractId?.contractStartDate || diary.createdAt,
+        endDate: diary.contractId?.contractEndDate || diary.updatedAt,
+        completion,
+        balance,
+        withdrawnAmount,
+        receivedAmount,
+        lastPaymentDate,
+        phases: strippedPhases
+      };
+    });
+
+    return res.status(200).json({ success: true, report: reportData });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

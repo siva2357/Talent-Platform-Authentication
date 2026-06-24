@@ -653,6 +653,7 @@ exports.getFreelancerOffers = async (req, res) => {
         expiresIn: "5 Days",
         startDate: new Date(contract.contractStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         status: app.offerStatus === "sent" ? "Pending" : (app.offerStatus === "accepted" ? "Accepted" : "Declined"),
+        contractStatus: contract.status,
         scopeOfWork: app.scopeOfWork,
         additionalTerms: app.additionalTerms,
         signatureImage: app.signatureImage,

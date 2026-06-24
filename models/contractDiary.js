@@ -158,10 +158,11 @@ const contractDiarySchema = new mongoose.Schema({
   },
 
   contractId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "Contract",
-    required: true
-  },
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Contract",
+  required: true,
+  unique: true
+},
 
   clientId: {
     type: mongoose.Schema.Types.ObjectId,

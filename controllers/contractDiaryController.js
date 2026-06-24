@@ -34,17 +34,8 @@ async function syncContractStatus(diary) {
   const phases = diary.phases || [];
 
 
-  const allApproved =
-    phases.length > 0 &&
-    phases.every(p => p.status === "approved");
-
-  if (allApproved) {
-
-    diary.overallStatus = "completed";
-
-    contract.status = "completed";
-
-  } else if (
+  if (
+    contract.status === "pending" &&
     phases.some(p =>
       [
         "in-progress",
@@ -54,17 +45,18 @@ async function syncContractStatus(diary) {
       ].includes(p.status)
     )
   ) {
-
+    // Only automatically transition from pending to in-progress when work starts
     diary.overallStatus = "in-progress";
-
     contract.status = "in progress";
-
   } else {
-
-    diary.overallStatus = "not-started";
-
-    contract.status = "pending";
-
+    // Otherwise, keep the status in sync with the main Contract's status
+    if (contract.status === 'completed') {
+      diary.overallStatus = 'completed';
+    } else if (contract.status === 'in progress') {
+      diary.overallStatus = 'in-progress';
+    } else {
+      diary.overallStatus = 'not-started';
+    }
   }
 
   contract.spent =
@@ -79,150 +71,6 @@ async function syncContractStatus(diary) {
 }
 
 
-exports.initializeDiary = async (req, res) => {
-  try {
-
-    if (req.role !== "Client") {
-      return res.status(403).json({
-        success: false,
-        message: "Only clients can initialize a contract diary"
-      });
-    }
-
-    const { applicationId, phases } = req.body;
-
-    if (!applicationId) {
-      return res.status(400).json({
-        success: false,
-        message: "applicationId is required"
-      });
-    }
-
-    const application = await Application
-      .findById(applicationId)
-      .populate("contractId");
-
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        message: "Application not found"
-      });
-    }
-
-    if (
-      application.clientId.toString() !==
-      req.userId.toString()
-    ) {
-      return res.status(403).json({
-        success: false,
-        message: "Unauthorized"
-      });
-    }
-
-    if (
-      application.offerStatus !== "accepted"
-    ) {
-      return res.status(400).json({
-        success: false,
-        message: "Diary can only be created for accepted offers"
-      });
-    }
-
-    const existing =
-      await ContractDiary.findOne({
-        applicationId
-      });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        message:
-          "A diary already exists for this contract",
-        diaryId: existing._id
-      });
-    }
-
-    const baseEscrowAmount =
-      (phases || []).reduce(
-        (sum, p) => sum + (p.amount || 0),
-        0
-      );
-
-    const contractBudget =
-      application.contractId?.estimatedBudget || 0;
-
-    if (baseEscrowAmount > contractBudget) {
-      return res.status(400).json({
-        success: false,
-        message:
-          `Initial phases total budget ($${baseEscrowAmount.toFixed(2)}) exceeds overall contract budget ($${contractBudget.toFixed(2)})`
-      });
-    }
-
-    const diary =
-      await ContractDiary.create({
-
-        applicationId,
-
-        contractId:
-          application.contractId._id,
-
-        clientId:
-          application.clientId,
-
-        freelancerId:
-          application.freelancerId,
-
-        overallStatus:
-          "not-started",
-
-        phases: (phases || []).map(
-          p => ({
-            name:
-              p.name || "Phase",
-
-            description:
-              p.description || "",
-
-            deadline:
-              p.deadline
-                ? new Date(
-                    p.deadline
-                  )
-                : undefined,
-
-            amount:
-              p.amount || 0,
-
-            status:
-              "pending"
-          })
-        )
-
-      });
-
-    await syncContractStatus(
-      diary
-    );
-
-    await diary.save();
-
-    return res.status(201).json({
-      success: true,
-      message:
-        "Contract diary initialized successfully",
-      diary
-    });
-
-  } catch (err) {
-
-    return res.status(500).json({
-      success: false,
-      message: err.message
-    });
-
-  }
-};
 
 exports.addPhase = async (req, res) => {
   try {
@@ -557,35 +405,71 @@ exports.getClientDiaries = async (req, res) => {
 
 exports.getFreelancerDiaries = async (req, res) => {
   try {
-    if (req.role !== "Freelancer")
-      return res.status(403).json({ success: false, message: "Only freelancers can access this" });
 
-    const diaries = await ContractDiary.find({ freelancerId: req.userId })
-      .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent")
-      .populate("clientId", "registrationDetails.fullName registrationDetails.email")
-      .sort({ updatedAt: -1 });
+    if (req.role !== "Freelancer") {
+      return res.status(403).json({
+        success: false,
+        message: "Only freelancers can access this"
+      });
+    }
 
-    const formattedDiaries = await Promise.all(diaries.map(async (diary) => {
-      const diaryObj = diary.toObject();
-      if (diaryObj.contractId) {
-        const spentVal = (diaryObj.phases || [])
-          .filter(p => p.status === "approved")
-          .reduce((sum, p) => sum + (p.amount || 0), 0);
-        diaryObj.contractId.spent = spentVal;
+    const { contractId } = req.params;
 
-        const fundedTxns = await Transaction.find({
-          contractId: diaryObj.contractId._id,
-          type: "Escrow Funded",
-          status: "Paid"
-        });
-        diaryObj.contractId.funded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
-      }
-      return diaryObj;
-    }));
+    const diary = await ContractDiary.findOne({
+      contractId,
+      freelancerId: req.userId
+    })
+      .populate(
+        "contractId",
+        "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent"
+      )
+      .populate(
+        "clientId",
+        "registrationDetails.fullName registrationDetails.email"
+      );
 
-    return res.status(200).json({ success: true, diaries: formattedDiaries });
+    if (!diary) {
+      return res.status(404).json({
+        success: false,
+        message: "Contract diary not found"
+      });
+    }
+
+    const diaryObj = diary.toObject();
+
+    if (diaryObj.contractId) {
+
+      const spentVal = (diaryObj.phases || [])
+        .filter(p => p.status === "approved")
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+      diaryObj.contractId.spent = spentVal;
+
+      const fundedTxns = await Transaction.find({
+        contractId: diaryObj.contractId._id,
+        type: "Escrow Funded",
+        status: "Paid"
+      });
+
+      diaryObj.contractId.funded = fundedTxns.reduce(
+        (sum, t) => sum + (t.amount || 0),
+        0
+      );
+
+    }
+
+    return res.status(200).json({
+      success: true,
+      diary: diaryObj
+    });
+
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
   }
 };
 
@@ -727,5 +611,174 @@ await diary.save();
     return res.status(200).json({ success: true, message: "Phase started", phase });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+
+exports.getDiaryByContractId = async (req, res) => {
+  try {
+
+    const contract = await Contract.findById(
+      req.params.contractId
+    );
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: "Contract not found"
+      });
+    }
+
+    const application = await Application.findOne({
+      contractId: contract._id,
+      applicationStatus: "shortlisted"
+    });
+
+    if (!application) {
+      return res.status(404).json({
+        success: false,
+        message: "No hired freelancer found"
+      });
+    }
+
+    let diary = await ContractDiary.findOne({
+      contractId: contract._id
+    });
+
+    if (!diary) {
+
+      diary = await ContractDiary.create({
+
+        applicationId: application._id,
+
+        contractId: contract._id,
+
+        clientId: contract.clientId,
+
+        freelancerId: application.freelancerId,
+
+        overallStatus: "not-started",
+
+        phases: []
+
+      });
+
+    }
+
+    diary = await ContractDiary.findById(
+      diary._id
+    )
+      .populate(
+        "contractId",
+        "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent"
+      )
+      .populate(
+        "clientId",
+        "registrationDetails.fullName registrationDetails.email"
+      )
+      .populate(
+        "freelancerId",
+        "registrationDetails.fullName registrationDetails.email"
+      );
+
+    return res.status(200).json({
+
+      success: true,
+
+      contract: {
+        _id: contract._id,
+        contractTitle: contract.contractTitle,
+        estimatedBudget: contract.estimatedBudget,
+        budgetType: contract.budgetType,
+        contractStartDate: contract.contractStartDate,
+        contractEndDate: contract.contractEndDate,
+        contractDescription: contract.contractDescription,
+        techStack: contract.techStack,
+        spent: contract.spent || 0
+      },
+
+      diary
+
+    });
+
+  } catch (err) {
+
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
+  }
+};
+
+
+exports.getFreelancerAllDiaries = async (req, res) => {
+  try {
+
+    if (req.role !== "Freelancer") {
+      return res.status(403).json({
+        success: false,
+        message: "Only freelancers can access this"
+      });
+    }
+
+    const diaries = await ContractDiary.find({
+      freelancerId: req.userId
+    })
+      .populate(
+        "contractId",
+        "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent"
+      )
+      .populate(
+        "clientId",
+        "registrationDetails.fullName registrationDetails.email"
+      )
+      .sort({ updatedAt: -1 });
+
+    const formattedDiaries = await Promise.all(
+      diaries.map(async (diary) => {
+
+        const diaryObj = diary.toObject();
+
+        if (diaryObj.contractId) {
+
+          const spentVal = (diaryObj.phases || [])
+            .filter(p => p.status === "approved")
+            .reduce(
+              (sum, p) => sum + (p.amount || 0),
+              0
+            );
+
+          diaryObj.contractId.spent = spentVal;
+
+          const fundedTxns = await Transaction.find({
+            contractId: diaryObj.contractId._id,
+            type: "Escrow Funded",
+            status: "Paid"
+          });
+
+          diaryObj.contractId.funded =
+            fundedTxns.reduce(
+              (sum, t) => sum + (t.amount || 0),
+              0
+            );
+        }
+
+        return diaryObj;
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      diaries: formattedDiaries
+    });
+
+  } catch (err) {
+
+    return res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
   }
 };
