@@ -891,10 +891,77 @@ exports.getSavedContracts = async (req, res) => {
         createdAt: -1
       });
 
+    const formattedContracts = await Promise.all(
+      contracts.map(async (contract) => {
+        const clientProfile = await ClientProfile.findOne({
+          userId: contract.clientId._id
+        });
+
+        let totalDuration = "";
+        if (contract.contractStartDate && contract.contractEndDate) {
+          const startDate = new Date(contract.contractStartDate);
+          const endDate = new Date(contract.contractEndDate);
+          const diffTime = Math.abs(endDate - startDate);
+          const totalDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          const months = Math.floor(totalDays / 30);
+          const remainingDaysAfterMonths = totalDays % 30;
+          const weeks = Math.floor(remainingDaysAfterMonths / 7);
+          const days = remainingDaysAfterMonths % 7;
+
+          if (months > 0) {
+            totalDuration += `${months} month`;
+            if (months > 1) totalDuration += "s";
+          }
+          if (weeks > 0) {
+            if (totalDuration.length > 0) totalDuration += ", ";
+            totalDuration += `${weeks} week`;
+            if (weeks > 1) totalDuration += "s";
+          }
+          if (days > 0) {
+            if (totalDuration.length > 0) totalDuration += ", ";
+            totalDuration += `${days} day`;
+            if (days > 1) totalDuration += "s";
+          }
+        }
+
+        const hasApplied = contract.applicants?.some(
+          (applicant) => applicant.freelancerId.toString() === freelancerId.toString()
+        );
+
+        const hasSaved = true; // since it's from getSavedContracts
+
+        const clientType = clientProfile?.professionalDetails?.clientType || "";
+        const isIndividual = clientType === "Individual";
+
+        return {
+          _id: contract._id,
+          clientName: contract.clientId?.registrationDetails?.fullName || "",
+          clientType,
+          website: isIndividual ? "" : (clientProfile?.professionalDetails?.website || ""),
+          industry: isIndividual ? "" : (clientProfile?.professionalDetails?.industry || ""),
+          contractTitle: contract.contractTitle,
+          budgetType: contract.budgetType,
+          estimatedBudget: contract.estimatedBudget,
+          contractDescription: contract.contractDescription,
+          contractStartDate: contract.contractStartDate,
+          contractEndDate: contract.contractEndDate,
+          contractType: contract.contractType || "",
+          contractSubject: contract.contractSubject || "",
+          totalDuration,
+          status: contract.status,
+          totalApplicants: contract.applicants?.length || 0,
+          hasApplied,
+          hasSaved,
+          createdAt: contract.createdAt,
+          updatedAt: contract.updatedAt
+        };
+      })
+    );
+
     return res.status(200).json({
       success: true,
-      totalContracts: contracts.length,
-      contracts
+      totalContracts: formattedContracts.length,
+      contracts: formattedContracts
     });
 
   }

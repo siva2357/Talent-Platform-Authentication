@@ -681,6 +681,13 @@ exports.getDiaryByContractId = async (req, res) => {
         "registrationDetails.fullName registrationDetails.email"
       );
 
+    const fundedTxns = await Transaction.find({
+      contractId: contract._id,
+      type: "Escrow Funded",
+      status: "Paid"
+    });
+    const funded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+
     return res.status(200).json({
 
       success: true,
@@ -694,7 +701,8 @@ exports.getDiaryByContractId = async (req, res) => {
         contractEndDate: contract.contractEndDate,
         contractDescription: contract.contractDescription,
         techStack: contract.techStack,
-        spent: contract.spent || 0
+        spent: contract.spent || 0,
+        funded
       },
 
       diary

@@ -283,6 +283,14 @@ exports.withdrawFunds = async (req, res) => {
       return res.status(400).json({ success: false, message: "Insufficient balance to withdraw this amount." });
     }
 
+    if (contractId) {
+      const ContractDiary = require("../models/contractDiary");
+      const diary = await ContractDiary.findOne({ contractId: contractId });
+      if (diary && diary.overallStatus !== 'completed' && diary.overallStatus !== 'cancelled') {
+        return res.status(400).json({ success: false, message: "Withdrawals are only permitted after the contract is completed." });
+      }
+    }
+
     // Deduct from balance
     user.balance = (user.balance || 0) - parseFloat(amount);
     await user.save();
