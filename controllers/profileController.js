@@ -3,6 +3,7 @@ const FreelancerProfile = require("../models/freelancerProfile");
 const ClientProfile = require("../models/clientProfile");
 const { uploadToGCP } = require("../utils/gcpUploader");
 const { deleteFileFromGCPByUrl } = require("../utils/gcpDeleteByUrl");
+const { deleteFolderFromGCP } = require("../utils/gcpCleaner");
 const bucketMap = require("../constants/bucketMap");
 const uploadSections = require("../constants/uploadSections");
 const { freelancerProfileSchema, clientProfileSchema, sendPhoneOTPSchema, verifyPhoneOTPSchema } = require("../schemas/profileSchemas");
@@ -405,15 +406,18 @@ exports.deleteProfile = async (req, res, next) => {
     const Notification = require("../models/notification");
     const SupportRequest = require("../models/supportRequest");
 
+    const fullName = user.registrationDetails?.fullName || "";
+    const safeFullName = fullName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_");
+
     if (role === "Client") {
       const profile = await ClientProfile.findOne({ userId: user._id });
 
-      // 1. Delete client profile photo from GCP
-      if (profile && profile.basicInformation?.profilePhoto) {
+      // 1. Delete ALL client files from GCP
+      if (safeFullName) {
         try {
-          await deleteFileFromGCPByUrl(profile.basicInformation.profilePhoto);
+          await deleteFolderFromGCP(bucketMap.CLIENT_DATA, safeFullName);
         } catch (delErr) {
-          console.error("Failed to delete profile photo from GCP:", delErr);
+          console.error("Failed to delete client GCP folder:", delErr);
         }
       }
 
@@ -421,273 +425,65 @@ exports.deleteProfile = async (req, res, next) => {
       const contracts = await Contract.find({ clientId: user._id });
       const contractIds = contracts.map(c => c._id);
 
-      // 3. Purge applications (signature images + database records)
-      const applications = await Application.find({ contractId: { $in: contractIds } });
-      for (const app of applications) {
-        if (app.signatureImage) {
-          try {
-            await deleteFileFromGCPByUrl(app.signatureImage);
-          } catch (delErr) {
-            console.error("Failed to delete signature image from GCP:", delErr);
-          }
-        }
-      }
+      // 3. Purge applications (database records only)
       await Application.deleteMany({ contractId: { $in: contractIds } });
       await Application.deleteMany({ clientId: user._id });
 
-      // 4. Purge contract diaries (attachments + database records)
-      const diaries = await ContractDiary.find({ contractId: { $in: contractIds } });
-      for (const diary of diaries) {
-        if (diary.phases) {
-          for (const phase of diary.phases) {
-            if (phase.attachments) {
-              for (const attach of phase.attachments) {
-                if (attach.fileUrl) {
-                  try {
-                    await deleteFileFromGCPByUrl(attach.fileUrl);
-                  } catch (delErr) {
-                    console.error("Failed to delete phase attachment:", delErr);
-                  }
-                }
-              }
-            }
-            if (phase.clientAttachments) {
-              for (const attach of phase.clientAttachments) {
-                if (attach.fileUrl) {
-                  try {
-                    await deleteFileFromGCPByUrl(attach.fileUrl);
-                  } catch (delErr) {
-                    console.error("Failed to delete client phase attachment:", delErr);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
+      // 4. Purge contract diaries (database records only)
       await ContractDiary.deleteMany({ contractId: { $in: contractIds } });
       await ContractDiary.deleteMany({ clientId: user._id });
 
-
-
-      // 6. Delete contracts themselves
+      // 5. Delete contracts themselves
       await Contract.deleteMany({ clientId: user._id });
 
-      // 7. Purge support requests (attachments + database records)
-      const supportRequests = await SupportRequest.find({ userId: user._id });
-      for (const sr of supportRequests) {
-        if (sr.attachments) {
-          for (const attach of sr.attachments) {
-            if (attach.url) {
-              try {
-                await deleteFileFromGCPByUrl(attach.url);
-              } catch (delErr) {
-                console.error("Failed to delete support attachment:", delErr);
-              }
-            }
-          }
-        }
-      }
+      // 6. Purge support requests (database records only)
       await SupportRequest.deleteMany({ userId: user._id });
 
-      // 8. Purge notifications
+      // 7. Purge notifications
       await Notification.deleteMany({ userId: user._id });
 
-      // 9. Purge transactions
+      // 8. Purge transactions
       await Transaction.deleteMany({ userId: user._id });
       if (contractIds.length > 0) {
         await Transaction.deleteMany({ contractId: { $in: contractIds } });
       }
 
-      // 10. Delete client profile document
+      // 9. Delete client profile document
       await ClientProfile.deleteOne({ userId: user._id });
 
-} else if (role === "Freelancer") {
+    } else if (role === "Freelancer") {
+      const profile = await FreelancerProfile.findOne({ userId: user._id });
 
-  const profile = await FreelancerProfile.findOne({
-    userId: user._id
-  });
-
-  // 1. Delete profile photo from GCP
-  if (profile?.basicInformation?.profilePhoto) {
-    try {
-      await deleteFileFromGCPByUrl(
-        profile.basicInformation.profilePhoto
-      );
-    } catch (delErr) {
-      console.error(
-        "Failed to delete profile photo from GCP:",
-        delErr
-      );
-    }
-  }
-
-  // 2. Delete portfolio media files
-  const portfolios = await Portfolio.find({
-    freelancerId: user._id
-  });
-
-  for (const portfolio of portfolios) {
-
-    if (!portfolio.media?.length) continue;
-
-    for (const media of portfolio.media) {
-
-      if (!media.url) continue;
-
-      try {
-        await deleteFileFromGCPByUrl(media.url);
-      } catch (err) {
-        console.error(
-          "Failed to delete portfolio media:",
-          err
-        );
-      }
-
-    }
-
-  }
-
-  // 3. Delete portfolio records
-  await Portfolio.deleteMany({
-    freelancerId: user._id
-  });
-
-  // 4. Purge applications submitted by freelancer
-  const applications = await Application.find({
-    freelancerId: user._id
-  });
-
-  for (const app of applications) {
-
-    if (!app.signatureImage) continue;
-
-    try {
-      await deleteFileFromGCPByUrl(
-        app.signatureImage
-      );
-    } catch (delErr) {
-      console.error(
-        "Failed to delete signature image from GCP:",
-        delErr
-      );
-    }
-
-  }
-
-  await Application.deleteMany({
-    freelancerId: user._id
-  });
-
-  // 5. Purge contract diaries
-  const diaries = await ContractDiary.find({
-    freelancerId: user._id
-  });
-
-  for (const diary of diaries) {
-
-    if (!diary.phases?.length) continue;
-
-    for (const phase of diary.phases) {
-
-      if (phase.attachments?.length) {
-
-        for (const attach of phase.attachments) {
-
-          if (!attach.fileUrl) continue;
-
-          try {
-            await deleteFileFromGCPByUrl(
-              attach.fileUrl
-            );
-          } catch (delErr) {
-            console.error(
-              "Failed to delete phase attachment:",
-              delErr
-            );
-          }
-
+      // 1. Delete ALL freelancer files from GCP
+      if (safeFullName) {
+        try {
+          await deleteFolderFromGCP(bucketMap.FREELANCER_DATA, safeFullName);
+        } catch (delErr) {
+          console.error("Failed to delete freelancer GCP folder:", delErr);
         }
-
       }
 
-      if (phase.clientAttachments?.length) {
+      // 2. Delete portfolio records
+      await Portfolio.deleteMany({ freelancerId: user._id });
 
-        for (const attach of phase.clientAttachments) {
+      // 3. Purge applications submitted by freelancer
+      await Application.deleteMany({ freelancerId: user._id });
 
-          if (!attach.fileUrl) continue;
+      // 4. Purge contract diaries
+      await ContractDiary.deleteMany({ freelancerId: user._id });
 
-          try {
-            await deleteFileFromGCPByUrl(
-              attach.fileUrl
-            );
-          } catch (delErr) {
-            console.error(
-              "Failed to delete client phase attachment:",
-              delErr
-            );
-          }
+      // 5. Purge support requests
+      await SupportRequest.deleteMany({ userId: user._id });
 
-        }
+      // 6. Purge notifications
+      await Notification.deleteMany({ userId: user._id });
 
-      }
+      // 7. Purge transactions
+      await Transaction.deleteMany({ userId: user._id });
 
+      // 8. Delete freelancer profile
+      await FreelancerProfile.deleteOne({ userId: user._id });
     }
-
-  }
-
-  await ContractDiary.deleteMany({
-    freelancerId: user._id
-  });
-
-  // 6. Purge support requests
-  const supportRequests = await SupportRequest.find({
-    userId: user._id
-  });
-
-  for (const sr of supportRequests) {
-
-    if (!sr.attachments?.length) continue;
-
-    for (const attach of sr.attachments) {
-
-      if (!attach.url) continue;
-
-      try {
-        await deleteFileFromGCPByUrl(
-          attach.url
-        );
-      } catch (delErr) {
-        console.error(
-          "Failed to delete support attachment:",
-          delErr
-        );
-      }
-
-    }
-
-  }
-
-  await SupportRequest.deleteMany({
-    userId: user._id
-  });
-
-  // 7. Purge notifications
-  await Notification.deleteMany({
-    userId: user._id
-  });
-
-  // 8. Purge transactions
-  await Transaction.deleteMany({
-    userId: user._id
-  });
-
-  // 9. Delete freelancer profile
-  await FreelancerProfile.deleteOne({
-    userId: user._id
-  });
-
-}
 
     // Finally delete user account document
     await User.deleteOne({ _id: user._id });
