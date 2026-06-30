@@ -248,6 +248,7 @@ exports.getMyProfile = async (req, res, next) => {
       profile = await ClientProfile.findOne({ userId: user._id });
       contracts = await Contract
         .find({ clientId: user._id })
+        .select("-applicants -savedBy -spent")
         .sort({ createdAt: -1 });
     }
 
