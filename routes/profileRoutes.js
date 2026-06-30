@@ -12,6 +12,7 @@ const {
   saveTalent,
   unsaveTalent,
   getSavedTalents,
+  getProfileById,
 } = require("../controllers/profileController");
 const upload = require("../middleware/upload");
 
@@ -19,6 +20,7 @@ const router = express.Router();
 
 router.post("/complete", protect, upload.single("profilePhoto"), completeProfile);
 router.get("/me", protect, getMyProfile);
+router.get("/user/:id", protect, getProfileById);
 router.put("/update", protect, upload.single("profilePhoto"), updateProfile);
 router.delete("/delete", protect, deleteProfile);
 

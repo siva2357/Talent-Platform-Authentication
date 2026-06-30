@@ -118,12 +118,11 @@ exports.getAllClients = async (req, res) => {
         clientName: user.registrationDetails.fullName,
         email: user.registrationDetails.email,
         phoneNumber: user.registrationDetails.phoneNumber || "",
-        spent: spent,
         projectsCount: contracts.length,
         status: user.status === 'active' ? 'Active' : (user.status === 'suspended' ? 'Suspended' : (user.status === 'blocked' ? 'Blocked' : 'Deactivated')),
         joinedDate: user.createdAt.toISOString().split('T')[0],
-        logoColor: 'indigo',
-        industry: profile?.professionalDetails?.industry || "Tech Services"
+        industry: profile?.professionalDetails?.industry || "Tech Services",
+        profileImage: profile?.basicInformation?.profilePhoto || null
       });
     }
 
@@ -184,14 +183,11 @@ exports.getAllFreelancers = async (req, res) => {
         name: user.registrationDetails.fullName,
         email: user.registrationDetails.email,
         phoneNumber: user.registrationDetails.phoneNumber || "",
-        skills: profile?.professionalDetails?.skills || [],
-        hourlyRate: profile?.hourlyRate || 0,
         completedProjects: contracts.filter(c => c.status === 'completed').length,
-        earnings: contracts.reduce((acc, c) => acc + (c.spent || 0), 0),
         status: user.status === 'active' ? 'Active' : (user.status === 'suspended' ? 'Suspended' : (user.status === 'blocked' ? 'Blocked' : 'Pending Approval')),
         joinedDate: user.createdAt.toISOString().split('T')[0],
-        rating: 5.0,
-        title: profile?.basicInformation?.professionalHeadline || "Freelancer Developer"
+        title: profile?.basicInformation?.professionalHeadline || "Freelancer Developer",
+        profileImage: profile?.basicInformation?.profilePhoto || null
       });
     }
 
