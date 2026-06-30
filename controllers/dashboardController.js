@@ -28,7 +28,13 @@ exports.getDashboardStats = async (req, res) => {
         offerStatus: "accepted"
       });
 
-      // 3. Submitted Proposals Count
+      // 3. Completed Contracts Count
+      const completedContractsCount = await Contract.countDocuments({
+        freelancerId: userId,
+        status: "completed"
+      });
+
+      // 4. Submitted Proposals Count
       const submittedProposalsCount = await Application.countDocuments({
         freelancerId: userId
       });
@@ -60,7 +66,6 @@ exports.getDashboardStats = async (req, res) => {
             title: "Application Submitted",
             description: `Applied to contract: ${app.contractId.contractTitle}`,
             time: app.createdAt,
-            icon: "bi-file-earmark-text-fill",
             status: "pending"
           });
         }
@@ -77,7 +82,6 @@ exports.getDashboardStats = async (req, res) => {
             title: "Contract Started",
             description: `You started the contract: ${offer.contractId.contractTitle}`,
             time: offer.updatedAt,
-            icon: "bi-briefcase-fill",
             status: "completed"
           });
         }
@@ -117,26 +121,27 @@ exports.getDashboardStats = async (req, res) => {
             label: "Total Earnings",
             value: `₹${totalEarnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             trend: "+12%",
-            trendType: "up",
-            icon: "bi-currency-rupee",
-            color: "blue"
+            trendType: "up"
           },
           {
             label: "Active Contracts",
             value: activeContractsCount.toString(),
             trend: "Active",
             trendType: "neutral",
-            icon: "bi-check2-circle",
-            color: "green",
             statusText: "Active"
+          },
+          {
+            label: "Completed Contracts",
+            value: completedContractsCount.toString(),
+            trend: "Done",
+            trendType: "up",
+            statusText: "Completed"
           },
           {
             label: "Submitted Proposals",
             value: submittedProposalsCount.toString(),
             trend: "Pending",
             trendType: "neutral",
-            icon: "bi-cash-stack",
-            color: "purple",
             statusText: "Pending"
           }
         ],
@@ -145,7 +150,6 @@ exports.getDashboardStats = async (req, res) => {
             title: "Welcome to Talent Hub",
             description: "Browse contracts to start logging work and earning.",
             time: "Just now",
-            icon: "bi-info-circle-fill",
             status: "completed"
           }
         ]
@@ -213,7 +217,6 @@ exports.getDashboardStats = async (req, res) => {
             action: "submitted a proposal",
             project: app.contractId.contractTitle,
             time: app.createdAt,
-            icon: "bi-file-earmark-text",
             type: "proposal"
           });
         }
@@ -229,7 +232,6 @@ exports.getDashboardStats = async (req, res) => {
               action: `approved milestone: "${p.name}"`,
               project: d.contractId?.contractTitle || "Contract",
               time: p.approvedAt || p.updatedAt,
-              icon: "bi-check-circle",
               type: "milestone"
             });
           }
@@ -258,7 +260,6 @@ exports.getDashboardStats = async (req, res) => {
             action: act.action,
             project: act.project,
             time: timeStr,
-            icon: act.icon,
             type: act.type
           };
         });
@@ -269,10 +270,10 @@ exports.getDashboardStats = async (req, res) => {
         fullName: clientName,
         profilePhoto,
         stats: [
-          { label: "Active Contracts", value: activeContractsCount.toString(), icon: "bi-briefcase", color: "primary" },
-          { label: "Total Spent", value: `₹${totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "bi-currency-rupee", color: "danger" },
-          { label: "Escrow Balance", value: `₹${escrowBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: "bi-shield-check", color: "success" },
-          { label: "Pending Proposals", value: pendingProposalsCount.toString(), icon: "bi-file-earmark-text", color: "warning" }
+          { label: "Active Contracts", value: activeContractsCount.toString() },
+          { label: "Total Spent", value: `₹${totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+          { label: "Escrow Balance", value: `₹${escrowBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+          { label: "Pending Proposals", value: pendingProposalsCount.toString() }
         ],
         activities: sortedActivities.length > 0 ? sortedActivities : [
           {
@@ -281,7 +282,6 @@ exports.getDashboardStats = async (req, res) => {
             action: "system set up correctly",
             project: "Acme Corp",
             time: "Just now",
-            icon: "bi-info-circle",
             type: "milestone"
           }
         ]
