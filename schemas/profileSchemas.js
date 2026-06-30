@@ -34,7 +34,7 @@ const freelancerProfileSchema = Joi.object({
     timezone: Joi.string().allow("")
   }).default(),
   availability: Joi.array().items(Joi.string()).default([]),
-  hourlyRate: Joi.number().optional().allow(null).default(0),
+
   verification: Joi.object({
     emailAddress: Joi.boolean().default(false),
     phoneNumber: Joi.boolean().default(true)

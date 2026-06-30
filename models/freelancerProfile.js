@@ -34,7 +34,7 @@ const freelancerProfileSchema = new mongoose.Schema(
       timezone: { type: String, default: "" },
     },
     availability: { type: [String], default: [] },
-    hourlyRate: { type: Number, default: 0 },
+
     verification: {
       emailAddress: { type: Boolean, default: false },
       phoneNumber: { type: Boolean, default: false },

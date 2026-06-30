@@ -62,7 +62,13 @@ exports.completeProfile = async (req, res, next) => {
     // 1. Check if file is uploaded
     if (req.file) {
       const bucketName = role === "Client" ? bucketMap.CLIENT_DATA : bucketMap.FREELANCER_DATA;
-      const folder = role === "Client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
+      let folder = role === "Client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
+
+      const fullName = user.registrationDetails?.fullName;
+      if (fullName) {
+        const safeFullName = fullName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_");
+        folder = `${safeFullName}/${folder}`;
+      }
 
       // Upload to GCP
       profilePhotoUrl = await uploadToGCP(req.file, bucketName, folder);
@@ -101,7 +107,7 @@ exports.completeProfile = async (req, res, next) => {
           timezone: location.timezone || ""
         },
         availability: validatedData.availability || [],
-        hourlyRate: validatedData.hourlyRate || 0,
+
         verification: {
           emailAddress: verification.emailAddress !== undefined ? verification.emailAddress : false,
           phoneNumber: verification.phoneNumber !== undefined ? verification.phoneNumber : true
@@ -410,7 +416,13 @@ exports.updateProfile = async (req, res, next) => {
     let profilePhotoUrl = profile.basicInformation?.profilePhoto || "";
     if (req.file) {
       const bucketName = role === "Client" ? bucketMap.CLIENT_DATA : bucketMap.FREELANCER_DATA;
-      const folder = role === "Client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
+      let folder = role === "Client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
+
+      const fullName = user.registrationDetails?.fullName;
+      if (fullName) {
+        const safeFullName = fullName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_");
+        folder = `${safeFullName}/${folder}`;
+      }
 
       // Upload to GCP
       profilePhotoUrl = await uploadToGCP(req.file, bucketName, folder);
@@ -462,9 +474,7 @@ exports.updateProfile = async (req, res, next) => {
     if (role === "Freelancer" && validatedData.availability) {
       profile.availability = validatedData.availability;
     }
-    if (role === "Freelancer" && validatedData.hourlyRate !== undefined) {
-      profile.hourlyRate = validatedData.hourlyRate;
-    }
+
     if (validatedData.paymentDetails) {
       profile.paymentDetails = {
         ...profile.paymentDetails,
@@ -598,6 +608,19 @@ exports.sendPhoneOTP = async (req, res, next) => {
 
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // Check if phone number is already used by another user
+    const existingUser = await User.findOne({ 
+      "registrationDetails.phoneNumber": phoneNumber, 
+      _id: { $ne: req.user._id } 
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "This phone number is already associated with another account." 
+      });
     }
 
     // Generate 6-digit OTP code
@@ -734,9 +757,7 @@ exports.getAllFreelancers = async (req, res, next) => {
     }
     
     if (minRate || maxRate) {
-      query.hourlyRate = {};
-      if (minRate) query.hourlyRate.$gte = Number(minRate);
-      if (maxRate) query.hourlyRate.$lte = Number(maxRate);
+
     }
     
     const freelancers = await FreelancerProfile.find(query);
@@ -774,7 +795,7 @@ for (const freelancer of freelancers) {
     city: plain.location?.city,
     timezone: plain.location?.timezone,
     availability: plain.availability || [],
-    hourlyRate: plain.hourlyRate,
+
     createdAt: plain.createdAt,
     updatedAt: plain.updatedAt,
     activeContracts,

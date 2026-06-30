@@ -83,8 +83,8 @@ exports.changePassword = async (req, res) => {
         }
 
         /* ================= UPDATE PASSWORD ================= */
-        const salt = await bcrypt.genSalt(12);
-        user.registrationDetails.password = await bcrypt.hash(newPassword, salt);
+        // The userSchema pre-save hook automatically hashes the password if modified.
+        user.registrationDetails.password = newPassword;
         await user.save();
 
         /* ================= EMAIL NOTIFICATION ================= */
