@@ -10,7 +10,7 @@ const { freelancerProfileSchema, clientProfileSchema, sendPhoneOTPSchema, verify
 const twilio = require("twilio");
 
 const Contract = require("../models/contract");
-const Application = require("../models/application");
+const Offer = require("../models/offer");
 const ContractDiary = require("../models/contractDiary");
 
 const Portfolio = require("../models/portfolio");
@@ -765,18 +765,17 @@ exports.getAllFreelancers = async (req, res, next) => {
 const freelancersWithContracts = [];
 
 for (const freelancer of freelancers) {
-  const  activeContracts = await Application.countDocuments({
-    freelancerId: freelancer.userId,
-    offerStatus: "accepted",
-  });
-
-  const freelancerApps = await Application.find({
+  const freelancerOffers = await Offer.find({
     freelancerId: freelancer.userId,
     offerStatus: "accepted",
   }).populate("contractId");
 
-  const completedContracts = freelancerApps.filter(
-    (app) => app.contractId && app.contractId.status === "completed"
+  const activeContracts = freelancerOffers.filter(
+    (offer) => offer.contractId && offer.contractId.status === "in progress"
+  ).length;
+
+  const completedContracts = freelancerOffers.filter(
+    (offer) => offer.contractId && offer.contractId.status === "completed"
   ).length;
 
   const plain = freelancer.toObject();
@@ -833,24 +832,21 @@ exports.getFreelancerProfileById = async (req, res, next) => {
       });
     }
 
-    const activeContracts = await Application.countDocuments({
-      freelancerId: profile.userId,
-      offerStatus: "accepted"
-    });
-
     const freelancerUser = await User.findById(
       profile.userId
     ).select("status");
 
-    const freelancerApps = await Application.find({
+    const freelancerOffers = await Offer.find({
       freelancerId: profile.userId,
       offerStatus: "accepted"
     }).populate("contractId");
 
-    const completedContracts = freelancerApps.filter(
-      app =>
-        app.contractId &&
-        app.contractId.status === "completed"
+    const activeContracts = freelancerOffers.filter(
+      offer => offer.contractId && offer.contractId.status === "in progress"
+    ).length;
+
+    const completedContracts = freelancerOffers.filter(
+      offer => offer.contractId && offer.contractId.status === "completed"
     ).length;
 
     const portfolio = await Portfolio.find({
@@ -974,15 +970,18 @@ exports.getSavedTalents = async (req, res, next) => {
     const savedTalentsWithContracts = [];
     if (clientProfile.savedTalents) {
       for (const freelancer of clientProfile.savedTalents) {
-        const contractCount = await Application.countDocuments({
-          freelancerId: freelancer.userId,
-          offerStatus: "accepted"
-        });
-        const freelancerApps = await Application.find({
+        const freelancerOffers = await Offer.find({
           freelancerId: freelancer.userId,
           offerStatus: "accepted"
         }).populate("contractId");
-        const completedContractsCount = freelancerApps.filter(app => app.contractId && app.contractId.status === "completed").length;
+
+        const contractCount = freelancerOffers.filter(
+          offer => offer.contractId && offer.contractId.status === "in progress"
+        ).length;
+
+        const completedContractsCount = freelancerOffers.filter(
+          offer => offer.contractId && offer.contractId.status === "completed"
+        ).length;
 
         const freelancerUser = await User.findById(freelancer.userId).select("status");
         const plain = freelancer.toObject();

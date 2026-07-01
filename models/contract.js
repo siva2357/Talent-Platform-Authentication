@@ -13,11 +13,6 @@ const contractSchema = new mongoose.Schema(
       trim: true
     },
 
-    budgetType: {
-      type: String,
-      enum: ["Fixed Price", "Hourly Rate"],
-      required: true
-    },
 
     estimatedBudget: {
       type: Number,

@@ -36,7 +36,8 @@ const applicationSchema = new mongoose.Schema(
         "interview scheduled",
         "interview completed",
         "shortlisted",
-        "rejected"
+        "rejected",
+        "hired"
       ],
 
       default: "application received"

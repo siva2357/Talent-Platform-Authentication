@@ -6,6 +6,7 @@ const Application = require("../models/application");
 const User = require("../models/user");
 const Notification = require("../models/notification");
 const sendMail = require("../middleware/sendMail");
+const { createContractSchema } = require("../schemas/contractSchemas");
 
 
 exports.createContract = async (req, res) => {
@@ -14,12 +15,17 @@ exports.createContract = async (req, res) => {
       return res.status(403).json({ success: false, message: "Only clients can access this feature" });
     }
     const clientId = req.userId;
-    const { contractTitle, budgetType, estimatedBudget, contractStartDate, contractEndDate, contractDescription, contractType, contractSubject } = req.body;
+    const { error, value: validatedData } = createContractSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+
+    const { contractTitle, estimatedBudget, contractStartDate, contractEndDate, contractDescription, contractType, contractSubject, status } = validatedData;
     
-    if (estimatedBudget < 25000 || estimatedBudget > 75000) {
+    if (estimatedBudget < 30000 || estimatedBudget > 75000) {
       return res.status(400).json({
         success: false,
-        message: "Estimated budget must be between ₹25,000 and ₹75,000"
+        message: "Estimated budget must be between ₹30,000 and ₹75,000"
       });
     }
 
@@ -33,24 +39,34 @@ exports.createContract = async (req, res) => {
     }
 
     const minEndDate = new Date(startDateObj);
-    minEndDate.setMonth(minEndDate.getMonth() + 2);
+    minEndDate.setMonth(minEndDate.getMonth() + 3);
+    const maxEndDate = new Date(startDateObj);
+    maxEndDate.setMonth(maxEndDate.getMonth() + 6);
+
     if (endDateObj < minEndDate) {
       return res.status(400).json({
         success: false,
-        message: "Contract duration must be at least 2 months"
+        message: "Contract duration must be at least 3 months"
+      });
+    }
+
+    if (endDateObj > maxEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Contract duration cannot exceed 6 months"
       });
     }
 
     const contract = await Contract.create({
       clientId,
       contractTitle,
-      budgetType,
       estimatedBudget,
       contractStartDate,
       contractEndDate,
       contractDescription,
       contractType,
-      contractSubject
+      contractSubject,
+      status
     });
 
     return res.status(201).json({
@@ -78,7 +94,7 @@ exports.getMyContracts = async (req, res) => {
     const clientId = req.userId;
 
     const contracts = await Contract.find({ clientId })
-      .select("contractTitle budgetType estimatedBudget contractStartDate contractEndDate contractType contractSubject status createdAt")
+      .select("contractTitle estimatedBudget contractStartDate contractEndDate contractType contractSubject status createdAt")
       .sort({ createdAt: -1 });
 
     const ContractDiary = require("../models/contractDiary");
@@ -206,7 +222,7 @@ exports.updateContract = async (req, res) => {
     const clientId = req.userId;
     const {
       contractTitle,
-      budgetType,
+
       estimatedBudget,
       contractStartDate,
       contractEndDate,
@@ -216,10 +232,10 @@ exports.updateContract = async (req, res) => {
       status
     } = req.body;
 
-    if (estimatedBudget !== undefined && (estimatedBudget < 25000 || estimatedBudget > 75000)) {
+    if (estimatedBudget !== undefined && (estimatedBudget < 30000 || estimatedBudget > 75000)) {
       return res.status(400).json({
         success: false,
-        message: "Estimated budget must be between ₹25,000 and ₹75,000"
+        message: "Estimated budget must be between ₹30,000 and ₹75,000"
       });
     }
 
@@ -255,11 +271,21 @@ exports.updateContract = async (req, res) => {
     }
     
     const minAllowedEndDate = new Date(newStartDate);
-    minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + 2);
+    minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + 3);
+    const maxAllowedEndDate = new Date(newStartDate);
+    maxAllowedEndDate.setMonth(maxAllowedEndDate.getMonth() + 6);
+    
     if (newEndDate < minAllowedEndDate) {
       return res.status(400).json({
         success: false,
-        message: "Contract duration must be at least 2 months"
+        message: "Contract duration must be at least 3 months"
+      });
+    }
+
+    if (newEndDate > maxAllowedEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Contract duration cannot exceed 6 months"
       });
     }
 
@@ -267,9 +293,7 @@ exports.updateContract = async (req, res) => {
       contract.contractTitle = contractTitle;
     }
 
-    if (budgetType !== undefined) {
-      contract.budgetType = budgetType;
-    }
+
 
     if (estimatedBudget !== undefined) {
       contract.estimatedBudget = estimatedBudget;
@@ -494,7 +518,6 @@ exports.getAllContracts = async (req, res) => {
           website: isIndividual ? "" : (clientProfile?.professionalDetails?.website || ""),
           industry: isIndividual ? "" : (clientProfile?.professionalDetails?.industry || ""),
           contractTitle: contract.contractTitle,
-          budgetType: contract.budgetType,
           estimatedBudget: contract.estimatedBudget,
           contractDescription: contract.contractDescription,
           contractStartDate: contract.contractStartDate,
@@ -503,7 +526,6 @@ exports.getAllContracts = async (req, res) => {
           contractSubject: contract.contractSubject || "",
           totalDuration,
           status: contract.status,
-          totalApplicants: contract.applicants?.length || 0,
           hasApplied,
           hasSaved,
           createdAt: contract.createdAt,
@@ -713,9 +735,6 @@ exports.getSingleContract = async (req, res) => {
         contractTitle:
           contract.contractTitle,
 
-        budgetType:
-          contract.budgetType,
-
         estimatedBudget:
           contract.estimatedBudget,
 
@@ -738,9 +757,6 @@ exports.getSingleContract = async (req, res) => {
 
         status:
           contract.status,
-
-        totalApplicants:
-          contract.applicants?.length || 0,
 
         hasApplied,
 
@@ -1301,37 +1317,15 @@ exports.getAppliedContracts = async (req, res) => {
             contractEndDate:
               contract.contractEndDate,
 
-            status:
-              contract.status,
+            contractType:
+              contract.contractType,
 
-            totalApplicants:
-              contract.applicants?.length || 0,
-
+            contractSubject:
+              contract.contractSubject,
             createdAt:
               contract.createdAt
 
           },
-
-          // ========================================
-          // Client
-          // ========================================
-
-          client: {
-
-            _id:
-              contract.clientId?._id,
-
-            fullName:
-              contract.clientId
-                ?.registrationDetails
-                ?.fullName || "",
-
-            email:
-              contract.clientId
-                ?.registrationDetails
-                ?.email || ""
-
-          }
 
         };
 
@@ -1411,6 +1405,7 @@ exports.getContractApplicants = async (req, res) => {
       })
       .sort({ createdAt: -1 });
 
+    const Offer = require("../models/offer");
     const applicants = await Promise.all(
       applications.map(async (application) => {
 
@@ -1424,28 +1419,12 @@ exports.getContractApplicants = async (req, res) => {
               })
             : null;
 
-        let completedContractsCount = 0;
-
-        if (freelancerId) {
-
-          const freelancerApps =
-            await Application.find({
-              freelancerId,
-              offerStatus: "accepted"
-            }).populate("contractId");
-
-          completedContractsCount =
-            freelancerApps.filter(
-              app =>
-                app.contractId &&
-                app.contractId.status === "completed"
-            ).length;
-        }
+        const offer = await Offer.findOne({ applicationId: application._id });
 
 return {
   applicationId: application._id,
   applicationStatus: application.applicationStatus,
-  offerStatus: application.offerStatus || "none",
+  offerStatus: offer ? offer.offerStatus : "none",
 
   appliedAt: application.createdAt,
   assessment: application.assessment,
@@ -1453,25 +1432,17 @@ return {
 
   freelancer: {
     _id: freelancerId || null,
-    completedContractsCount,
-    hourlyRate: freelancerProfile?.hourlyRate || 0,
     fullName: freelancerProfile?.basicInformation?.fullName || "N/A",
     email: freelancerProfile?.basicInformation?.email || "N/A",
-    username: freelancerProfile?.basicInformation?.username || "N/A",
     profilePhoto: freelancerProfile?.basicInformation?.profilePhoto || "",
     professionalHeadline: freelancerProfile?.basicInformation?.professionalHeadline || "N/A",
-    shortBio: freelancerProfile?.basicInformation?.shortBio || "N/A",
     gender: freelancerProfile?.basicInformation?.gender || "N/A",
-    categories: freelancerProfile?.professionalDetails?.categories || [],
-    skills: freelancerProfile?.professionalDetails?.skills || [],
     country: freelancerProfile?.location?.country || "N/A",
     city: freelancerProfile?.location?.city || "N/A",
     timezone: freelancerProfile?.location?.timezone || "N/A",
     availability: freelancerProfile?.availability || [],
     emailVerified: freelancerProfile?.verification?.emailAddress || false,
-    phoneVerified: freelancerProfile?.verification?.phoneNumber || false,
-    languages: freelancerProfile?.languages || [],
-    socialLinks: freelancerProfile?.socialLinks || []
+    phoneVerified: freelancerProfile?.verification?.phoneNumber || false
   }
 };
 
@@ -1515,15 +1486,20 @@ exports.getHiredTalents = async (req, res) => {
       });
     }
 
-    const hiredApplications = await Application.find({ clientId, contractId, offerStatus: "accepted"})
+    const Offer = require("../models/offer");
+    const hiredOffers = await Offer.find({ clientId, contractId, offerStatus: "accepted"})
+      .populate({
+        path: "applicationId"
+      })
       .populate({
         path: "freelancerId",
         select: ` registrationDetails.fullName registrationDetails.email`
       }).sort({ updatedAt: -1 });
 
     const hiredTalents = await Promise.all(
-      hiredApplications.map(async (application) => {
-        const freelancerId = application.freelancerId?._id;
+      hiredOffers.map(async (offer) => {
+        const application = offer.applicationId;
+        const freelancerId = offer.freelancerId?._id;
         let profile = null;
         let completedContractsCount = 0;
         if (freelancerId) {
@@ -1534,24 +1510,23 @@ exports.getHiredTalents = async (req, res) => {
 
           completedContractsCount = await Application.countDocuments({
             freelancerId,
-            offerStatus: "accepted",
             applicationStatus: "completed"
           });
 
         }
 
         return {
-          applicationId: application._id,
-          appliedAt: application.createdAt,
-          hiredAt: application.signedAt || application.updatedAt,
-          applicationStatus: application.applicationStatus,
-          offerStatus: application.offerStatus,
-          signatureImage: application.signatureImage || "",
-          signedAt: application.signedAt || null,
+          applicationId: application ? application._id : offer.applicationId,
+          appliedAt: application ? application.createdAt : offer.createdAt,
+          hiredAt: offer.signedAt || offer.updatedAt,
+          applicationStatus: application ? application.applicationStatus : "hired",
+          offerStatus: offer.offerStatus,
+          signatureImage: offer.freelancerSignature || "",
+          signedAt: offer.signedAt || null,
           freelancer: {
             _id: freelancerId || null,
-            fullName: application.freelancerId?.registrationDetails?.fullName || "N/A",
-            email: application.freelancerId?.registrationDetails?.email || "N/A",
+            fullName: offer.freelancerId?.registrationDetails?.fullName || "N/A",
+            email: offer.freelancerId?.registrationDetails?.email || "N/A",
             profilePhoto: profile?.basicInformation?.profilePhoto || "",
           }
 

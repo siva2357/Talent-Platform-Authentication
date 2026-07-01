@@ -11,6 +11,7 @@ const uploadRoutes = require("./uploadRoutes");
 const notificationRoutes = require("./notificationRoutes");
 const contractRoutes = require("./contractRoutes");
 const applicationRoutes = require("./applicationRoutes");
+const offerRoutes = require("./offerRoutes");
 const contractDiaryRoutes = require("./contractDiaryRoutes");
 
 const bankRoutes = require("../routes/bankRoutes");
@@ -29,6 +30,7 @@ router.use("/support", require("./supportRoutes"));
 
 router.use("/contracts", contractRoutes);
 router.use("/applications", applicationRoutes);
+router.use("/offers", offerRoutes);
 router.use("/contract-diary", contractDiaryRoutes);
 router.use("/dashboard", require("./dashboardRoutes"));
 router.use("/finance", require("./financeRoutes"));

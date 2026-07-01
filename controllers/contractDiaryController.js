@@ -631,7 +631,7 @@ exports.getDiaryByContractId = async (req, res) => {
 
     const application = await Application.findOne({
       contractId: contract._id,
-      applicationStatus: "shortlisted"
+      applicationStatus: "hired"
     });
 
     if (!application) {

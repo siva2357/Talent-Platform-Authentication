@@ -16,11 +16,6 @@ const {
   interviewResult,
   finalizeApplication,
   submitAssessment,
-  sendOffer,
-  signOffer,
-  declineOffer,
-  getContractPDF,
-  getFreelancerOffers,
   getApplicationById
 } = require("../controllers/applicationController");
 
@@ -33,11 +28,7 @@ const {
 // Application Routes
 // ========================================
 
-router.get(
-  "/my-offers",
-  identifier,
-  getFreelancerOffers
-);
+
 
 router.put(
   "/:id/shortlist",
@@ -87,29 +78,7 @@ router.put(
   submitAssessment
 );
 
-router.put(
-  "/:id/send-offer",
-  identifier,
-  sendOffer
-);
 
-router.put(
-  "/:id/sign-offer",
-  identifier,
-  signOffer
-);
-
-router.put(
-  "/:id/decline-offer",
-  identifier,
-  declineOffer
-);
-
-router.get(
-  "/:id/contract-pdf",
-  identifier,
-  getContractPDF
-);
 
 router.get(
   "/:id",

@@ -1,101 +1,102 @@
 const bcrypt = require('bcrypt');
 const AdminModel = require('../models/admin');
-
-const defaultAdmin = {
-    registrationDetails: {
-        fullName: "Admin User",
-        userName: "admin",
-        email: "admin@gmail.com",
-        password: "Siva@2357", // ensure this exists
-        profilePicture: {
-            fileName: "Profile picture",
-            url: "https://res.cloudinary.com/dpp8aspqs/image/upload/v1737024440/Logo_qboacm.svg"
-        },
-        verified: true
-    },
-    role: "Admin"
-};
-
-exports.createDefaultAdmin = async () => {
-    try {
-        const adminExists = await AdminModel.findOne({
-            'registrationDetails.email': defaultAdmin.registrationDetails.email
-        });
-
-        if (adminExists) {
-            console.log('Default admin already exists.');
-            return;
-        }
-
-        const plainPassword = defaultAdmin.registrationDetails.password;
-        if (!plainPassword) {
-            console.error(`Password is undefined for user: ${defaultAdmin.registrationDetails.email}`);
-            return;
-        }
-
-        const salt = await bcrypt.genSalt(12);
-        const hashedPassword = await bcrypt.hash(plainPassword, salt);
-
-        const newAdmin = new AdminModel({
-            ...defaultAdmin,
-            registrationDetails: {
-                ...defaultAdmin.registrationDetails,
-                password: hashedPassword
-            }
-        });
-
-        await newAdmin.save();
-        console.log('Default admin created successfully.');
-    } catch (err) {
-        console.error('Error creating default admin:', err);
-    }
-};
-
-
-exports.getAdminById = async (req, res) => {
-    try {
-        if (req.role !== "Admin") {
-            return res.status(403).json({ message: 'Access denied' });
-        }
-
-        const admin = await AdminModel.findById(req.params.id).select('-registrationDetails.password');
-        if (!admin) {
-            return res.status(404).json({ message: 'Admin not found' });
-        }
-        return res.status(200).json(admin);
-    } catch (err) {
-        return res.status(500).json({ message: err.message });
-    }
-};
-
-exports.getAdminProfile = async (req, res) => {
-    try {
-        if (req.role !== "Admin") {
-            return res.status(403).json({ message: 'Access denied' });
-        }
-
-        const adminId = req.userId || req.user?.userId; // Standard fallback to ensure ID is found
-
-        const admin = await AdminModel.findById(adminId);
-
-        if (!admin) {
-            return res.status(404).json({ message: 'Admin not found' });
-        }
-
-        return res.status(200).json({
-            message: 'Admin profile fetched successfully',
-            data: admin
-        });
-    } catch (err) {
-        return res.status(500).json({ message: err.message });
-    }
-};
-
 const User = require('../models/user');
 const ClientProfile = require('../models/clientProfile');
 const FreelancerProfile = require('../models/freelancerProfile');
 const Contract = require('../models/contract');
 const Transaction = require('../models/transaction');
+
+const defaultAdmin = {
+  registrationDetails: {
+    fullName: "Admin User",
+    userName: "admin",
+    email: "admin@gmail.com",
+    password: "Siva@2357", // ensure this exists
+    profilePicture: {
+      fileName: "Profile picture",
+      url: "https://res.cloudinary.com/dpp8aspqs/image/upload/v1737024440/Logo_qboacm.svg"
+    },
+    verified: true
+  },
+  role: "Admin"
+};
+
+exports.createDefaultAdmin = async () => {
+  try {
+    const adminExists = await AdminModel.findOne({
+      'registrationDetails.email': defaultAdmin.registrationDetails.email
+    });
+
+    if (adminExists) {
+      console.log('Default admin already exists.');
+      return;
+    }
+
+    const plainPassword = defaultAdmin.registrationDetails.password;
+    if (!plainPassword) {
+      console.error(`Password is undefined for user: ${defaultAdmin.registrationDetails.email}`);
+      return;
+    }
+
+    const salt = await bcrypt.genSalt(12);
+    const hashedPassword = await bcrypt.hash(plainPassword, salt);
+
+    const newAdmin = new AdminModel({
+      ...defaultAdmin,
+      registrationDetails: {
+        ...defaultAdmin.registrationDetails,
+        password: hashedPassword
+      }
+    });
+
+    await newAdmin.save();
+    console.log('Default admin created successfully.');
+  } catch (err) {
+    console.error('Error creating default admin:', err);
+  }
+};
+
+
+exports.getAdminById = async (req, res) => {
+  try {
+    if (req.role !== "Admin") {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const admin = await AdminModel.findById(req.params.id).select('-registrationDetails.password');
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+    return res.status(200).json(admin);
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+exports.getAdminProfile = async (req, res) => {
+  try {
+    if (req.role !== "Admin") {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const adminId = req.userId || req.user?.userId; // Standard fallback to ensure ID is found
+
+    const admin = await AdminModel.findById(adminId);
+
+    if (!admin) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+
+    return res.status(200).json({
+      message: 'Admin profile fetched successfully',
+      data: admin
+    });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
+
+
 
 // Get all clients
 exports.getAllClients = async (req, res) => {
@@ -177,7 +178,7 @@ exports.getAllFreelancers = async (req, res) => {
     for (const user of freelancerUsers) {
       const profile = await FreelancerProfile.findOne({ userId: user._id });
       const contracts = await Contract.find({ applicants: { $elemMatch: { freelancerId: user._id } } });
-      
+
       freelancersData.push({
         id: user._id.toString(),
         name: user.registrationDetails.fullName,
@@ -269,9 +270,9 @@ exports.getAdminStats = async (req, res) => {
     // Build recent activities list dynamically
     const recentClients = await User.find({ role: "Client" }).sort({ createdAt: -1 }).limit(3);
     const recentFreelancers = await User.find({ role: "Freelancer" }).sort({ createdAt: -1 }).limit(3);
-    
+
     const activities = [];
-    
+
     recentClients.forEach(c => {
       activities.push({
         id: c._id.toString(),
@@ -368,7 +369,7 @@ exports.getAdminFinancialStats = async (req, res) => {
     }
 
     const txs = await Transaction.find({});
-    
+
     // totalVolume: sum of deposits + escrow funded + payouts etc.
     const totalVolume = txs
       .filter(t => (t.type === 'Deposit' || t.type === 'Escrow Funded') && (t.status === 'Processed' || t.status === 'Paid'))

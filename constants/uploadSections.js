@@ -5,6 +5,7 @@ module.exports = {
         CONTRACT_FILES: "contract-files",
         AADHAAR_CARD: 'AadhaarCard',
         PAN_CARD:'PanCard',
+        DIGITAL_SIGNATURE: "digital-signatures",
     },
 
     freelancer: {
@@ -14,6 +15,7 @@ module.exports = {
         SUPPORT_REQUEST: "support-requests",
         AADHAAR_CARD: 'AadhaarCard',
         PAN_CARD:'PanCard',
+        DIGITAL_SIGNATURE: "digital-signatures",
     },
     admin: {
         BLOG_MEDIA: "blog-media",

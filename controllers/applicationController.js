@@ -71,6 +71,13 @@ exports.shortlistApplication = async (req, res) => {
       });
     }
 
+    if (application.applicationStatus !== "application received") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid state transition. Application must be in 'application received' state.",
+      });
+    }
+
     application.applicationStatus = "application shortlisted";
 
     await application.save();
@@ -114,6 +121,13 @@ exports.rejectApplication = async (req, res) => {
       });
     }
 
+    if (application.applicationStatus === "rejected") {
+      return res.status(400).json({
+        success: false,
+        message: "Application is already rejected.",
+      });
+    }
+
     application.applicationStatus = "rejected";
 
     await application.save();
@@ -154,6 +168,13 @@ exports.scheduleAssessment = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "Unauthorized to update this application",
+      });
+    }
+
+    if (application.applicationStatus !== "application shortlisted") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid state transition. Application must be in 'application shortlisted' state.",
       });
     }
 
@@ -210,6 +231,13 @@ exports.submitAssessment = async (req, res) => {
       });
     }
 
+    if (application.applicationStatus !== "assessment scheduled") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid state transition. Application must be in 'assessment scheduled' state.",
+      });
+    }
+
     application.applicationStatus = "assessment completed";
     application.assessment.status = "completed";
 
@@ -252,21 +280,26 @@ exports.assessmentResult = async (req, res) => {
       });
     }
 
+    if (application.applicationStatus !== "assessment scheduled") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid state transition. Application must be in 'assessment scheduled' state.",
+      });
+    }
+
     const result = req.body.result;
 
     if (result === "passed") {
-      application.applicationStatus = "interview scheduled";
-
+      application.applicationStatus = "assessment completed";
       application.assessment.status = "passed";
     } else {
-      application.applicationStatus = "assessment completed";
-
+      application.applicationStatus = "rejected";
       application.assessment.status = "failed";
     }
 
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, result === "passed" ? "Assessment Passed (Interview Scheduled)" : "Assessment Failed");
+    await notifyFreelancerStageUpdate(application, result === "passed" ? "Assessment Passed" : "Assessment Failed");
 
     return res.status(200).json({
       success: true,
@@ -302,6 +335,13 @@ exports.scheduleInterview = async (req, res) => {
       return res.status(403).json({
         success: false,
         message: "Unauthorized to update this application",
+      });
+    }
+
+    if (application.applicationStatus !== "assessment completed" && application.applicationStatus !== "interview scheduled") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid state transition. Application must be in 'assessment completed' or 'interview scheduled' state.",
       });
     }
 
@@ -358,8 +398,16 @@ exports.interviewResult = async (req, res) => {
       });
     }
 
+    if (application.applicationStatus !== "interview scheduled") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid state transition. Application must be in 'interview scheduled' state.",
+      });
+    }
+
     application.applicationStatus = "interview completed";
     application.interview.status = "completed";
+
     if (req.body.feedback !== undefined) {
       application.interview.feedback = req.body.feedback;
     }
@@ -405,6 +453,13 @@ exports.finalizeApplication = async (req, res) => {
       });
     }
 
+    if (application.applicationStatus !== "interview completed") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid state transition. Application must be in 'interview completed' state.",
+      });
+    }
+
     const result = req.body.result; // "shortlisted" or "rejected"
 
     if (result === "shortlisted") {
@@ -429,254 +484,21 @@ exports.finalizeApplication = async (req, res) => {
   }
 };
 
-exports.sendOffer = async (req, res) => {
-  try {
-    const application = await Application.findById(req.params.id);
-
-    if (!application) {
-      return res.status(404).json({ success: false, message: "Application not found" });
-    }
-
-    if (req.role !== "Client") {
-      return res.status(403).json({ success: false, message: "Only clients can send offers" });
-    }
-
-    if (application.clientId.toString() !== req.userId.toString()) {
-      return res.status(403).json({ success: false, message: "Unauthorized to update this application" });
-    }
-
-    application.scopeOfWork = req.body.scopeOfWork || "";
-    application.additionalTerms = req.body.additionalTerms || "";
-    application.offerStatus = "sent";
-    application.applicationStatus = "shortlisted";
-
-    await application.save();
-
-    await notifyFreelancerStageUpdate(application, "Contract Offer Received");
-
-    return res.status(200).json({
-      success: true,
-      message: "Offer sent successfully",
-      application
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-exports.signOffer = async (req, res) => {
-  try {
-    const application = await Application.findById(req.params.id);
-
-    if (!application) {
-      return res.status(404).json({ success: false, message: "Application not found" });
-    }
-
-    if (req.role !== "Freelancer") {
-      return res.status(403).json({ success: false, message: "Only freelancers can sign offers" });
-    }
-
-    if (application.freelancerId.toString() !== req.userId.toString()) {
-      return res.status(403).json({ success: false, message: "Unauthorized to sign this application" });
-    }
-
-    application.signatureImage = req.body.signatureImage || "";
-    application.offerStatus = "accepted";
-    application.signedAt = new Date();
-
-    // Change contract status in database as well if required
-    const contract = await Contract.findById(application.contractId);
-    if (contract) {
-      contract.status = "in progress";
-      await contract.save();
-    }
-
-    await application.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Contract accepted and signed successfully",
-      application
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-exports.declineOffer = async (req, res) => {
-  try {
-    const application = await Application.findById(req.params.id);
-
-    if (!application) {
-      return res.status(404).json({ success: false, message: "Application not found" });
-    }
-
-    if (req.role !== "Freelancer") {
-      return res.status(403).json({ success: false, message: "Only freelancers can decline offers" });
-    }
-
-    if (application.freelancerId.toString() !== req.userId.toString()) {
-      return res.status(403).json({ success: false, message: "Unauthorized to decline this application" });
-    }
-
-    application.offerStatus = "declined";
-
-    await application.save();
-
-    return res.status(200).json({
-      success: true,
-      message: "Offer declined successfully",
-      application
-    });
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-exports.getContractPDF = async (req, res) => {
-  try {
-    const application = await Application.findById(req.params.id)
-      .populate("clientId")
-      .populate("freelancerId")
-      .populate("contractId");
-
-    if (!application) {
-      return res.status(404).json({ success: false, message: "Application not found" });
-    }
-
-    // Format dates helper
-    const formatDate = (date) => {
-      if (!date) return "N/A";
-      return new Date(date).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-      });
-    };
-
-    const ejs = require("ejs");
-    const puppeteer = require("puppeteer");
-    const path = require("path");
-
-    // EJS Template Data
-    const data = {
-      contractTitle: application.contractId?.contractTitle || "N/A",
-      agreementDate: formatDate(application.updatedAt),
-      clientName: application.clientId?.registrationDetails?.fullName || "Client Name",
-      clientEmail: application.clientId?.registrationDetails?.email || "",
-      freelancerName: application.freelancerId?.registrationDetails?.fullName || "Freelancer Name",
-      freelancerEmail: application.freelancerId?.registrationDetails?.email || "",
-      estimatedBudget: `₹${application.contractId?.estimatedBudget || 0}`,
-      budgetType: application.contractId?.budgetType || "Fixed Price",
-      startDate: formatDate(application.contractId?.contractStartDate),
-      endDate: formatDate(application.contractId?.contractEndDate),
-      scopeOfWork: application.scopeOfWork || "",
-      additionalTerms: application.additionalTerms || "",
-      offerStatus: application.offerStatus || "none",
-      signatureImage: application.signatureImage || "",
-      offerSentDate: formatDate(application.createdAt),
-      signedDate: formatDate(application.signedAt)
-    };
-
-    // Render EJS HTML
-    const templatePath = path.join(__dirname, "..", "views", "contract-template.ejs");
-    const html = await ejs.renderFile(templatePath, data);
-
-    // Launch Puppeteer to generate PDF
-    const browser = await puppeteer.launch({
-      headless: "new",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      margin: {
-        top: "20mm",
-        bottom: "20mm",
-        left: "20mm",
-        right: "20mm"
-      },
-      printBackground: true
-    });
-
-    await browser.close();
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="contract_${application._id}.pdf"`);
-    res.end(pdfBuffer, "binary");
-    return;
-
-  } catch (error) {
-    console.error("PDF generation error:", error);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-exports.getFreelancerOffers = async (req, res) => {
-  try {
-    if (req.role !== "Freelancer") {
-      return res.status(403).json({ success: false, message: "Only freelancers can access offers" });
-    }
-
-    const freelancerId = req.userId;
-
-    const applications = await Application.find({
-      freelancerId,
-      offerStatus: { $in: ["sent", "accepted", "declined"] }
-    })
-      .populate({
-        path: "contractId",
-        populate: {
-          path: "clientId",
-          select: "registrationDetails.fullName registrationDetails.email"
-        }
-      })
-      .sort({ updatedAt: -1 });
-
-    const formattedOffers = applications.map(app => {
-      const contract = app.contractId;
-      if (!contract) return null;
-
-      return {
-        id: app._id,
-        contractId: contract._id,
-        contractTitle: contract.contractTitle,
-        client: contract.clientId?.registrationDetails?.fullName || "Client",
-        clientEmail: contract.clientId?.registrationDetails?.email || "",
-        date: new Date(app.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        budget: `₹${contract.estimatedBudget}`,
-        contractType: contract.budgetType === "Hourly Rate" ? "Hourly" : "Fixed Price",
-        level: "Intermediate", 
-        description: contract.contractDescription || "",
-        techStack: ["Angular", "TypeScript", "Node.js"], 
-        expiresIn: "5 Days",
-        startDate: new Date(contract.contractStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        status: app.offerStatus === "sent" ? "Pending" : (app.offerStatus === "accepted" ? "Accepted" : "Declined"),
-        contractStatus: contract.status,
-        scopeOfWork: app.scopeOfWork,
-        additionalTerms: app.additionalTerms,
-        signatureImage: app.signatureImage,
-        signedAt: app.signedAt
-      };
-    }).filter(Boolean);
-
-    return res.status(200).json({
-      success: true,
-      offers: formattedOffers
-    });
-
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
 exports.getApplicationById = async (req, res) => {
   try {
     const application = await Application.findById(req.params.id)
-      .populate("clientId")
-      .populate("freelancerId")
-      .populate("contractId");
+      .populate({
+        path: "clientId",
+        select: "registrationDetails.fullName registrationDetails.email companyDetails role"
+      })
+      .populate({
+        path: "freelancerId",
+        select: "registrationDetails.fullName registrationDetails.email role"
+      })
+      .populate({
+        path: "contractId",
+        select: "contractTitle estimatedBudget contractStartDate contractEndDate contractDescription contractType contractSubject status clientId"
+      });
 
     if (!application) {
       return res.status(404).json({ success: false, message: "Application not found" });
