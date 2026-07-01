@@ -9,8 +9,8 @@
     "dev": "nodemon server.js"
   },
   "engines": {
-    "node": "20.x",
-    "npm": ">=9"
+    "node": "22.x",
+    "npm": ">=10"
   },
   "dependencies": {
     "@google-cloud/storage": "^7.18.0",
