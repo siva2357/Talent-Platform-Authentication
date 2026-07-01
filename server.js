@@ -69,10 +69,7 @@ const MONGO_URI = isLocal ? process.env.MONGO_LOCAL_URI : process.env.MONGO_URI;
 
 console.log(`🚀 Backend starting in ${isLocal ? "LOCAL" : "PRODUCTION"} mode...`);
 
-/* Start server */
-const server = app.listen(PORT, "0.0.0.0", async () => {
-  console.log(`🌐 Server running on port ${PORT}`);
-
+const startServer = async () => {
   try {
     if (MONGO_URI) {
       await mongoose.connect(MONGO_URI, { autoIndex: true });
@@ -82,10 +79,17 @@ const server = app.listen(PORT, "0.0.0.0", async () => {
     } else {
       console.log("⚠️ No MongoDB URI found, running without database connection.");
     }
+
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`🌐 Server running on port ${PORT}`);
+    });
   } catch (err) {
     console.error("❌ MongoDB Connection Error:", err.message);
+    process.exit(1);
   }
-});
+};
+
+startServer();
 
 /* Prevent crashes */
 process.on("unhandledRejection", (err) => { console.error("Unhandled Promise Rejection:", err); });
