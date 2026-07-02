@@ -725,7 +725,7 @@ exports.verifyPhoneOTP = async (req, res, next) => {
 
 exports.getAllFreelancers = async (req, res, next) => {
   try {
-    const { search, category, minRate, maxRate } = req.query;
+    const { search, category, minRate, maxRate, availability, gender } = req.query;
     
     // We only want freelancers whose user profiles are completed
     const activeFreelancers = await User.find({
@@ -755,9 +755,27 @@ exports.getAllFreelancers = async (req, res, next) => {
     if (category && category !== "All Categories") {
       query["professionalDetails.categories"] = category;
     }
+
+    if (availability && availability !== "All Time") {
+      query.availability = availability;
+    }
+
+    if (gender && gender !== "All Genders") {
+      query["basicInformation.gender"] = gender.toLowerCase();
+    }
     
     if (minRate || maxRate) {
 
+    }
+    
+    // FETCH SAVED TALENTS FIRST
+    let savedTalentIds = [];
+    const clientUser = req.user;
+    if (clientUser && clientUser.role === 'Client') {
+      const clientProfile = await ClientProfile.findOne({ userId: clientUser._id });
+      if (clientProfile && clientProfile.savedTalents) {
+        savedTalentIds = clientProfile.savedTalents.map(id => id.toString());
+      }
     }
     
     const freelancers = await FreelancerProfile.find(query);
@@ -779,6 +797,7 @@ for (const freelancer of freelancers) {
   ).length;
 
   const plain = freelancer.toObject();
+  const isSaved = savedTalentIds.includes(plain._id.toString());
 
   freelancersWithContracts.push({
     _id: plain._id,
@@ -799,6 +818,7 @@ for (const freelancer of freelancers) {
     updatedAt: plain.updatedAt,
     activeContracts,
     completedContracts,
+    isSaved,
     status: statusMap[freelancer.userId.toString()] || "inactive",
   });
 }
@@ -855,10 +875,43 @@ exports.getFreelancerProfileById = async (req, res, next) => {
 
     const plainProfile = profile.toObject();
 
-    // Remove sensitive fields
-    delete plainProfile.paymentDetails;
-    delete plainProfile.verification;
+    // Fetch Contract Diaries (Completed Contracts / History)
+    const dbDiaries = await ContractDiary.find({ freelancerId: profile.userId })
+      .populate("contractId")
+      .populate("clientId", "registrationDetails.fullName")
+      .sort({ updatedAt: -1 });
 
+    const freelancerDiaries = [];
+    for (const diary of dbDiaries) {
+      if (!diary.contractId) continue;
+      const c = diary.contractId;
+
+      // Find any client feedback/review from diary phases
+      let review = undefined;
+      let rating = undefined;
+      if (diary.phases) {
+        // Find the last approved phase with clientFeedback
+        const feedbackPhase = [...diary.phases]
+          .reverse()
+          .find(p => p.status === "approved" && p.clientFeedback);
+        if (feedbackPhase) {
+          review = feedbackPhase.clientFeedback;
+          rating = 5.0; // Assuming 5.0 if approved, since rating isn't explicitly in schema, or adjust as needed
+        }
+      }
+
+      freelancerDiaries.push({
+        _id: c._id,
+        contractTitle: c.contractTitle,
+        estimatedBudget: c.estimatedBudget,
+        contractEndDate: c.contractEndDate,
+        contractDescription: c.contractDescription,
+        status: diary.overallStatus === "in-progress" ? "in progress" : diary.overallStatus,
+        clientName: diary.clientId?.registrationDetails?.fullName || "Client",
+        review,
+        rating
+      });
+    }
     // Flatten nested objects
     const responseProfile = {
       ...plainProfile,
@@ -870,19 +923,21 @@ exports.getFreelancerProfileById = async (req, res, next) => {
       status: freelancerUser ? freelancerUser.status : "inactive"
     };
 
-    // Remove original nested objects
     delete responseProfile.basicInformation;
     delete responseProfile.professionalDetails;
     delete responseProfile.location;
+    delete responseProfile.paymentDetails;
+    delete responseProfile.verification;
 
-return res.status(200).json({
-  requestId: req.id, // optional
-  data: {
-    success: true,
-    profile: responseProfile,
-    portfolio
-  }
-});
+    return res.status(200).json({
+      requestId: req.id, // optional
+      data: {
+        success: true,
+        profile: responseProfile,
+        portfolio,
+        diaries: freelancerDiaries
+      }
+    });
   } catch (err) {
     next(err);
   }
@@ -975,26 +1030,45 @@ exports.getSavedTalents = async (req, res, next) => {
           offerStatus: "accepted"
         }).populate("contractId");
 
-        const contractCount = freelancerOffers.filter(
+        const activeContracts = freelancerOffers.filter(
           offer => offer.contractId && offer.contractId.status === "in progress"
         ).length;
 
-        const completedContractsCount = freelancerOffers.filter(
+        const completedContracts = freelancerOffers.filter(
           offer => offer.contractId && offer.contractId.status === "completed"
         ).length;
 
         const freelancerUser = await User.findById(freelancer.userId).select("status");
         const plain = freelancer.toObject();
-        plain.contractCount = contractCount;
-        plain.completedContractsCount = completedContractsCount;
-        plain.status = freelancerUser ? freelancerUser.status : "inactive";
-        savedTalentsWithContracts.push(plain);
+        
+        savedTalentsWithContracts.push({
+          _id: plain._id,
+          userId: plain.userId,
+          profilePhoto: plain.basicInformation?.profilePhoto,
+          fullName: plain.basicInformation?.fullName,
+          email: plain.basicInformation?.email,
+          gender: plain.basicInformation?.gender,
+          professionalHeadline: plain.basicInformation?.professionalHeadline,
+          categories: plain.professionalDetails?.categories || [],
+          skills: plain.professionalDetails?.skills || [],
+          country: plain.location?.country,
+          city: plain.location?.city,
+          timezone: plain.location?.timezone,
+          availability: plain.availability || [],
+          createdAt: plain.createdAt,
+          updatedAt: plain.updatedAt,
+          activeContracts,
+          completedContracts,
+          isSaved: true,
+          status: freelancerUser ? freelancerUser.status : "inactive",
+        });
       }
     }
     
     res.status(200).json({
       success: true,
-      savedTalents: savedTalentsWithContracts
+      total_count: savedTalentsWithContracts.length,
+      items: savedTalentsWithContracts
     });
   } catch (err) {
     next(err);
