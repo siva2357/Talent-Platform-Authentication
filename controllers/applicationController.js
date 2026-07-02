@@ -515,3 +515,79 @@ exports.getApplicationById = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+exports.getContractPDF = async (req, res) => {
+  try {
+    const ejs = require('ejs');
+    const puppeteer = require('puppeteer');
+    const path = require('path');
+    const Offer = require('../models/offer');
+    
+    // Find the offer for this application
+    const offer = await Offer.findOne({ applicationId: req.params.id })
+      .populate('clientId')
+      .populate('freelancerId')
+      .populate('contractId');
+      
+    if (!offer) {
+      return res.status(404).json({ success: false, message: 'Offer/Contract not found for this application' });
+    }
+    
+    // Only client or freelancer of this offer can access
+    if (offer.clientId._id.toString() !== req.userId.toString() && offer.freelancerId._id.toString() !== req.userId.toString()) {
+      return res.status(403).json({ success: false, message: 'Unauthorized to access this contract' });
+    }
+
+    const formatDate = (dateVal) => {
+      if (!dateVal) return 'N/A';
+      return new Date(dateVal).toLocaleDateString('en-US', {
+        year: 'numeric', month: 'long', day: 'numeric'
+      });
+    };
+
+    const data = {
+      contractTitle: offer.contractId?.contractTitle || 'N/A',
+      agreementDate: formatDate(offer.updatedAt),
+      clientName: offer.clientId?.registrationDetails?.fullName || 'Client Name',
+      clientEmail: offer.clientId?.registrationDetails?.email || '',
+      freelancerName: offer.freelancerId?.registrationDetails?.fullName || 'Freelancer Name',
+      freelancerEmail: offer.freelancerId?.registrationDetails?.email || '',
+      estimatedBudget: `₹${offer.contractId?.estimatedBudget || 0}`,
+      budgetType: offer.contractId?.budgetType || 'Fixed Price',
+      startDate: formatDate(offer.contractId?.contractStartDate),
+      endDate: formatDate(offer.contractId?.contractEndDate),
+      scopeOfWork: offer.scopeOfWork || '',
+      additionalTerms: offer.additionalTerms || '',
+      offerStatus: offer.offerStatus || 'none',
+      clientSignature: offer.clientSignature || '',
+      freelancerSignature: offer.freelancerSignature || '',
+      offerSentDate: formatDate(offer.createdAt),
+      signedDate: formatDate(offer.signedAt)
+    };
+
+    const templatePath = path.join(__dirname, '..', 'views', 'contract-template.ejs');
+    const html = await ejs.renderFile(templatePath, data);
+
+    const browser = await puppeteer.launch({
+      headless: "new",
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'networkidle0' });
+    
+    const pdfBuffer = await page.pdf({
+      format: 'A4',
+      printBackground: true,
+      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
+    });
+
+    await browser.close();
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=contract-${offer._id}.pdf`);
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error('Error generating contract PDF:', error);
+    res.status(500).json({ success: false, message: 'Failed to generate contract PDF' });
+  }
+};

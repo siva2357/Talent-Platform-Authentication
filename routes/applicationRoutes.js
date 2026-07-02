@@ -86,4 +86,10 @@ router.get(
   getApplicationById
 );
 
+router.get(
+  "/:id/contract-pdf",
+  identifier,
+  require("../controllers/applicationController").getContractPDF
+);
+
 module.exports = router;

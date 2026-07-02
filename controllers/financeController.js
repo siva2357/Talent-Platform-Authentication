@@ -410,6 +410,11 @@ exports.downloadInvoicePdf = async (req, res) => {
       });
     };
 
+    let calculatedPlatformFee = txn.platformFee || 0;
+    if (txn.type === "Payment Released" && calculatedPlatformFee === 0) {
+      calculatedPlatformFee = txn.amount * 0.10;
+    }
+
     // Prepare EJS template variables
     const data = {
       invoiceNumber: `INV-${txn._id.toString().substring(0, 8).toUpperCase()}`,
@@ -422,8 +427,8 @@ exports.downloadInvoicePdf = async (req, res) => {
       contractType: txn.contractId?.contractType || "N/A",
       contractSubject: txn.contractId?.contractSubject || "N/A",
       amountPaid: txn.amount.toFixed(2),
-      platformFee: (txn.platformFee || 0).toFixed(2),
-      totalCharged: ((txn.amount || 0) + (txn.platformFee || 0)).toFixed(2)
+      platformFee: calculatedPlatformFee.toFixed(2),
+      totalCharged: ((txn.amount || 0) + calculatedPlatformFee).toFixed(2)
     };
 
     // Render EJS HTML
