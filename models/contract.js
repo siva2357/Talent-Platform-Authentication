@@ -13,7 +13,15 @@ const contractSchema = new mongoose.Schema(
       trim: true
     },
 
+    contractCategory: {
+      type: String,
+      trim: true
+    },
 
+    currency: {
+      type: String,
+      default: "INR"
+    },
     estimatedBudget: {
       type: Number,
       required: true
@@ -49,38 +57,38 @@ const contractSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "in progress", "completed"],
-      default: "pending"
+      enum: ["draft", "open", "in progress", "completed", "closed"],
+      default: "draft"
     },
     spent: {
       type: Number,
       default: 0
     },
     savedBy: [
-  {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: "User"
-  }
-],
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User"
+      }
+    ],
 
-applicants: [
+    applicants: [
 
-  {
-  applicationId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Application"
-    },
-    freelancerId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User"
-    },
+      {
+        applicationId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Application"
+        },
+        freelancerId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User"
+        },
 
-    appliedAt: {
-      type: Date,
-      default: Date.now
-    }
-  }
-]
+        appliedAt: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ]
   },
   {
     timestamps: true

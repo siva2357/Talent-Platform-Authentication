@@ -8,15 +8,9 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true, select: false },
     profileCompleted: { type: Boolean, default: false },
     emailVerified: { type: Boolean, default: false },
-    mobileVerification: { type: Boolean, default: false },
     phoneNumber: { type: String, default: "" },
     verificationCode: { type: String, select: false },
-    verificationCodeValidation: { type: Number, select: false },
-    phoneVerificationCode: { type: String, select: false },
-    phoneVerificationCodeValidation: { type: Number, select: false },
-    forgotPasswordCode: { type: String, select: false },
-    forgotPasswordCodeValidation: { type: Date, select: false },
-    forgotPasswordVerified: { type: Boolean, default: false }
+    verificationCodeValidation: { type: Number, select: false }
   },
   role: { type: String, enum: ["Client", "Freelancer","Admin"], required: true },
   balance: { type: Number, default: 0 },

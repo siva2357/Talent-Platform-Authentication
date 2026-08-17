@@ -42,6 +42,26 @@ const offerSchema = new mongoose.Schema({
     type: String,
     default: ""
   },
+  legalConfirmation: {
+    type: Boolean,
+    default: false
+  },
+  language: {
+    type: String,
+    default: "English"
+  },
+  governingLaw: {
+    type: String,
+    default: "Indian Law"
+  },
+  jurisdiction: {
+    type: String,
+    default: "Hyderabad, India"
+  },
+  offerValidityDays: {
+    type: Number,
+    default: 7
+  },
   signedAt: {
     type: Date,
     default: null

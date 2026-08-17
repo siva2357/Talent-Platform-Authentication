@@ -11,23 +11,20 @@ const clientProfileSchema = new mongoose.Schema({
     profilePhoto: { type: String, default: "" },
     fullName: { type: String, required: true },
     email: { type: String, required: true, trim: true, lowercase: true },
-    username: { type: String, required: true, trim: true },
+    phoneNumber: { type: String, default: "" },
     gender: { type: String, default: "" },
     shortBio: { type: String, default: "" }
   },
   professionalDetails: {
-    clientType: {
-      type: String,
-      enum: ["Individual", "Startup", "Agency", "Business"],
-      required: true
-    },
+    companyType: { type: String, required: true },
     website: { type: String, default: "" },
-    industry: { type: String, default: "" }
+    industry: { type: String, default: "" },
+    companyDescription: { type: String, default: "" }
   },
   location: {
     country: { type: String, default: "" },
-    city: { type: String, default: "" },
-    timezone: { type: String, default: "" }
+    state: { type: String, default: "" },
+    city: { type: String, default: "" }
   },
   verification: {
     emailAddress: { type: Boolean, default: false },

@@ -12,28 +12,28 @@ const freelancerProfileSchema = new mongoose.Schema(
       profilePhoto: { type: String, default: "" },
       fullName: { type: String, required: true },
       email: { type: String, required: true, trim: true, lowercase: true },
-      username: { type: String, required: true, trim: true },
+      phoneNumber: { type: String, default: "" },
       gender: { type: String, default: "" },
-      professionalHeadline: { type: String, default: "" },
       shortBio: { type: String, default: "" },
     },
     professionalDetails: {
-      categories: {
-        type: [String],
-        default: [],
-      },
-
+      professionalHeadline: { type: String, default: "" },
       skills: {
         type: [String],
         default: [],
       },
+      technologies: {
+        type: [String],
+        default: [],
+      },
+      availability: { type: String, default: "" },
+      preferredJobType: { type: String, default: "" },
     },
     location: {
       country: { type: String, default: "" },
       city: { type: String, default: "" },
       timezone: { type: String, default: "" },
     },
-    availability: { type: [String], default: [] },
 
     verification: {
       emailAddress: { type: Boolean, default: false },

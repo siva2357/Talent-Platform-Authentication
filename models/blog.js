@@ -18,14 +18,24 @@ const blogSchema = new mongoose.Schema(
     required: true
   },
 
-  description: {
+  content: {
     type: String,
     required: true
   },
 
-  mediaUrl: {
+  featuredMedia: {
     type: String,
     default: null
+  },
+
+  blogBanner: {
+    type: String,
+    default: null
+  },
+
+  tags: {
+    type: [String],
+    default: []
   },
 
   status: {

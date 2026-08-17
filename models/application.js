@@ -29,18 +29,20 @@ const applicationSchema = new mongoose.Schema(
       type: String,
 
       enum: [
-        "application received",
-        "application shortlisted",
-        "assessment scheduled",
+        "application submitted",
+        "profile reviewed",
+        "shortlisted",
+        "assessment assigned",
         "assessment completed",
         "interview scheduled",
         "interview completed",
-        "shortlisted",
-        "rejected",
-        "hired"
+        "offer sent",
+        "offer accepted",
+        "hired",
+        "rejected"
       ],
 
-      default: "application received"
+      default: "application submitted"
 
     },
 
@@ -62,8 +64,20 @@ const applicationSchema = new mongoose.Schema(
       date: {
         type: Date,
       },
+
+      score: {
+        type: Number,
+        default: null
+      },
+
+      notes: {
+        type: String,
+        default: ""
+      },
+
       status: {
         type: String,
+        enum: ["pending", "passed", "failed"],
         default: "pending"
       }
 
