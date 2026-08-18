@@ -14,7 +14,6 @@ const applicationRoutes = require("./applicationRoutes");
 const offerRoutes = require("./offerRoutes");
 const contractDiaryRoutes = require("./contractDiaryRoutes");
 
-const bankRoutes = require("../routes/bankRoutes");
 
 const router = express.Router();
 
@@ -36,6 +35,6 @@ router.use("/dashboard", require("./dashboardRoutes"));
 router.use("/finance", require("./financeRoutes"));
 router.use("/blogs", require("./blogRoutes"));
 
-router.use('/banks', bankRoutes);
+
 
 module.exports = router;
