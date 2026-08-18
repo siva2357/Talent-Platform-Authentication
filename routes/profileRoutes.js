@@ -5,8 +5,6 @@ const {
   getMyProfile,
   updateProfile,
   deleteProfile,
-  sendPhoneOTP,
-  verifyPhoneOTP,
   getAllFreelancers,
   getFreelancerProfileById,
   saveTalent,
@@ -24,8 +22,6 @@ router.get("/user/:id", protect, getProfileById);
 router.put("/update", protect, upload.single("profilePhoto"), updateProfile);
 router.delete("/delete", protect, deleteProfile);
 
-router.post("/phone/send-otp", protect, sendPhoneOTP);
-router.post("/phone/verify-otp", protect, verifyPhoneOTP);
 
 // Freelancer search & detail (Client & Admin / General authenticated)
 router.get("/freelancers", protect, getAllFreelancers);
