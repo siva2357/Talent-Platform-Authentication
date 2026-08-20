@@ -19,7 +19,8 @@ const {
   getAppliedContracts,
 
   getContractApplicants,
-  getHiredTalents
+  getHiredTalents,
+  getFreelancerMyContracts
 } = require("../controllers/contractController");
 
 const { identifier } = require("../middleware/identifier");
@@ -41,6 +42,7 @@ router.delete("/:id", identifier, deleteContract);
 // ========================================
 // Freelancer Routes
 // ========================================
+router.get('/freelancer/my-contracts', identifier, getFreelancerMyContracts);
 router.get("/", identifier, getAllContracts);
 
 // Save Contracts

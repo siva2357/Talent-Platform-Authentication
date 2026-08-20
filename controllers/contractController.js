@@ -1517,3 +1517,50 @@ exports.getHiredTalents = async (req, res) => {
 
   }
 };
+exports.getFreelancerMyContracts = async (req, res) => {
+  try {
+    if (req.role !== 'freelancer') {
+      return res.status(403).json({ success: false, message: 'Only freelancers can access this feature' });
+    }
+    const freelancerId = req.userId;
+    const Offer = require('../models/offer');
+    
+    // Find accepted offers (which act as active/completed contracts for freelancers)
+    const hiredOffers = await Offer.find({ freelancerId, offerStatus: 'accepted' })
+      .populate({
+        path: 'contractId',
+        select: 'contractTitle estimatedBudget contractStartDate contractEndDate contractType contractSubject status createdAt'
+      })
+      .populate({
+        path: 'clientId',
+        select: 'registrationDetails.fullName registrationDetails.email'
+      })
+      .sort({ updatedAt: -1 });
+
+    const contracts = hiredOffers.map(offer => {
+      const contract = offer.contractId;
+      if (!contract) return null;
+      return {
+        _id: contract._id,
+        contractTitle: contract.contractTitle,
+        estimatedBudget: contract.estimatedBudget,
+        contractStartDate: contract.contractStartDate,
+        contractEndDate: contract.contractEndDate,
+        contractType: contract.contractType,
+        contractSubject: contract.contractSubject,
+        status: contract.status,
+        createdAt: contract.createdAt,
+        clientName: offer.clientId?.registrationDetails?.fullName || 'Client',
+        clientEmail: offer.clientId?.registrationDetails?.email || ''
+      };
+    }).filter(c => c !== null);
+
+    return res.status(200).json({
+      success: true,
+      totalContracts: contracts.length,
+      contracts: contracts
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
