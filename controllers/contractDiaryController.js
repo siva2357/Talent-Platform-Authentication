@@ -74,7 +74,7 @@ async function syncContractStatus(diary) {
 
 exports.addPhase = async (req, res) => {
   try {
-    if (req.role !== "Client")
+    if (req.role !== "client")
       return res.status(403).json({ success: false, message: "Only clients can add phases" });
 
     const { diary, error, status } = await getDiaryAndVerify(req.params.id, req.userId, "Client");
@@ -137,7 +137,7 @@ await diary.save();
 exports.reviewPhase = async (req, res) => {
   try {
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can review phases"
@@ -371,7 +371,7 @@ exports.reviewPhase = async (req, res) => {
 
 exports.getClientDiaries = async (req, res) => {
   try {
-    if (req.role !== "Client")
+    if (req.role !== "client")
       return res.status(403).json({ success: false, message: "Only clients can access this" });
 
     const diaries = await ContractDiary.find({ clientId: req.userId })
@@ -406,7 +406,7 @@ exports.getClientDiaries = async (req, res) => {
 exports.getFreelancerDiaries = async (req, res) => {
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can access this"
@@ -512,7 +512,7 @@ exports.getDiaryById = async (req, res) => {
 exports.submitPhaseUpdate = async (req, res) => {
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can submit phase updates"
@@ -588,7 +588,7 @@ await diary.save();
 
 exports.startPhase = async (req, res) => {
   try {
-    if (req.role !== "Freelancer")
+    if (req.role !== "freelancer")
       return res.status(403).json({ success: false, message: "Only freelancers can start phases" });
 
     const { diary, error, status } = await getDiaryAndVerify(req.params.id, req.userId, "Freelancer");
@@ -723,7 +723,7 @@ exports.getDiaryByContractId = async (req, res) => {
 exports.getFreelancerAllDiaries = async (req, res) => {
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can access this"

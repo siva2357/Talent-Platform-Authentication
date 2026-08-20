@@ -56,7 +56,7 @@ exports.createOffer = async (req, res) => {
       return res.status(404).json({ success: false, message: "Application not found" });
     }
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can send offers" });
     }
 
@@ -107,7 +107,7 @@ exports.signOffer = async (req, res) => {
       return res.status(404).json({ success: false, message: "Offer not found" });
     }
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can sign offers" });
     }
 
@@ -156,7 +156,7 @@ exports.declineOffer = async (req, res) => {
       return res.status(404).json({ success: false, message: "Offer not found" });
     }
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can decline offers" });
     }
 
@@ -220,7 +220,7 @@ exports.getOfferById = async (req, res) => {
 exports.getFreelancerOffers = async (req, res) => {
   try {
     const freelancerId = req.userId;
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can access this route" });
     }
 

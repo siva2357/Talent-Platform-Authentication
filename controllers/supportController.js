@@ -59,7 +59,7 @@ exports.getUserTickets = async (req, res) => {
 // Get all support tickets (Admin only)
 exports.getAllTickets = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: "Access denied. Admin only." });
     }
 
@@ -94,7 +94,7 @@ exports.getAllTickets = async (req, res) => {
 exports.updateTicketStatus = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied. Admin only."
@@ -158,7 +158,7 @@ exports.updateTicketStatus = async (req, res) => {
 exports.replyToTicket = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied. Admin only."
@@ -302,7 +302,7 @@ exports.replyToTicketByUser = async (req, res) => {
 exports.closeTicket = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Admin only"
@@ -352,7 +352,7 @@ exports.getTicketById = async (req, res) => {
     }
 
     if (
-      req.role !== "Admin" &&
+      req.role !== "admin" &&
       ticket.userId.toString() !== req.userId
     ) {
       return res.status(403).json({

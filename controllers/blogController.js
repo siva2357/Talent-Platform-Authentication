@@ -9,7 +9,7 @@ const Blog = require("../models/blog");
 exports.createBlog = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -65,7 +65,7 @@ exports.createBlog = async (req, res) => {
 exports.getAllBlogsAdmin = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -99,7 +99,7 @@ exports.getAllBlogsAdmin = async (req, res) => {
 exports.getBlogByIdAdmin = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -139,7 +139,7 @@ exports.getBlogByIdAdmin = async (req, res) => {
 exports.updateBlog = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -196,7 +196,7 @@ exports.updateBlog = async (req, res) => {
 exports.deleteBlog = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"

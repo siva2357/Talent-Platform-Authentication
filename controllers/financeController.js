@@ -117,7 +117,7 @@ exports.getFinanceStats = async (req, res) => {
 // ==========================================
 exports.createRazorpayOrder = async (req, res) => {
   try {
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can deposit funds" });
     }
 
@@ -174,7 +174,7 @@ exports.createRazorpayOrder = async (req, res) => {
 // ==========================================
 exports.verifyRazorpayPayment = async (req, res) => {
   try {
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can deposit funds" });
     }
 
@@ -267,7 +267,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
 // ==========================================
 exports.withdrawFunds = async (req, res) => {
   try {
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can withdraw earnings" });
     }
 
@@ -571,7 +571,7 @@ exports.downloadPaymentStatementPdf = async (req, res) => {
 // ==========================================
 exports.getContractTransactions = async (req, res) => {
   try {
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
        return res.status(403).json({ success: false, message: "Only clients can access this" });
     }
     
@@ -612,7 +612,7 @@ exports.getContractTransactions = async (req, res) => {
 // ==========================================
 exports.getFreelancerFinanceReport = async (req, res) => {
   try {
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
        return res.status(403).json({ success: false, message: "Only freelancers can access this" });
     }
 

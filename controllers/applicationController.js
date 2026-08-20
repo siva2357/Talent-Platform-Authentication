@@ -57,7 +57,7 @@ exports.shortlistApplication = async (req, res) => {
       });
     }
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can update applications",
@@ -71,14 +71,14 @@ exports.shortlistApplication = async (req, res) => {
       });
     }
 
-    if (application.applicationStatus !== "application received") {
+    if (application.applicationStatus !== "application submitted") {
       return res.status(400).json({
         success: false,
-        message: "Invalid state transition. Application must be in 'application received' state.",
+        message: "Invalid state transition. Application must be in 'application submitted' state.",
       });
     }
 
-    application.applicationStatus = "application shortlisted";
+    application.applicationStatus = "shortlisted";
 
     await application.save();
 
@@ -107,7 +107,7 @@ exports.rejectApplication = async (req, res) => {
       });
     }
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can update applications",
@@ -157,7 +157,7 @@ exports.scheduleAssessment = async (req, res) => {
       });
     }
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can update applications",
@@ -171,14 +171,14 @@ exports.scheduleAssessment = async (req, res) => {
       });
     }
 
-    if (application.applicationStatus !== "application shortlisted") {
+    if (application.applicationStatus !== "shortlisted") {
       return res.status(400).json({
         success: false,
-        message: "Invalid state transition. Application must be in 'application shortlisted' state.",
+        message: "Invalid state transition. Application must be in 'shortlisted' state.",
       });
     }
 
-    application.applicationStatus = "assessment scheduled";
+    application.applicationStatus = "assessment assigned";
 
     application.assessment = {
       title: req.body.title,
@@ -192,11 +192,11 @@ exports.scheduleAssessment = async (req, res) => {
 
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, "Assessment Scheduled");
+    await notifyFreelancerStageUpdate(application, "assessment assigned");
 
     return res.status(200).json({
       success: true,
-      message: "Assessment scheduled",
+      message: "assessment assigned",
     });
   } catch (error) {
     return res.status(500).json({
@@ -217,7 +217,7 @@ exports.submitAssessment = async (req, res) => {
       });
     }
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can submit assessments",
@@ -231,15 +231,15 @@ exports.submitAssessment = async (req, res) => {
       });
     }
 
-    if (application.applicationStatus !== "assessment scheduled") {
+    if (application.applicationStatus !== "assessment assigned") {
       return res.status(400).json({
         success: false,
-        message: "Invalid state transition. Application must be in 'assessment scheduled' state.",
+        message: "Invalid state transition. Application must be in 'assessment assigned' state.",
       });
     }
 
     application.applicationStatus = "assessment completed";
-    application.assessment.status = "completed";
+    // application.assessment.status = "completed";
 
     await application.save();
 
@@ -266,7 +266,7 @@ exports.assessmentResult = async (req, res) => {
       });
     }
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can update applications",
@@ -280,10 +280,10 @@ exports.assessmentResult = async (req, res) => {
       });
     }
 
-    if (application.applicationStatus !== "assessment scheduled") {
+    if (application.applicationStatus !== "assessment assigned" && application.applicationStatus !== "assessment completed") {
       return res.status(400).json({
         success: false,
-        message: "Invalid state transition. Application must be in 'assessment scheduled' state.",
+        message: "Invalid state transition. Application must be in 'assessment assigned' or 'assessment completed' state.",
       });
     }
 
@@ -324,7 +324,7 @@ exports.scheduleInterview = async (req, res) => {
       });
     }
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can update applications",
@@ -384,7 +384,7 @@ exports.interviewResult = async (req, res) => {
       });
     }
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can update applications",
@@ -398,10 +398,10 @@ exports.interviewResult = async (req, res) => {
       });
     }
 
-    if (application.applicationStatus !== "interview scheduled") {
+    if (application.applicationStatus !== "interview scheduled" && application.applicationStatus !== "interview completed") {
       return res.status(400).json({
         success: false,
-        message: "Invalid state transition. Application must be in 'interview scheduled' state.",
+        message: "Invalid state transition. Application must be in 'interview scheduled' or 'interview completed' state.",
       });
     }
 
@@ -439,7 +439,7 @@ exports.finalizeApplication = async (req, res) => {
       });
     }
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can update applications",
@@ -460,17 +460,17 @@ exports.finalizeApplication = async (req, res) => {
       });
     }
 
-    const result = req.body.result; // "shortlisted" or "rejected"
+    const result = req.body.result; // "hired" or "rejected"
 
-    if (result === "shortlisted") {
-      application.applicationStatus = "shortlisted";
+    if (result === "hired") {
+      application.applicationStatus = "hired";
     } else {
       application.applicationStatus = "rejected";
     }
 
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, result === "shortlisted" ? "Shortlisted" : "Declined");
+    await notifyFreelancerStageUpdate(application, result === "hired" ? "Hired" : "Declined");
 
     return res.status(200).json({
       success: true,

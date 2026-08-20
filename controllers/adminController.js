@@ -59,7 +59,7 @@ exports.createDefaultAdmin = async () => {
 
 exports.getAdminById = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -75,7 +75,7 @@ exports.getAdminById = async (req, res) => {
 
 exports.getAdminProfile = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -101,7 +101,7 @@ exports.getAdminProfile = async (req, res) => {
 // Get all clients
 exports.getAllClients = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -136,7 +136,7 @@ exports.getAllClients = async (req, res) => {
 // Update client status
 exports.updateClientStatus = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -168,7 +168,7 @@ exports.updateClientStatus = async (req, res) => {
 // Get all freelancers
 exports.getAllFreelancers = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -201,7 +201,7 @@ exports.getAllFreelancers = async (req, res) => {
 // Update freelancer status
 exports.updateFreelancerStatus = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -234,7 +234,7 @@ exports.updateFreelancerStatus = async (req, res) => {
 // Approve freelancer
 exports.approveFreelancer = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -255,7 +255,7 @@ exports.approveFreelancer = async (req, res) => {
 // Admin Dashboard stats
 exports.getAdminStats = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -313,7 +313,7 @@ exports.getAdminStats = async (req, res) => {
 // GET /api/admin/finances/transactions
 exports.getAdminTransactions = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -364,7 +364,7 @@ exports.getAdminTransactions = async (req, res) => {
 // GET /api/admin/finances/stats
 exports.getAdminFinancialStats = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -403,7 +403,7 @@ exports.getAdminFinancialStats = async (req, res) => {
 // GET /api/admin/reports
 exports.getAdminReports = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -440,7 +440,7 @@ exports.getAdminReports = async (req, res) => {
 // POST /api/admin/reports
 exports.generateAdminReport = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 

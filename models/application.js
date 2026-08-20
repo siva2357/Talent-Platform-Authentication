@@ -30,7 +30,6 @@ const applicationSchema = new mongoose.Schema(
 
       enum: [
         "application submitted",
-        "profile reviewed",
         "shortlisted",
         "assessment assigned",
         "assessment completed",

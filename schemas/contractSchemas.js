@@ -8,9 +8,14 @@ const createContractSchema = Joi.object({
   contractDescription: Joi.string().trim().required(),
   contractType: Joi.string().trim().required(),
   contractSubject: Joi.string().trim().required(),
-  status: Joi.string().valid("pending", "in progress", "completed").default("pending")
+  status: Joi.string().valid("draft", "open", "in progress", "completed", "closed").default("draft"),
+  visibility: Joi.string().valid("public", "private").default("private"),
+  currency: Joi.string().trim().default("INR"),
+  contractCategory: Joi.string().trim(),
+  
 });
 
 module.exports = {
   createContractSchema
 };
+
