@@ -37,7 +37,7 @@ exports.getFinanceStats = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    if (role === "Client") {
+    if (role === "client") {
       // 1. Available balance
       const totalBalance = user.balance || 0;
 
@@ -67,7 +67,8 @@ exports.getFinanceStats = async (req, res) => {
         type: "Escrow Funded",
         status: "Paid"
       });
-      const totalEscrowFunded = escrowFundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const totalEstimatedBudget = clientContracts.reduce((sum, c) => sum + (c.estimatedBudget || 0), 0);
+        const totalEscrowFunded = escrowFundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
       const escrowBalance = Math.max(0, totalEscrowFunded - totalSpent);
 
       return res.status(200).json({
@@ -75,11 +76,12 @@ exports.getFinanceStats = async (req, res) => {
         stats: {
           totalBalance,
           totalSpent: totalSpent * 1.10,
-          upcomingPayments: escrowBalance * 1.10,
-          platformFeesPaid: totalSpent * 0.10
+          upcomingPayments: escrowBalance,
+            pendingPayments: Math.max(0, totalEstimatedBudget - totalEscrowFunded),
+          platformFeesPaid: escrowFundedTxns.reduce((sum, t) => sum + (t.platformFee || 0), 0)
         }
       });
-    } else if (role === "Freelancer") {
+    } else if (role === "freelancer") {
       // 1. Balance Left (unwithdrawn earnings - net available to withdraw)
       const balanceLeft = user.balance || 0;
       const netBalanceLeft = balanceLeft * 0.925;
@@ -117,7 +119,7 @@ exports.getFinanceStats = async (req, res) => {
 // ==========================================
 exports.createRazorpayOrder = async (req, res) => {
   try {
-    if (req.role !== "client") {
+    if (req.role.toLowerCase() !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can deposit funds" });
     }
 
@@ -174,7 +176,7 @@ exports.createRazorpayOrder = async (req, res) => {
 // ==========================================
 exports.verifyRazorpayPayment = async (req, res) => {
   try {
-    if (req.role !== "client") {
+    if (req.role.toLowerCase() !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can deposit funds" });
     }
 
@@ -267,7 +269,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
 // ==========================================
 exports.withdrawFunds = async (req, res) => {
   try {
-    if (req.role !== "freelancer") {
+    if (req.role.toLowerCase() !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can withdraw earnings" });
     }
 
@@ -571,7 +573,7 @@ exports.downloadPaymentStatementPdf = async (req, res) => {
 // ==========================================
 exports.getContractTransactions = async (req, res) => {
   try {
-    if (req.role !== "client") {
+    if (req.role.toLowerCase() !== "client") {
        return res.status(403).json({ success: false, message: "Only clients can access this" });
     }
     
@@ -612,7 +614,7 @@ exports.getContractTransactions = async (req, res) => {
 // ==========================================
 exports.getFreelancerFinanceReport = async (req, res) => {
   try {
-    if (req.role !== "freelancer") {
+    if (req.role.toLowerCase() !== "freelancer") {
        return res.status(403).json({ success: false, message: "Only freelancers can access this" });
     }
 
