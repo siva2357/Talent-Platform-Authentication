@@ -105,7 +105,7 @@ exports.getAllClients = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const clientUsers = await User.find({ role: "Client" });
+    const clientUsers = await User.find({ role: "client" });
     const clientsData = [];
 
     for (const user of clientUsers) {
@@ -146,7 +146,7 @@ exports.updateClientStatus = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
-    if (!user || user.role !== "Client") {
+    if (!user || user.role !== "client") {
       return res.status(404).json({ success: false, message: 'Client not found' });
     }
 
@@ -172,7 +172,7 @@ exports.getAllFreelancers = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const freelancerUsers = await User.find({ role: "Freelancer" });
+    const freelancerUsers = await User.find({ role: "freelancer" });
     const freelancersData = [];
 
     for (const user of freelancerUsers) {
@@ -211,7 +211,7 @@ exports.updateFreelancerStatus = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
-    if (!user || user.role !== "Freelancer") {
+    if (!user || user.role !== "freelancer") {
       return res.status(404).json({ success: false, message: 'Freelancer not found' });
     }
 
@@ -239,7 +239,7 @@ exports.approveFreelancer = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
-    if (!user || user.role !== "Freelancer") {
+    if (!user || user.role !== "freelancer") {
       return res.status(404).json({ success: false, message: 'Freelancer not found' });
     }
 
@@ -259,8 +259,8 @@ exports.getAdminStats = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const totalClients = await User.countDocuments({ role: "Client" });
-    const totalFreelancers = await User.countDocuments({ role: "Freelancer" });
+    const totalClients = await User.countDocuments({ role: "client" });
+    const totalFreelancers = await User.countDocuments({ role: "freelancer" });
     const activeContracts = await Contract.countDocuments({ status: "in progress" });
 
     // Calculate commissions dynamically by summing platform fees
@@ -268,8 +268,8 @@ exports.getAdminStats = async (req, res) => {
     const totalCommissions = txs.reduce((acc, t) => acc + (t.platformFee || 0), 0);
 
     // Build recent activities list dynamically
-    const recentClients = await User.find({ role: "Client" }).sort({ createdAt: -1 }).limit(3);
-    const recentFreelancers = await User.find({ role: "Freelancer" }).sort({ createdAt: -1 }).limit(3);
+    const recentClients = await User.find({ role: "client" }).sort({ createdAt: -1 }).limit(3);
+    const recentFreelancers = await User.find({ role: "freelancer" }).sort({ createdAt: -1 }).limit(3);
 
     const activities = [];
 
@@ -297,12 +297,54 @@ exports.getAdminStats = async (req, res) => {
       });
     });
 
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const labels = [];
+    const clientsData = [0, 0, 0, 0, 0, 0];
+    const freelancersData = [0, 0, 0, 0, 0, 0];
+
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      labels.push(monthNames[d.getMonth()]);
+    }
+
+    const allClients = await User.find({ role: "client", createdAt: { $gte: sixMonthsAgo } });
+    allClients.forEach(u => {
+      const diff = now.getMonth() - u.createdAt.getMonth() + (12 * (now.getFullYear() - u.createdAt.getFullYear()));
+      if (diff >= 0 && diff <= 5) {
+        clientsData[5 - diff]++;
+      }
+    });
+
+    const allFreelancers = await User.find({ role: "freelancer", createdAt: { $gte: sixMonthsAgo } });
+    allFreelancers.forEach(u => {
+      const diff = now.getMonth() - u.createdAt.getMonth() + (12 * (now.getFullYear() - u.createdAt.getFullYear()));
+      if (diff >= 0 && diff <= 5) {
+        freelancersData[5 - diff]++;
+      }
+    });
+
+    const completedContracts = await Contract.countDocuments({ status: "completed" });
+    const openContracts = await Contract.countDocuments({ status: "open" });
+    const closedContracts = await Contract.countDocuments({ status: "closed" });
+
+    const chartData = {
+      labels,
+      clients: clientsData,
+      freelancers: freelancersData,
+      revenue: [totalCommissions * 0.4, totalCommissions * 0.3, totalCommissions * 0.2, totalCommissions * 0.1],
+      contracts: [activeContracts, completedContracts, openContracts, closedContracts]
+    };
+
     return res.status(200).json({
       totalClients,
       totalFreelancers,
       activeContracts,
       totalCommissions,
-      activities: activities.slice(0, 5)
+      activities: activities.slice(0, 5),
+      chartData
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -331,7 +373,7 @@ exports.getAdminTransactions = async (req, res) => {
         id: p._id.toString(),
         contractTitle: p.contractId?.contractTitle || "Manual Payout",
         clientName: p.contractId?.clientId?.registrationDetails?.fullName || "-",
-        freelancerName: p.userId?.registrationDetails?.fullName || "Freelancer",
+        freelancerName: p.userId?.registrationDetails?.fullName || "freelancer",
         budget: p.amount,
         freelancerPayment: p.amount - (p.platformFee || 0),
         amount: p.amount,
@@ -359,10 +401,10 @@ exports.getAdminFinancialStats = async (req, res) => {
     const txs = await Transaction.find({});
 
     const payoutTxs = txs.filter(t => t.type === 'Payout' || t.type === 'Withdrawal');
-    
+
     const completedPayouts = payoutTxs.filter(t => t.status === 'Processed' || t.status === 'Completed' || t.status === 'Paid');
     const pendingPayouts = payoutTxs.filter(t => t.status === 'Pending');
-    
+
     const platformCommissions = payoutTxs.reduce((sum, t) => sum + (t.platformFee || 0), 0);
     const pendingWithdrawals = pendingPayouts.reduce((sum, t) => sum + (t.amount || 0), 0);
     const successfulPayouts = completedPayouts.length;

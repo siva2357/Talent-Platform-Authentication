@@ -16,7 +16,7 @@ exports.getDashboardStats = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    if (role === "Freelancer") {
+    if (role === "freelancer") {
       // 1. Fetch Freelancer Profile details
       const profile = await FreelancerProfile.findOne({ userId });
       const freelancerName = profile?.basicInformation?.fullName || user.registrationDetails.fullName;
@@ -155,7 +155,7 @@ exports.getDashboardStats = async (req, res) => {
         ]
       });
 
-    } else if (role === "Client") {
+    } else if (role === "client") {
       // 1. Fetch Client Profile details
       const profile = await ClientProfile.findOne({ userId });
       const clientName = profile?.basicInformation?.fullName || user.registrationDetails.fullName;
