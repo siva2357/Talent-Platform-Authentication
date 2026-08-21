@@ -516,6 +516,51 @@ exports.getApplicationById = async (req, res) => {
   }
 };
 
+exports.getInterviews = async (req, res) => {
+  try {
+    const role = req.role.toLowerCase();
+    const query = {
+      applicationStatus: { $in: ["interview scheduled", "interview completed", "hired"] },
+      interview: { $exists: true }
+    };
+    
+    if (role === "client") {
+      query.clientId = req.userId;
+    } else {
+      query.freelancerId = req.userId;
+    }
+
+    const applications = await Application.find(query)
+      .populate({
+        path: role === "client" ? "freelancerId" : "clientId",
+        select: "registrationDetails.fullName registrationDetails.email"
+      })
+      .populate({
+        path: "contractId",
+        select: "contractTitle"
+      })
+      .sort({ "interview.date": 1 });
+
+    const interviews = applications.map(app => {
+      const otherUser = role === "client" ? app.freelancerId : app.clientId;
+      return {
+        _id: app._id,
+        interview: app.interview,
+        contractTitle: app.contractId?.contractTitle,
+        otherUser: {
+          name: otherUser?.registrationDetails?.fullName || "User",
+          email: otherUser?.registrationDetails?.email || ""
+        },
+        applicationStatus: app.applicationStatus
+      };
+    });
+
+    return res.status(200).json({ success: true, interviews });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 exports.getContractPDF = async (req, res) => {
   try {
     const ejs = require('ejs');

@@ -37,7 +37,7 @@ exports.getFinanceStats = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    if (role === "Client") {
+    if (role.toLowerCase() === "client") {
       // 1. Available balance
       const totalBalance = user.balance || 0;
 
@@ -79,7 +79,7 @@ exports.getFinanceStats = async (req, res) => {
           platformFeesPaid: totalSpent * 0.10
         }
       });
-    } else if (role === "Freelancer") {
+    } else if (role.toLowerCase() === "freelancer") {
       // 1. Balance Left (unwithdrawn earnings - net available to withdraw)
       const balanceLeft = user.balance || 0;
       const netBalanceLeft = balanceLeft * 0.925;

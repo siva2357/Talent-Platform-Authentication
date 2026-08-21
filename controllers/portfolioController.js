@@ -70,6 +70,29 @@ exports.getMyPortfolio = async (req, res, next) => {
   }
 };
 
+exports.getPortfolioById = async (req, res, next) => {
+  try {
+    const { portfolioId } = req.params;
+
+    const portfolio = await Portfolio.findById(portfolioId);
+
+    if (!portfolio) {
+      return res.status(404).json({
+        success: false,
+        message: "Portfolio not found."
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: portfolio
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
 
 
 exports.getPortfolioByFreelancerId = async (req, res, next) => {
