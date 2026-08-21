@@ -13,7 +13,8 @@ const {
   getAdminTransactions,
   getAdminFinancialStats,
   getAdminReports,
-  generateAdminReport
+  generateAdminReport,
+  processManualPayout
 } = require('../controllers/adminController');
 
 router.get('/profile', identifier, getAdminProfile);
@@ -30,5 +31,7 @@ router.get('/reports', identifier, getAdminReports);
 router.post('/reports', identifier, generateAdminReport);
 
 router.get('/:id', identifier, getAdminById);
+
+router.post('/payout/:transactionId', identifier, processManualPayout);
 
 module.exports = router;

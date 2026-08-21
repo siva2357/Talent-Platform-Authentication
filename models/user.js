@@ -13,7 +13,12 @@ const userSchema = new mongoose.Schema({
   },
   role: { type: String, enum: ["client", "freelancer", "admin"], required: true },
   balance: { type: Number, default: 0 },
-  status: { type: String, enum: ["active", "inactive", "suspended", "blocked", "deactivated"], default: "inactive" }
+  status: { type: String, enum: ["active", "inactive", "suspended", "blocked", "deactivated"], default: "inactive" },
+  payoutPreferences: {
+    accountNumber: { type: String },
+    ifscCode: { type: String },
+    upiId: { type: String }
+  }
 }, { timestamps: true });
 
 // Hash password before saving

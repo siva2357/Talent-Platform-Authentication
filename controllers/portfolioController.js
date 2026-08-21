@@ -6,7 +6,7 @@ const FreelancerProfile = require("../models/freelancerProfile");
 exports.createPortfolio = async (req, res, next) => {
   try {
 
-    if (req.user.role !== "Freelancer") {
+    if (req.user.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can create portfolio items."
@@ -49,7 +49,7 @@ exports.createPortfolio = async (req, res, next) => {
 exports.getMyPortfolio = async (req, res, next) => {
   try {
 
-    if (req.user.role !== "Freelancer") {
+    if (req.user.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can access portfolio."
@@ -96,7 +96,7 @@ exports.getPortfolioByFreelancerId = async (req, res, next) => {
 exports.updatePortfolio = async (req, res, next) => {
   try {
 
-    if (req.user.role !== "Freelancer") {
+    if (req.user.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can update portfolio."
@@ -155,7 +155,7 @@ exports.updatePortfolio = async (req, res, next) => {
 exports.deletePortfolio = async (req, res, next) => {
   try {
 
-    if (req.user.role !== "Freelancer") {
+    if (req.user.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can delete portfolio."
