@@ -15,9 +15,9 @@ const registerSchema = Joi.object({
     "string.min": "Password must be at least 6 characters long",
     "string.empty": "Password cannot be empty"
   }),
-  role: Joi.string().valid("Client", "Freelancer").required().messages({
+  role: Joi.string().valid("client", "freelancer").required().messages({
     "any.required": "Role is required",
-    "any.only": "Role must be either Client or Freelancer"
+    "any.only": "Role must be either client or freelancer"
   })
 });
 

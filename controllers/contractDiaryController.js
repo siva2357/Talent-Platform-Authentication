@@ -74,7 +74,7 @@ async function syncContractStatus(diary) {
 
 exports.addPhase = async (req, res) => {
   try {
-    if (req.role !== "Client")
+    if (req.role !== "client")
       return res.status(403).json({ success: false, message: "Only clients can add phases" });
 
     const { diary, error, status } = await getDiaryAndVerify(req.params.id, req.userId, "Client");
@@ -122,13 +122,66 @@ exports.addPhase = async (req, res) => {
       status: "pending",
       clientAttachments: mappedClientAttachments
     });
-    await syncContractStatus(
-  diary
-);
-
-await diary.save();
+    await syncContractStatus(diary);
+    await diary.save();
 
     return res.status(200).json({ success: true, message: "Phase added and funded successfully", phases: diary.phases });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.updatePhase = async (req, res) => {
+  try {
+    if (req.role !== "client")
+      return res.status(403).json({ success: false, message: "Only clients can update phases" });
+
+    const { diary, error, status } = await getDiaryAndVerify(req.params.id, req.userId, "Client");
+    if (error) return res.status(status).json({ success: false, message: error });
+
+    const phase = diary.phases.id(req.params.phaseId);
+    if (!phase) return res.status(404).json({ success: false, message: "Phase not found" });
+
+    if (phase.status !== "pending") {
+      return res.status(400).json({ success: false, message: "Only pending phases can be edited" });
+    }
+
+    const { name, description, deadline, amount, clientAttachments } = req.body;
+    if (!name) return res.status(400).json({ success: false, message: "Phase name is required" });
+
+    const newAmount = parseFloat(amount) || 0;
+    const oldAmount = phase.amount || 0;
+    const contract = diary.contractId;
+    
+    if (newAmount !== oldAmount) {
+      const totalBudget = contract.estimatedBudget || 0;
+      const totalAllocated = diary.phases.reduce((sum, p) => sum + (p.amount || 0), 0) - oldAmount;
+      const remainingBudget = Math.round((totalBudget - totalAllocated) * 100) / 100;
+
+      if (newAmount > remainingBudget) {
+        return res.status(400).json({
+          success: false,
+          message: `Insufficient remaining contract budget ($${remainingBudget.toFixed(2)}) to allocate for this phase ($${newAmount.toFixed(2)}).`
+        });
+      }
+    }
+
+    phase.name = name;
+    phase.description = description || "";
+    if (deadline) phase.deadline = new Date(deadline);
+    phase.amount = newAmount;
+
+    if (Array.isArray(clientAttachments) && clientAttachments.length > 0) {
+      phase.clientAttachments = clientAttachments.map(a => ({
+        fileName: a.fileName,
+        fileUrl:  a.fileUrl,
+        fileType: a.fileType || "",
+        fileSize: a.fileSize || ""
+      }));
+    }
+
+    await diary.save();
+    return res.status(200).json({ success: true, message: "Phase updated successfully", phase });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -137,7 +190,7 @@ await diary.save();
 exports.reviewPhase = async (req, res) => {
   try {
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can review phases"
@@ -371,7 +424,7 @@ exports.reviewPhase = async (req, res) => {
 
 exports.getClientDiaries = async (req, res) => {
   try {
-    if (req.role !== "Client")
+    if (req.role !== "client")
       return res.status(403).json({ success: false, message: "Only clients can access this" });
 
     const diaries = await ContractDiary.find({ clientId: req.userId })
@@ -406,7 +459,7 @@ exports.getClientDiaries = async (req, res) => {
 exports.getFreelancerDiaries = async (req, res) => {
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can access this"
@@ -512,7 +565,7 @@ exports.getDiaryById = async (req, res) => {
 exports.submitPhaseUpdate = async (req, res) => {
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can submit phase updates"
@@ -588,7 +641,7 @@ await diary.save();
 
 exports.startPhase = async (req, res) => {
   try {
-    if (req.role !== "Freelancer")
+    if (req.role !== "freelancer")
       return res.status(403).json({ success: false, message: "Only freelancers can start phases" });
 
     const { diary, error, status } = await getDiaryAndVerify(req.params.id, req.userId, "Freelancer");
@@ -723,7 +776,7 @@ exports.getDiaryByContractId = async (req, res) => {
 exports.getFreelancerAllDiaries = async (req, res) => {
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can access this"

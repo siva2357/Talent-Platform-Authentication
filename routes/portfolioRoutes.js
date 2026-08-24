@@ -6,7 +6,8 @@ const {
   getMyPortfolio,
   getPortfolioByFreelancerId,
   updatePortfolio,
-  deletePortfolio
+  deletePortfolio,
+  getPortfolioById
 } = require("../controllers/portfolioController");
 
 const router = express.Router();
@@ -14,6 +15,8 @@ const router = express.Router();
 router.post("/", protect, createPortfolio);
 
 router.get("/my", protect, getMyPortfolio);
+
+router.get("/:portfolioId", protect, getPortfolioById);
 
 router.get(
   "/freelancer/:freelancerId",

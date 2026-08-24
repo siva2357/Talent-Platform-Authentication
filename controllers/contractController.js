@@ -11,7 +11,7 @@ const { createContractSchema } = require("../schemas/contractSchemas");
 
 exports.createContract = async (req, res) => {
   try {
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can access this feature" });
     }
     const clientId = req.userId;
@@ -20,7 +20,7 @@ exports.createContract = async (req, res) => {
       return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
-    const { contractTitle, estimatedBudget, contractStartDate, contractEndDate, contractDescription, contractType, contractSubject, status } = validatedData;
+    const { contractTitle, estimatedBudget, contractStartDate, contractEndDate, contractDescription, contractType, contractSubject, status, visibility, currency, contractCategory } = validatedData;
     
     if (estimatedBudget < 30000 || estimatedBudget > 75000) {
       return res.status(400).json({
@@ -38,24 +38,7 @@ exports.createContract = async (req, res) => {
       });
     }
 
-    const minEndDate = new Date(startDateObj);
-    minEndDate.setMonth(minEndDate.getMonth() + 3);
-    const maxEndDate = new Date(startDateObj);
-    maxEndDate.setMonth(maxEndDate.getMonth() + 6);
-
-    if (endDateObj < minEndDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Contract duration must be at least 3 months"
-      });
-    }
-
-    if (endDateObj > maxEndDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Contract duration cannot exceed 6 months"
-      });
-    }
+    
 
     const contract = await Contract.create({
       clientId,
@@ -87,7 +70,7 @@ exports.getMyContracts = async (req, res) => {
 
   try {
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can access this feature" });
     }
 
@@ -164,7 +147,7 @@ exports.getMyContracts = async (req, res) => {
 exports.getMyContractById = async (req, res) => {
   try {
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can access this feature" });
     }
 
@@ -216,7 +199,7 @@ exports.getMyContractById = async (req, res) => {
 
 exports.updateContract = async (req, res) => {
   try {
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can access this feature" });
     }
     const clientId = req.userId;
@@ -270,24 +253,7 @@ exports.updateContract = async (req, res) => {
       });
     }
     
-    const minAllowedEndDate = new Date(newStartDate);
-    minAllowedEndDate.setMonth(minAllowedEndDate.getMonth() + 3);
-    const maxAllowedEndDate = new Date(newStartDate);
-    maxAllowedEndDate.setMonth(maxAllowedEndDate.getMonth() + 6);
     
-    if (newEndDate < minAllowedEndDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Contract duration must be at least 3 months"
-      });
-    }
-
-    if (newEndDate > maxAllowedEndDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Contract duration cannot exceed 6 months"
-      });
-    }
 
     if (contractTitle !== undefined) {
       contract.contractTitle = contractTitle;
@@ -356,7 +322,7 @@ exports.updateContract = async (req, res) => {
 
 exports.deleteContract = async (req, res) => {
   try {
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can access this feature" });
     }
     const clientId = req.userId;
@@ -390,7 +356,7 @@ exports.getAllContracts = async (req, res) => {
   try {
 
     // Only Freelancer can access
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
 
       return res.status(403).json({
         success: false,
@@ -565,7 +531,7 @@ exports.getSingleContract = async (req, res) => {
   try {
 
     // Only Freelancer can access
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
 
       return res.status(403).json({
         success: false,
@@ -792,7 +758,7 @@ exports.saveContract = async (req, res) => {
 
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
     }
 
@@ -846,7 +812,7 @@ exports.unsaveContract = async (req, res) => {
 
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
     }
 
@@ -890,7 +856,7 @@ exports.getSavedContracts = async (req, res) => {
 
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
     }
 
@@ -997,7 +963,7 @@ exports.applyToContract = async (req, res) => {
 
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
     }
 
@@ -1111,7 +1077,7 @@ exports.applyToContract = async (req, res) => {
 exports.withdrawContractApplication = async (req, res) => {
 
   try {
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
     }
 
@@ -1219,7 +1185,7 @@ exports.getAppliedContracts = async (req, res) => {
 
   try {
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can access contracts" });
     }
 
@@ -1364,7 +1330,7 @@ exports.getAppliedContracts = async (req, res) => {
 exports.getContractApplicants = async (req, res) => {
   try {
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can access this feature"
@@ -1469,7 +1435,7 @@ return {
 exports.getHiredTalents = async (req, res) => {
   try {
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({
         success: false,
         message: "Only clients can access hired talents"
@@ -1549,5 +1515,52 @@ exports.getHiredTalents = async (req, res) => {
       message: error.message
     });
 
+  }
+};
+exports.getFreelancerMyContracts = async (req, res) => {
+  try {
+    if (req.role !== 'freelancer') {
+      return res.status(403).json({ success: false, message: 'Only freelancers can access this feature' });
+    }
+    const freelancerId = req.userId;
+    const Offer = require('../models/offer');
+    
+    // Find accepted offers (which act as active/completed contracts for freelancers)
+    const hiredOffers = await Offer.find({ freelancerId, offerStatus: 'accepted' })
+      .populate({
+        path: 'contractId',
+        select: 'contractTitle estimatedBudget contractStartDate contractEndDate contractType contractSubject status createdAt'
+      })
+      .populate({
+        path: 'clientId',
+        select: 'registrationDetails.fullName registrationDetails.email'
+      })
+      .sort({ updatedAt: -1 });
+
+    const contracts = hiredOffers.map(offer => {
+      const contract = offer.contractId;
+      if (!contract) return null;
+      return {
+        _id: contract._id,
+        contractTitle: contract.contractTitle,
+        estimatedBudget: contract.estimatedBudget,
+        contractStartDate: contract.contractStartDate,
+        contractEndDate: contract.contractEndDate,
+        contractType: contract.contractType,
+        contractSubject: contract.contractSubject,
+        status: contract.status,
+        createdAt: contract.createdAt,
+        clientName: offer.clientId?.registrationDetails?.fullName || 'Client',
+        clientEmail: offer.clientId?.registrationDetails?.email || ''
+      };
+    }).filter(c => c !== null);
+
+    return res.status(200).json({
+      success: true,
+      totalContracts: contracts.length,
+      contracts: contracts
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

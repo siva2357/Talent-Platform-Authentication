@@ -8,23 +8,21 @@ const userSchema = new mongoose.Schema({
     password: { type: String, required: true, select: false },
     profileCompleted: { type: Boolean, default: false },
     emailVerified: { type: Boolean, default: false },
-    mobileVerification: { type: Boolean, default: false },
-    phoneNumber: { type: String, default: "" },
     verificationCode: { type: String, select: false },
-    verificationCodeValidation: { type: Number, select: false },
-    phoneVerificationCode: { type: String, select: false },
-    phoneVerificationCodeValidation: { type: Number, select: false },
-    forgotPasswordCode: { type: String, select: false },
-    forgotPasswordCodeValidation: { type: Date, select: false },
-    forgotPasswordVerified: { type: Boolean, default: false }
+    verificationCodeValidation: { type: Number, select: false }
   },
-  role: { type: String, enum: ["Client", "Freelancer","Admin"], required: true },
+  role: { type: String, enum: ["client", "freelancer", "admin"], required: true },
   balance: { type: Number, default: 0 },
-  status: { type: String, enum: ["active", "inactive", "suspended", "blocked", "deactivated"], default: "inactive" }
+  status: { type: String, enum: ["active", "inactive", "suspended", "blocked", "deactivated"], default: "inactive" },
+  payoutPreferences: {
+    accountNumber: { type: String },
+    ifscCode: { type: String },
+    upiId: { type: String }
+  }
 }, { timestamps: true });
 
 // Hash password before saving
-userSchema.pre("save", async function(next) {
+userSchema.pre("save", async function (next) {
   if (!this.isModified("registrationDetails.password")) {
     return next();
   }
@@ -38,7 +36,7 @@ userSchema.pre("save", async function(next) {
 });
 
 // Match password
-userSchema.methods.matchPassword = async function(enteredPassword) {
+userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.registrationDetails.password);
 };
 

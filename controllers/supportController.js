@@ -4,10 +4,10 @@ const User = require("../models/user");
 // Create support ticket (Client or Freelancer)
 exports.createTicket = async (req, res) => {
   try {
-    const { ticketId, category, subcategory, description, attachments } = req.body;
+    const { ticketId, subject, category, subcategory, description, attachments } = req.body;
     
-    if (!category || !description) {
-      return res.status(400).json({ success: false, message: "Category and description are required" });
+    if (!subject || !category || !description) {
+      return res.status(400).json({ success: false, message: "Subject, category and description are required" });
     }
 
     const user = await User.findById(req.userId);
@@ -17,9 +17,8 @@ exports.createTicket = async (req, res) => {
 
     const userName = user.registrationDetails.fullName;
     const userEmail = user.registrationDetails.email;
-    const userType = user.role; // 'Client' or 'Freelancer'
-
-    const subject = `${category.charAt(0).toUpperCase() + category.slice(1)} Phase - ${subcategory || "General"}`;
+    // Capitalize userType to match the Enum in SupportRequest model ("Client", "Freelancer")
+    const userType = user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : 'Client';
 
     const newTicket = new SupportRequest({
       ticketId: ticketId || `TKT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -27,7 +26,8 @@ exports.createTicket = async (req, res) => {
       userType,
       userName,
       userEmail,
-      subject,
+      subject: subject || (category ? `${category.charAt(0).toUpperCase() + category.slice(1)} Phase - ${subcategory || "General"}` : "General Support"),
+      category: category || "General",
       message: description,
       attachments: attachments || [],
       status: "Open",
@@ -59,7 +59,7 @@ exports.getUserTickets = async (req, res) => {
 // Get all support tickets (Admin only)
 exports.getAllTickets = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: "Access denied. Admin only." });
     }
 
@@ -67,7 +67,7 @@ exports.getAllTickets = async (req, res) => {
     
     // Format to match frontend SupportRequest interface
     const formattedTickets = tickets.map(t => ({
-      id: t.ticketId,
+      ticketId: t.ticketId,
       userType: t.userType,
       userName: t.userName,
       userEmail: t.userEmail,
@@ -75,7 +75,7 @@ exports.getAllTickets = async (req, res) => {
       message: t.message,
       attachments: t.attachments || [],
       status: t.status,
-      createdDate: t.createdAt,
+      createdAt: t.createdAt,
       replies: t.replies.map(r => ({
   sender: r.sender,
   message: r.message,
@@ -84,7 +84,7 @@ exports.getAllTickets = async (req, res) => {
 }))
     }));
 
-    return res.status(200).json(formattedTickets);
+    return res.status(200).json({ success: true, tickets: formattedTickets });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
   }
@@ -94,7 +94,7 @@ exports.getAllTickets = async (req, res) => {
 exports.updateTicketStatus = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied. Admin only."
@@ -158,7 +158,7 @@ exports.updateTicketStatus = async (req, res) => {
 exports.replyToTicket = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied. Admin only."
@@ -302,7 +302,7 @@ exports.replyToTicketByUser = async (req, res) => {
 exports.closeTicket = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Admin only"
@@ -352,7 +352,7 @@ exports.getTicketById = async (req, res) => {
     }
 
     if (
-      req.role !== "Admin" &&
+      req.role !== "admin" &&
       ticket.userId.toString() !== req.userId
     ) {
       return res.status(403).json({

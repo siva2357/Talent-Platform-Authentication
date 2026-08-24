@@ -23,6 +23,14 @@ const portfolioSchema = new mongoose.Schema(
       default: "",
     },
 
+    startDate: {
+      type: Date,
+    },
+
+    endDate: {
+      type: Date,
+    },
+
     projectType: {
       type: String,
       default: "",
@@ -50,6 +58,38 @@ const portfolioSchema = new mongoose.Schema(
     projectUrl: {
       type: String,
       default: "",
+    },
+
+    githubUrl: {
+      type: String,
+      default: "",
+    },
+
+    status: {
+      type: String,
+      enum: ["Published", "Draft"],
+      default: "Draft",
+    },
+
+    visibility: {
+      type: String,
+      enum: ["Public", "Private"],
+      default: "Public",
+    },
+
+    featured: {
+      type: Boolean,
+      default: false,
+    },
+
+    client: {
+      type: String,
+      default: "",
+    },
+
+    teamSize: {
+      type: Number,
+      default: 1,
     },
   },
   {

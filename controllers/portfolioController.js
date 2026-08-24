@@ -6,7 +6,7 @@ const FreelancerProfile = require("../models/freelancerProfile");
 exports.createPortfolio = async (req, res, next) => {
   try {
 
-    if (req.user.role !== "Freelancer") {
+    if (req.user.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can create portfolio items."
@@ -49,7 +49,7 @@ exports.createPortfolio = async (req, res, next) => {
 exports.getMyPortfolio = async (req, res, next) => {
   try {
 
-    if (req.user.role !== "Freelancer") {
+    if (req.user.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can access portfolio."
@@ -63,6 +63,29 @@ exports.getMyPortfolio = async (req, res, next) => {
     res.status(200).json({
       success: true,
       portfolios
+    });
+
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getPortfolioById = async (req, res, next) => {
+  try {
+    const { portfolioId } = req.params;
+
+    const portfolio = await Portfolio.findById(portfolioId);
+
+    if (!portfolio) {
+      return res.status(404).json({
+        success: false,
+        message: "Portfolio not found."
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: portfolio
     });
 
   } catch (err) {
@@ -96,7 +119,7 @@ exports.getPortfolioByFreelancerId = async (req, res, next) => {
 exports.updatePortfolio = async (req, res, next) => {
   try {
 
-    if (req.user.role !== "Freelancer") {
+    if (req.user.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can update portfolio."
@@ -155,7 +178,7 @@ exports.updatePortfolio = async (req, res, next) => {
 exports.deletePortfolio = async (req, res, next) => {
   try {
 
-    if (req.user.role !== "Freelancer") {
+    if (req.user.role !== "freelancer") {
       return res.status(403).json({
         success: false,
         message: "Only freelancers can delete portfolio."

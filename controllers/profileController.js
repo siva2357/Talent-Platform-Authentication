@@ -7,7 +7,7 @@ const { deleteFolderFromGCP } = require("../utils/gcpCleaner");
 const bucketMap = require("../constants/bucketMap");
 const uploadSections = require("../constants/uploadSections");
 const { freelancerProfileSchema, clientProfileSchema, sendPhoneOTPSchema, verifyPhoneOTPSchema } = require("../schemas/profileSchemas");
-const twilio = require("twilio");
+
 
 const Contract = require("../models/contract");
 const Offer = require("../models/offer");
@@ -15,20 +15,6 @@ const ContractDiary = require("../models/contractDiary");
 
 const Portfolio = require("../models/portfolio");
 
-// Helper to get twilio client if env variables exist
-const getTwilioClient = () => {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
-
-  if (accountSid && authToken && twilioPhone && !accountSid.startsWith("YOUR_")) {
-    return {
-      client: twilio(accountSid, authToken),
-      from: twilioPhone
-    };
-  }
-  return null;
-};
 
 
 exports.completeProfile = async (req, res, next) => {
@@ -51,7 +37,7 @@ exports.completeProfile = async (req, res, next) => {
     }
 
     // Validate using the appropriate Joi schema based on user role
-    const schema = role === "Client" ? clientProfileSchema : freelancerProfileSchema;
+    const schema = role.toLowerCase() === "client" ? clientProfileSchema : freelancerProfileSchema;
     const { error, value: validatedData } = schema.validate(body);
     if (error) {
       return res.status(400).json({ success: false, message: error.details[0].message });
@@ -61,8 +47,8 @@ exports.completeProfile = async (req, res, next) => {
 
     // 1. Check if file is uploaded
     if (req.file) {
-      const bucketName = role === "Client" ? bucketMap.CLIENT_DATA : bucketMap.FREELANCER_DATA;
-      let folder = role === "Client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
+      const bucketName = role.toLowerCase() === "client" ? bucketMap.CLIENT_DATA : bucketMap.FREELANCER_DATA;
+      let folder = role.toLowerCase() === "client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
 
       const fullName = user.registrationDetails?.fullName;
       if (fullName) {
@@ -79,7 +65,7 @@ exports.completeProfile = async (req, res, next) => {
 
     let savedProfile;
 
-    if (role === "Freelancer") {
+    if (role === "freelancer") {
       // 2. Freelancer profile compilation
       const basicInfo = validatedData.basicInformation || {};
       const professionalDetails = validatedData.professionalDetails || {};
@@ -92,29 +78,25 @@ exports.completeProfile = async (req, res, next) => {
           profilePhoto: profilePhotoUrl,
           fullName: basicInfo.fullName || user.registrationDetails.fullName,
           email: basicInfo.email || user.registrationDetails.email,
-          username: basicInfo.username || user.registrationDetails.email.split("@")[0],
+          phoneNumber: basicInfo.phoneNumber || user.registrationDetails.phoneNumber || "",
           gender: basicInfo.gender || "",
-          professionalHeadline: basicInfo.professionalHeadline || "",
           shortBio: basicInfo.shortBio || ""
         },
         professionalDetails: {
-          categories: professionalDetails.categories || [],
-          skills: professionalDetails.skills || []
+          professionalHeadline: professionalDetails.professionalHeadline || "",
+          skills: professionalDetails.skills || [],
+          technologies: professionalDetails.technologies || [],
+          availability: professionalDetails.availability || "",
+          preferredJobType: professionalDetails.preferredJobType || ""
         },
         location: {
           country: location.country || "",
+          state: location.state || "",
           city: location.city || "",
           timezone: location.timezone || ""
         },
-        availability: validatedData.availability || [],
-
-        verification: {
-          emailAddress: verification.emailAddress !== undefined ? verification.emailAddress : false,
-          phoneNumber: verification.phoneNumber !== undefined ? verification.phoneNumber : true
-        },
         socialLinks: validatedData.socialLinks || [],
-        languages: validatedData.languages || [],
-        paymentDetails: validatedData.paymentDetails || {}
+        languages: validatedData.languages || []
       };
 
       // Find if profile already exists or create new
@@ -135,7 +117,7 @@ exports.completeProfile = async (req, res, next) => {
       }
       savedProfile = profile;
 
-    } else if (role === "Client") {
+    } else if (role === "client") {
       // 3. Client profile compilation
       const basicInfo = validatedData.basicInformation || {};
       const professionalDetails = validatedData.professionalDetails || {};
@@ -148,27 +130,24 @@ exports.completeProfile = async (req, res, next) => {
           profilePhoto: profilePhotoUrl,
           fullName: basicInfo.fullName || user.registrationDetails.fullName,
           email: basicInfo.email || user.registrationDetails.email,
-          username: basicInfo.username || user.registrationDetails.email.split("@")[0],
+          phoneNumber: basicInfo.phoneNumber || user.registrationDetails.phoneNumber || "",
           gender: basicInfo.gender || "",
           shortBio: basicInfo.shortBio || ""
         },
         professionalDetails: {
-          clientType: professionalDetails.clientType || "Individual",
+          companyType: professionalDetails.companyType || "",
           website: professionalDetails.website || "",
-          industry: professionalDetails.industry || ""
+          industry: professionalDetails.industry || "",
+          companyDescription: professionalDetails.companyDescription || ""
         },
         location: {
           country: location.country || "",
+          state: location.state || "",
           city: location.city || "",
           timezone: location.timezone || ""
         },
-        verification: {
-          emailAddress: verification.emailAddress !== undefined ? verification.emailAddress : false,
-          phoneNumber: verification.phoneNumber !== undefined ? verification.phoneNumber : true
-        },
         socialLinks: validatedData.socialLinks || [],
-        languages: validatedData.languages || [],
-        paymentDetails: validatedData.paymentDetails || {}
+        languages: validatedData.languages || []
       };
 
       // Find if profile already exists or create new
@@ -214,7 +193,7 @@ exports.getMyProfile = async (req, res, next) => {
     let contracts = [];
     let diaries = [];
 
-    if (user.role === "Freelancer") {
+    if (user.role === "freelancer") {
       profile = await FreelancerProfile.findOne({ userId: user._id });
       const dbDiaries = await ContractDiary.find({ freelancerId: user._id })
         .populate("contractId")
@@ -250,7 +229,7 @@ exports.getMyProfile = async (req, res, next) => {
         });
       }
       diaries = freelancerDiaries;
-    } else if (user.role === "Client") {
+    } else if (user.role === "client") {
       profile = await ClientProfile.findOne({ userId: user._id });
       contracts = await Contract
         .find({ clientId: user._id })
@@ -274,16 +253,16 @@ exports.getMyProfile = async (req, res, next) => {
       profile
     };
 
-    if (user.role === "Freelancer") {
+    if (user.role === "freelancer") {
 
-  const portfolio = await Portfolio.find({
-    freelancerId: user._id
-  }).sort({ createdAt: -1 });
+      const portfolio = await Portfolio.find({
+        freelancerId: user._id
+      }).sort({ createdAt: -1 });
 
-  responsePayload.diaries = diaries;
-  responsePayload.portfolio = portfolio;
+      responsePayload.diaries = diaries;
+      responsePayload.portfolio = portfolio;
 
-} else if (user.role === "Client") {
+    } else if (user.role === "client") {
       responsePayload.contracts = contracts;
     }
 
@@ -300,12 +279,12 @@ exports.getProfileById = async (req, res, next) => {
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
-    
+
     let profile = null;
     let contracts = [];
     let diaries = [];
 
-    if (user.role === "Freelancer") {
+    if (user.role === "freelancer") {
       profile = await FreelancerProfile.findOne({ userId: user._id });
       const dbDiaries = await ContractDiary.find({ freelancerId: user._id })
         .populate("contractId")
@@ -339,7 +318,7 @@ exports.getProfileById = async (req, res, next) => {
         });
       }
       diaries = freelancerDiaries;
-    } else if (user.role === "Client") {
+    } else if (user.role === "client") {
       profile = await ClientProfile.findOne({ userId: user._id });
       contracts = await Contract
         .find({ clientId: user._id })
@@ -363,14 +342,14 @@ exports.getProfileById = async (req, res, next) => {
       profile
     };
 
-    if (user.role === "Freelancer") {
+    if (user.role === "freelancer") {
       const portfolio = await Portfolio.find({
         freelancerId: user._id
       }).sort({ createdAt: -1 });
 
       responsePayload.diaries = diaries;
       responsePayload.portfolio = portfolio;
-    } else if (user.role === "Client") {
+    } else if (user.role === "client") {
       responsePayload.contracts = contracts;
     }
 
@@ -400,13 +379,13 @@ exports.updateProfile = async (req, res, next) => {
       }
     }
 
-    const schema = role === "Client" ? clientProfileSchema : freelancerProfileSchema;
+    const schema = role.toLowerCase() === "client" ? clientProfileSchema : freelancerProfileSchema;
     const { error, value: validatedData } = schema.validate(body);
     if (error) {
       return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
-    let ProfileModel = role === "Client" ? ClientProfile : FreelancerProfile;
+    let ProfileModel = role === "client" ? ClientProfile : FreelancerProfile;
     let profile = await ProfileModel.findOne({ userId: user._id });
     if (!profile) {
       return res.status(404).json({ success: false, message: "Profile not found. Please complete profile first." });
@@ -415,8 +394,8 @@ exports.updateProfile = async (req, res, next) => {
     // Handle profile photo upload if present
     let profilePhotoUrl = profile.basicInformation?.profilePhoto || "";
     if (req.file) {
-      const bucketName = role === "Client" ? bucketMap.CLIENT_DATA : bucketMap.FREELANCER_DATA;
-      let folder = role === "Client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
+      const bucketName = role.toLowerCase() === "client" ? bucketMap.CLIENT_DATA : bucketMap.FREELANCER_DATA;
+      let folder = role.toLowerCase() === "client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
 
       const fullName = user.registrationDetails?.fullName;
       if (fullName) {
@@ -471,7 +450,7 @@ exports.updateProfile = async (req, res, next) => {
     if (validatedData.languages) {
       profile.languages = validatedData.languages;
     }
-    if (role === "Freelancer" && validatedData.availability) {
+    if (role === "freelancer" && validatedData.availability) {
       profile.availability = validatedData.availability;
     }
 
@@ -507,7 +486,7 @@ exports.deleteProfile = async (req, res, next) => {
     const fullName = user.registrationDetails?.fullName || "";
     const safeFullName = fullName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_");
 
-    if (role === "Client") {
+    if (role === "client") {
       const profile = await ClientProfile.findOne({ userId: user._id });
 
       // 1. Delete ALL client files from GCP
@@ -549,7 +528,7 @@ exports.deleteProfile = async (req, res, next) => {
       // 9. Delete client profile document
       await ClientProfile.deleteOne({ userId: user._id });
 
-    } else if (role === "Freelancer") {
+    } else if (role === "freelancer") {
       const profile = await FreelancerProfile.findOne({ userId: user._id });
 
       // 1. Delete ALL freelancer files from GCP
@@ -596,154 +575,28 @@ exports.deleteProfile = async (req, res, next) => {
 };
 
 
-exports.sendPhoneOTP = async (req, res, next) => {
-  try {
-    const { error, value } = sendPhoneOTPSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ success: false, message: error.details[0].message });
-    }
-
-    const { phoneNumber } = value;
-    const user = await User.findById(req.user._id);
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    // Check if phone number is already used by another user
-    const existingUser = await User.findOne({ 
-      "registrationDetails.phoneNumber": phoneNumber, 
-      _id: { $ne: req.user._id } 
-    });
-
-    if (existingUser) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "This phone number is already associated with another account." 
-      });
-    }
-
-    // Generate 6-digit OTP code
-    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiryTime = Date.now() + 5 * 60 * 1000; // 5 minutes validity
-
-    // Save to user model
-    user.registrationDetails.phoneVerificationCode = otpCode;
-    user.registrationDetails.phoneVerificationCodeValidation = expiryTime;
-    user.registrationDetails.phoneNumber = phoneNumber;
-    await user.save();
-
-    // Check twilio client config
-    const twilioConfig = getTwilioClient();
-    if (twilioConfig) {
-      try {
-        await twilioConfig.client.messages.create({
-          body: `Your Talent-Hub mobile verification code is: ${otpCode}. Valid for 5 minutes.`,
-          from: twilioConfig.from,
-          to: phoneNumber
-        });
-      } catch (twilioErr) {
-        console.error("Twilio send failed, falling back to console log:", twilioErr.message);
-        console.log(`\n==============================================`);
-        console.log(`[SMS MOCK] Verification Code for ${phoneNumber}: ${otpCode}`);
-        console.log(`==============================================\n`);
-      }
-    } else {
-      console.log(`\n==============================================`);
-      console.log(`[SMS MOCK] Verification Code for ${phoneNumber}: ${otpCode}`);
-      console.log(`==============================================\n`);
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Verification code sent successfully to your mobile number."
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
-
-exports.verifyPhoneOTP = async (req, res, next) => {
-  try {
-    const { error, value } = verifyPhoneOTPSchema.validate(req.body);
-    if (error) {
-      return res.status(400).json({ success: false, message: error.details[0].message });
-    }
-
-    const { phoneNumber, otp } = value;
-    const user = await User.findById(req.user._id).select(
-      "+registrationDetails.phoneVerificationCode +registrationDetails.phoneVerificationCodeValidation"
-    );
-
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    const savedCode = user.registrationDetails.phoneVerificationCode;
-    const codeExpiry = user.registrationDetails.phoneVerificationCodeValidation;
-
-    if (!savedCode || !codeExpiry) {
-      return res.status(400).json({ success: false, message: "No active verification request found" });
-    }
-
-    if (Date.now() > codeExpiry) {
-      return res.status(400).json({ success: false, message: "Verification code has expired. Please request a new one." });
-    }
-
-    if (savedCode !== otp) {
-      return res.status(400).json({ success: false, message: "Invalid verification code" });
-    }
-
-    if (user.registrationDetails.phoneNumber !== phoneNumber) {
-      return res.status(400).json({ success: false, message: "Phone number mismatch. Request code again." });
-    }
-
-    // Set verified
-    user.registrationDetails.mobileVerification = true;
-    user.registrationDetails.phoneVerificationCode = undefined;
-    user.registrationDetails.phoneVerificationCodeValidation = undefined;
-    await user.save();
-
-    // Also update verified flag inside user profile if profile exists
-    let ProfileModel = user.role === "Client" ? ClientProfile : FreelancerProfile;
-    const profile = await ProfileModel.findOne({ userId: user._id });
-    if (profile) {
-      profile.verification.phoneNumber = true;
-      await profile.save();
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Mobile phone verified successfully."
-    });
-  } catch (err) {
-    next(err);
-  }
-};
-
 
 exports.getAllFreelancers = async (req, res, next) => {
   try {
     const { search, category, minRate, maxRate, availability, gender } = req.query;
-    
+
     // We only want freelancers whose user profiles are completed
     const activeFreelancers = await User.find({
-      role: "Freelancer",
+      role: "freelancer",
       "registrationDetails.profileCompleted": true
     }).select("_id status");
-    
+
     const statusMap = {};
     activeFreelancers.forEach(u => {
       statusMap[u._id.toString()] = u.status;
     });
-    
+
     const activeFreelancerIds = activeFreelancers.map(u => u._id);
-    
+
     const query = {
       userId: { $in: activeFreelancerIds }
     };
-    
+
     if (search) {
       query.$or = [
         { "basicInformation.fullName": { $regex: search, $options: "i" } },
@@ -751,7 +604,7 @@ exports.getAllFreelancers = async (req, res, next) => {
         { "professionalDetails.skills": { $regex: search, $options: "i" } }
       ];
     }
-    
+
     if (category && category !== "All Categories") {
       query["professionalDetails.categories"] = category;
     }
@@ -763,71 +616,71 @@ exports.getAllFreelancers = async (req, res, next) => {
     if (gender && gender !== "All Genders") {
       query["basicInformation.gender"] = gender.toLowerCase();
     }
-    
+
     if (minRate || maxRate) {
 
     }
-    
+
     // FETCH SAVED TALENTS FIRST
     let savedTalentIds = [];
     const clientUser = req.user;
-    if (clientUser && clientUser.role === 'Client') {
+    if (clientUser && clientUser.role === 'client') {
       const clientProfile = await ClientProfile.findOne({ userId: clientUser._id });
       if (clientProfile && clientProfile.savedTalents) {
         savedTalentIds = clientProfile.savedTalents.map(id => id.toString());
       }
     }
-    
+
     const freelancers = await FreelancerProfile.find(query);
-    
-const freelancersWithContracts = [];
 
-for (const freelancer of freelancers) {
-  const freelancerOffers = await Offer.find({
-    freelancerId: freelancer.userId,
-    offerStatus: "accepted",
-  }).populate("contractId");
+    const freelancersWithContracts = [];
 
-  const activeContracts = freelancerOffers.filter(
-    (offer) => offer.contractId && offer.contractId.status === "in progress"
-  ).length;
+    for (const freelancer of freelancers) {
+      const freelancerOffers = await Offer.find({
+        freelancerId: freelancer.userId,
+        offerStatus: "accepted",
+      }).populate("contractId");
 
-  const completedContracts = freelancerOffers.filter(
-    (offer) => offer.contractId && offer.contractId.status === "completed"
-  ).length;
+      const activeContracts = freelancerOffers.filter(
+        (offer) => offer.contractId && offer.contractId.status === "in progress"
+      ).length;
 
-  const plain = freelancer.toObject();
-  const isSaved = savedTalentIds.includes(plain._id.toString());
+      const completedContracts = freelancerOffers.filter(
+        (offer) => offer.contractId && offer.contractId.status === "completed"
+      ).length;
 
-  freelancersWithContracts.push({
-    _id: plain._id,
-    userId: plain.userId,
-    profilePhoto: plain.basicInformation?.profilePhoto,
-    fullName: plain.basicInformation?.fullName,
-    email: plain.basicInformation?.email,
-    gender: plain.basicInformation?.gender,
-    professionalHeadline: plain.basicInformation?.professionalHeadline,
-    categories: plain.professionalDetails?.categories || [],
-    skills: plain.professionalDetails?.skills || [],
-    country: plain.location?.country,
-    city: plain.location?.city,
-    timezone: plain.location?.timezone,
-    availability: plain.availability || [],
+      const plain = freelancer.toObject();
+      const isSaved = savedTalentIds.includes(plain._id.toString());
 
-    createdAt: plain.createdAt,
-    updatedAt: plain.updatedAt,
-    activeContracts,
-    completedContracts,
-    isSaved,
-    status: statusMap[freelancer.userId.toString()] || "inactive",
-  });
-}
-    
-res.status(200).json({
-  success: true,
-  total_count: freelancersWithContracts.length,
-  items: freelancersWithContracts,
-});
+      freelancersWithContracts.push({
+        _id: plain._id,
+        userId: plain.userId,
+        profilePhoto: plain.basicInformation?.profilePhoto,
+        fullName: plain.basicInformation?.fullName,
+        email: plain.basicInformation?.email,
+        gender: plain.basicInformation?.gender,
+        professionalHeadline: plain.basicInformation?.professionalHeadline,
+        categories: plain.professionalDetails?.categories || [],
+        skills: plain.professionalDetails?.skills || [],
+        country: plain.location?.country,
+        city: plain.location?.city,
+        state: plain.location?.state,
+        availability: plain.availability || [],
+
+        createdAt: plain.createdAt,
+        updatedAt: plain.updatedAt,
+        activeContracts,
+        completedContracts,
+        isSaved,
+        status: statusMap[freelancer.userId.toString()] || "inactive",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      total_count: freelancersWithContracts.length,
+      items: freelancersWithContracts,
+    });
   } catch (err) {
     next(err);
   }
@@ -946,29 +799,29 @@ exports.getFreelancerProfileById = async (req, res, next) => {
 exports.saveTalent = async (req, res, next) => {
   try {
     const clientUser = req.user;
-    if (clientUser.role !== "Client") {
+    if (clientUser.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can save talents." });
     }
-    
+
     const freelancerProfileId = req.params.id;
-    
+
     const freelancerProfile = await FreelancerProfile.findById(freelancerProfileId);
     if (!freelancerProfile) {
       return res.status(404).json({ success: false, message: "Freelancer profile not found" });
     }
-    
+
     let clientProfile = await ClientProfile.findOne({ userId: clientUser._id });
     if (!clientProfile) {
       return res.status(404).json({ success: false, message: "Client profile not found. Please complete profile first." });
     }
-    
+
     if (clientProfile.savedTalents.includes(freelancerProfileId)) {
       return res.status(400).json({ success: false, message: "Talent already saved." });
     }
-    
+
     clientProfile.savedTalents.push(freelancerProfileId);
     await clientProfile.save();
-    
+
     res.status(200).json({
       success: true,
       message: "Talent saved successfully.",
@@ -983,20 +836,20 @@ exports.saveTalent = async (req, res, next) => {
 exports.unsaveTalent = async (req, res, next) => {
   try {
     const clientUser = req.user;
-    if (clientUser.role !== "Client") {
+    if (clientUser.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can manage saved talents." });
     }
-    
+
     const freelancerProfileId = req.params.id;
-    
+
     let clientProfile = await ClientProfile.findOne({ userId: clientUser._id });
     if (!clientProfile) {
       return res.status(404).json({ success: false, message: "Client profile not found." });
     }
-    
+
     clientProfile.savedTalents = clientProfile.savedTalents.filter(id => id.toString() !== freelancerProfileId.toString());
     await clientProfile.save();
-    
+
     res.status(200).json({
       success: true,
       message: "Talent unsaved successfully.",
@@ -1011,17 +864,17 @@ exports.unsaveTalent = async (req, res, next) => {
 exports.getSavedTalents = async (req, res, next) => {
   try {
     const clientUser = req.user;
-    if (clientUser.role !== "Client") {
+    if (clientUser.role !== "client") {
       return res.status(403).json({ success: false, message: "Access denied." });
     }
-    
+
     const clientProfile = await ClientProfile.findOne({ userId: clientUser._id })
       .populate("savedTalents");
-      
+
     if (!clientProfile) {
       return res.status(404).json({ success: false, message: "Client profile not found." });
     }
-    
+
     const savedTalentsWithContracts = [];
     if (clientProfile.savedTalents) {
       for (const freelancer of clientProfile.savedTalents) {
@@ -1040,7 +893,7 @@ exports.getSavedTalents = async (req, res, next) => {
 
         const freelancerUser = await User.findById(freelancer.userId).select("status");
         const plain = freelancer.toObject();
-        
+
         savedTalentsWithContracts.push({
           _id: plain._id,
           userId: plain.userId,
@@ -1064,7 +917,7 @@ exports.getSavedTalents = async (req, res, next) => {
         });
       }
     }
-    
+
     res.status(200).json({
       success: true,
       total_count: savedTalentsWithContracts.length,

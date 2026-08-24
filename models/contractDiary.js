@@ -94,6 +94,21 @@ const phaseSchema = new mongoose.Schema({
     default: ""
   },
 
+  template: {
+    type: String,
+    default: ""
+  },
+
+  deliverables: {
+    type: [String],
+    default: []
+  },
+
+  acceptanceCriteria: {
+    type: [String],
+    default: []
+  },
+
   deadline: Date,
 
   amount: {

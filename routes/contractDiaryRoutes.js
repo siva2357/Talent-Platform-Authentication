@@ -42,6 +42,9 @@ router.get("/:id",          identifier, getDiaryById);
 // CLIENT:     POST /api/contract-diary/:id/phases          (add phase)
 router.post("/:id/phases",                         identifier, addPhase);
 
+// CLIENT:     PUT /api/contract-diary/:id/phases/:phaseId  (update phase)
+router.put("/:id/phases/:phaseId",                 identifier, require("../controllers/contractDiaryController").updatePhase);
+
 // CLIENT:     PUT  /api/contract-diary/:id/phases/:phaseId/review
 router.put("/:id/phases/:phaseId/review",          identifier, reviewPhase);
 

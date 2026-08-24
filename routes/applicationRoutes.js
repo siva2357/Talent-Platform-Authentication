@@ -16,17 +16,19 @@ const {
   interviewResult,
   finalizeApplication,
   submitAssessment,
-  getApplicationById
+  getApplicationById,
+  getInterviews
 } = require("../controllers/applicationController");
 
 const {
   identifier
 } = require("../middleware/identifier");
 
-
 // ========================================
 // Application Routes
 // ========================================
+
+router.get("/interviews", identifier, getInterviews);
 
 
 

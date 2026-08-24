@@ -37,7 +37,7 @@ exports.getFinanceStats = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    if (role === "Client") {
+    if (role.toLowerCase() === "client") {
       // 1. Available balance
       const totalBalance = user.balance || 0;
 
@@ -79,20 +79,20 @@ exports.getFinanceStats = async (req, res) => {
           platformFeesPaid: totalSpent * 0.10
         }
       });
-    } else if (role === "Freelancer") {
+    } else if (role.toLowerCase() === "freelancer") {
       // 1. Balance Left (unwithdrawn earnings - net available to withdraw)
       const balanceLeft = user.balance || 0;
       const netBalanceLeft = balanceLeft * 0.925;
- 
+
       // 2. Total Earnings
       const earnedTxns = await Transaction.find({ userId, type: "Payment Released" });
       const totalEarnings = earnedTxns.reduce((sum, txn) => sum + txn.amount, 0);
       const netEarnings = totalEarnings * 0.925;
- 
+
       // 3. Amount Withdrawn (net received in bank)
       const withdrawnTxns = await Transaction.find({ userId, type: "Withdrawal" });
       const netWithdrawn = withdrawnTxns.reduce((sum, txn) => sum + (txn.amount - (txn.platformFee || 0)), 0);
- 
+
       return res.status(200).json({
         success: true,
         stats: {
@@ -117,7 +117,7 @@ exports.getFinanceStats = async (req, res) => {
 // ==========================================
 exports.createRazorpayOrder = async (req, res) => {
   try {
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can deposit funds" });
     }
 
@@ -126,13 +126,10 @@ exports.createRazorpayOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid deposit amount" });
     }
 
-    // Treat the incoming amount directly as INR and convert to paise (INR * 100)
     const amountInINR = amount;
     const amountInPaise = Math.round(amountInINR * 100);
 
     const receipt = `receipt_dep_${Date.now()}`;
-
-    // If Razorpay is not configured, send a simulated order details response for easy sandbox testing
     if (!razorpayInstance) {
       console.warn("⚠️ Razorpay is not configured. Returning local test order data.");
       return res.status(200).json({
@@ -174,7 +171,7 @@ exports.createRazorpayOrder = async (req, res) => {
 // ==========================================
 exports.verifyRazorpayPayment = async (req, res) => {
   try {
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can deposit funds" });
     }
 
@@ -267,7 +264,7 @@ exports.verifyRazorpayPayment = async (req, res) => {
 // ==========================================
 exports.withdrawFunds = async (req, res) => {
   try {
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can withdraw earnings" });
     }
 
@@ -291,11 +288,10 @@ exports.withdrawFunds = async (req, res) => {
       }
     }
 
-    // Deduct from balance
-    user.balance = (user.balance || 0) - parseFloat(amount);
-    await user.save();
+    // We no longer deduct the balance immediately for manual admin payouts.
+    // The balance will be deducted when the admin processes the payout.
 
-    // Log Transaction
+    // Log Transaction as Pending Payout
     const referenceId = `WDN-${Math.floor(100000 + Math.random() * 900000)}`;
     const grossAmount = parseFloat(amount);
     const platformFee = Math.round((grossAmount * 0.075) * 100) / 100;
@@ -304,17 +300,17 @@ exports.withdrawFunds = async (req, res) => {
     const transaction = await Transaction.create({
       userId,
       contractId: contractId || null,
-      type: "Withdrawal",
+      type: "Payout", // Changed from "Withdrawal" to "Payout" for admin to see
       amount: grossAmount,
       platformFee: platformFee,
-      status: "Processed",
-      description: `Withdrew ₹${grossAmount.toFixed(2)} from balance to local bank account (Net received: ₹${netReceived.toFixed(2)} after 7.5% platform fee)`,
+      status: "Pending", // Changed from "Processed" to "Pending"
+      description: `Requested withdrawal of ₹${grossAmount.toFixed(2)}. Pending Admin Approval.`,
       referenceId
     });
 
     return res.status(200).json({
       success: true,
-      message: "Withdrawal request processed successfully",
+      message: "Withdrawal request submitted successfully and is pending admin approval.",
       balance: user.balance,
       transaction
     });
@@ -571,10 +567,10 @@ exports.downloadPaymentStatementPdf = async (req, res) => {
 // ==========================================
 exports.getContractTransactions = async (req, res) => {
   try {
-    if (req.role !== "Client") {
-       return res.status(403).json({ success: false, message: "Only clients can access this" });
+    if (req.role !== "client") {
+      return res.status(403).json({ success: false, message: "Only clients can access this" });
     }
-    
+
     // Fetch ContractDiaries, populating just what we need
     const diaries = await ContractDiary.find({ clientId: req.userId })
       .select("contractId freelancerId phases overallStatus")
@@ -612,12 +608,12 @@ exports.getContractTransactions = async (req, res) => {
 // ==========================================
 exports.getFreelancerFinanceReport = async (req, res) => {
   try {
-    if (req.role !== "Freelancer") {
-       return res.status(403).json({ success: false, message: "Only freelancers can access this" });
+    if (req.role !== "freelancer") {
+      return res.status(403).json({ success: false, message: "Only freelancers can access this" });
     }
 
     const userId = req.userId;
-    
+
     // 1. Get all contract diaries for this freelancer
     const diaries = await ContractDiary.find({ freelancerId: userId })
       .populate("contractId", "contractTitle budgetType contractStartDate contractEndDate estimatedBudget")
@@ -639,11 +635,17 @@ exports.getFreelancerFinanceReport = async (req, res) => {
         .filter(t => t.type === 'Payment Released')
         .reduce((sum, t) => sum + t.amount, 0);
 
-      const withdrawnAmount = contractTxns
-        .filter(t => t.type === 'Withdrawal')
-        .reduce((sum, t) => sum + t.amount, 0);
+      const pendingTxns = contractTxns.filter(t => t.type === 'Payout' && t.status === 'Pending');
+      const pendingWithdrawnAmount = pendingTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+      
+      const withdrawalTxns = contractTxns.filter(t => (t.type === 'Withdrawal' || (t.type === 'Payout' && t.status === 'Processed')));
+      
+      const grossWithdrawnAmount = withdrawalTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const platformFeesDeducted = withdrawalTxns.reduce((sum, t) => sum + (t.platformFee || 0), 0);
+      const netWithdrawnAmount = grossWithdrawnAmount - platformFeesDeducted;
 
-      const balance = Math.max(0, receivedAmount - withdrawnAmount);
+      // Available balance should exclude both processed and pending withdrawals
+      const balance = Math.max(0, receivedAmount - grossWithdrawnAmount - pendingWithdrawnAmount);
 
       const approvedPhases = (diary.phases || []).filter(p => p.status === 'approved');
       const earned = approvedPhases.reduce((sum, p) => sum + (p.amount || 0), 0);
@@ -685,11 +687,14 @@ exports.getFreelancerFinanceReport = async (req, res) => {
         earned,
         status: mappedStatus,
         type: diary.contractId?.budgetType || 'Fixed Price',
-        startDate: diary.contractId?.contractStartDate || diary.createdAt,
-        endDate: diary.contractId?.contractEndDate || diary.updatedAt,
+        startDate: diary.contractId?.contractStartDate || null,
+        endDate: diary.contractId?.contractEndDate || null,
         completion,
         balance,
-        withdrawnAmount,
+        grossWithdrawnAmount,
+        netWithdrawnAmount,
+        platformFeesDeducted,
+        pendingWithdrawnAmount,
         receivedAmount,
         lastPaymentDate,
         phases: strippedPhases

@@ -3,8 +3,6 @@ module.exports = {
         PROFILE_PHOTO: "profile-photo",
         SUPPORT_REQUEST: "support-requests",
         CONTRACT_FILES: "contract-files",
-        AADHAAR_CARD: 'AadhaarCard',
-        PAN_CARD:'PanCard',
         DIGITAL_SIGNATURE: "digital-signatures",
     },
 
@@ -13,8 +11,6 @@ module.exports = {
         PORTFOLIO: "portfolio-files",
         CONTRACT_FILES: "contract-files",
         SUPPORT_REQUEST: "support-requests",
-        AADHAAR_CARD: 'AadhaarCard',
-        PAN_CARD:'PanCard',
         DIGITAL_SIGNATURE: "digital-signatures",
     },
     admin: {

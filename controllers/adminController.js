@@ -59,7 +59,7 @@ exports.createDefaultAdmin = async () => {
 
 exports.getAdminById = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -75,7 +75,7 @@ exports.getAdminById = async (req, res) => {
 
 exports.getAdminProfile = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ message: 'Access denied' });
     }
 
@@ -101,11 +101,11 @@ exports.getAdminProfile = async (req, res) => {
 // Get all clients
 exports.getAllClients = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const clientUsers = await User.find({ role: "Client" });
+    const clientUsers = await User.find({ role: "client" });
     const clientsData = [];
 
     for (const user of clientUsers) {
@@ -136,7 +136,7 @@ exports.getAllClients = async (req, res) => {
 // Update client status
 exports.updateClientStatus = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -146,7 +146,7 @@ exports.updateClientStatus = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
-    if (!user || user.role !== "Client") {
+    if (!user || user.role !== "client") {
       return res.status(404).json({ success: false, message: 'Client not found' });
     }
 
@@ -168,11 +168,11 @@ exports.updateClientStatus = async (req, res) => {
 // Get all freelancers
 exports.getAllFreelancers = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const freelancerUsers = await User.find({ role: "Freelancer" });
+    const freelancerUsers = await User.find({ role: "freelancer" });
     const freelancersData = [];
 
     for (const user of freelancerUsers) {
@@ -201,7 +201,7 @@ exports.getAllFreelancers = async (req, res) => {
 // Update freelancer status
 exports.updateFreelancerStatus = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -211,7 +211,7 @@ exports.updateFreelancerStatus = async (req, res) => {
     }
 
     const user = await User.findById(req.params.id);
-    if (!user || user.role !== "Freelancer") {
+    if (!user || user.role !== "freelancer") {
       return res.status(404).json({ success: false, message: 'Freelancer not found' });
     }
 
@@ -234,12 +234,12 @@ exports.updateFreelancerStatus = async (req, res) => {
 // Approve freelancer
 exports.approveFreelancer = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
     const user = await User.findById(req.params.id);
-    if (!user || user.role !== "Freelancer") {
+    if (!user || user.role !== "freelancer") {
       return res.status(404).json({ success: false, message: 'Freelancer not found' });
     }
 
@@ -255,12 +255,12 @@ exports.approveFreelancer = async (req, res) => {
 // Admin Dashboard stats
 exports.getAdminStats = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const totalClients = await User.countDocuments({ role: "Client" });
-    const totalFreelancers = await User.countDocuments({ role: "Freelancer" });
+    const totalClients = await User.countDocuments({ role: "client" });
+    const totalFreelancers = await User.countDocuments({ role: "freelancer" });
     const activeContracts = await Contract.countDocuments({ status: "in progress" });
 
     // Calculate commissions dynamically by summing platform fees
@@ -268,8 +268,8 @@ exports.getAdminStats = async (req, res) => {
     const totalCommissions = txs.reduce((acc, t) => acc + (t.platformFee || 0), 0);
 
     // Build recent activities list dynamically
-    const recentClients = await User.find({ role: "Client" }).sort({ createdAt: -1 }).limit(3);
-    const recentFreelancers = await User.find({ role: "Freelancer" }).sort({ createdAt: -1 }).limit(3);
+    const recentClients = await User.find({ role: "client" }).sort({ createdAt: -1 }).limit(3);
+    const recentFreelancers = await User.find({ role: "freelancer" }).sort({ createdAt: -1 }).limit(3);
 
     const activities = [];
 
@@ -297,12 +297,54 @@ exports.getAdminStats = async (req, res) => {
       });
     });
 
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const labels = [];
+    const clientsData = [0, 0, 0, 0, 0, 0];
+    const freelancersData = [0, 0, 0, 0, 0, 0];
+
+    const now = new Date();
+    const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      labels.push(monthNames[d.getMonth()]);
+    }
+
+    const allClients = await User.find({ role: "client", createdAt: { $gte: sixMonthsAgo } });
+    allClients.forEach(u => {
+      const diff = now.getMonth() - u.createdAt.getMonth() + (12 * (now.getFullYear() - u.createdAt.getFullYear()));
+      if (diff >= 0 && diff <= 5) {
+        clientsData[5 - diff]++;
+      }
+    });
+
+    const allFreelancers = await User.find({ role: "freelancer", createdAt: { $gte: sixMonthsAgo } });
+    allFreelancers.forEach(u => {
+      const diff = now.getMonth() - u.createdAt.getMonth() + (12 * (now.getFullYear() - u.createdAt.getFullYear()));
+      if (diff >= 0 && diff <= 5) {
+        freelancersData[5 - diff]++;
+      }
+    });
+
+    const completedContracts = await Contract.countDocuments({ status: "completed" });
+    const openContracts = await Contract.countDocuments({ status: "open" });
+    const closedContracts = await Contract.countDocuments({ status: "closed" });
+
+    const chartData = {
+      labels,
+      clients: clientsData,
+      freelancers: freelancersData,
+      revenue: [totalCommissions * 0.4, totalCommissions * 0.3, totalCommissions * 0.2, totalCommissions * 0.1],
+      contracts: [activeContracts, completedContracts, openContracts, closedContracts]
+    };
+
     return res.status(200).json({
       totalClients,
       totalFreelancers,
       activeContracts,
       totalCommissions,
-      activities: activities.slice(0, 5)
+      activities: activities.slice(0, 5),
+      chartData
     });
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });
@@ -313,44 +355,32 @@ exports.getAdminStats = async (req, res) => {
 // GET /api/admin/finances/transactions
 exports.getAdminTransactions = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
-    const contracts = await Contract.find()
-      .populate('clientId', 'registrationDetails.fullName')
-      .populate('applicants.freelancerId', 'registrationDetails.fullName')
-      .sort({ createdAt: -1 });
-
     const formattedTxs = [];
-    for (const contract of contracts) {
-      // Find transactions for this contract to sum up platformFee
-      const txs = await Transaction.find({ contractId: contract._id });
-      const commission = txs.reduce((sum, t) => sum + (t.platformFee || 0), 0);
 
-      let freelancerName = "Not Assigned";
-      if (contract.applicants && contract.applicants.length > 0) {
-        freelancerName = contract.applicants[0].freelancerId?.registrationDetails?.fullName || "Not Assigned";
-      }
+    const payoutTxs = await Transaction.find({ type: 'Payout' })
+      .populate('userId', 'registrationDetails.fullName')
+      .populate({
+        path: 'contractId',
+        populate: { path: 'clientId', select: 'registrationDetails.fullName' }
+      });
 
-      const isFunded = contract.status !== 'pending';
-      const clientCommission = isFunded ? ((contract.estimatedBudget || 0) * 0.10) : 0;
-      const freelancerCommission = (contract.spent || 0) * 0.075;
-      const calculatedCommission = clientCommission + freelancerCommission;
-
+    for (const p of payoutTxs) {
       formattedTxs.push({
-        id: contract._id.toString(),
-        contractTitle: contract.contractTitle,
-        clientName: contract.clientId?.registrationDetails?.fullName || "Client",
-        freelancerName: freelancerName,
-        budget: (contract.estimatedBudget || 0) * 1.10,
-        freelancerPayment: (contract.spent || 0) * 0.925,
-        commission: commission || calculatedCommission,
-        amount: (contract.estimatedBudget || 0) * 1.10,
-        platformFee: commission || calculatedCommission,
-        status: contract.status === 'completed' ? 'Completed' : (contract.status === 'in progress' ? 'In Progress' : 'Pending'),
-        date: contract.createdAt ? contract.createdAt.toISOString().split('T')[0] : "",
-        type: contract.status === 'completed' ? 'Commission Fee' : 'Escrow Deposit'
+        id: p._id.toString(),
+        contractTitle: p.contractId?.contractTitle || "Manual Payout",
+        clientName: p.contractId?.clientId?.registrationDetails?.fullName || "-",
+        freelancerName: p.userId?.registrationDetails?.fullName || "freelancer",
+        budget: p.amount,
+        freelancerPayment: p.amount - (p.platformFee || 0),
+        amount: p.amount,
+        platformFee: p.platformFee || 0,
+        status: p.status === 'Processed' || p.status === 'Paid' ? 'Completed' : p.status,
+        date: p.createdAt ? p.createdAt.toISOString().split('T')[0] : "",
+        type: "Payout"
       });
     }
 
@@ -364,34 +394,25 @@ exports.getAdminTransactions = async (req, res) => {
 // GET /api/admin/finances/stats
 exports.getAdminFinancialStats = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
     const txs = await Transaction.find({});
 
-    // totalVolume: sum of deposits + escrow funded + payouts etc.
-    const totalVolume = txs
-      .filter(t => (t.type === 'Deposit' || t.type === 'Escrow Funded') && (t.status === 'Processed' || t.status === 'Paid'))
-      .reduce((sum, t) => sum + (t.amount || 0), 0);
+    const payoutTxs = txs.filter(t => t.type === 'Payout' || t.type === 'Withdrawal');
 
-    // platformCommissions: sum of platformFee
-    const platformCommissions = txs.reduce((sum, t) => sum + (t.platformFee || 0), 0);
+    const completedPayouts = payoutTxs.filter(t => t.status === 'Processed' || t.status === 'Completed' || t.status === 'Paid');
+    const pendingPayouts = payoutTxs.filter(t => t.status === 'Pending');
 
-    // escrowHeld: active contracts total funded - total spent
-    const contracts = await Contract.find({ status: 'in progress' });
-    let escrowHeld = 0;
-    for (const c of contracts) {
-      const fundedTxns = await Transaction.find({ contractId: c._id, type: "Escrow Funded", status: "Paid" });
-      const totalFunded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
-      const spent = c.spent || 0;
-      escrowHeld += Math.max(0, totalFunded - spent);
-    }
+    const platformCommissions = payoutTxs.reduce((sum, t) => sum + (t.platformFee || 0), 0);
+    const pendingWithdrawals = pendingPayouts.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const successfulPayouts = completedPayouts.length;
 
     return res.status(200).json({
-      totalVolume,
       platformCommissions,
-      escrowHeld,
+      pendingWithdrawals,
+      successfulPayouts,
       growthPercent: 18.5
     });
   } catch (err) {
@@ -403,7 +424,7 @@ exports.getAdminFinancialStats = async (req, res) => {
 // GET /api/admin/reports
 exports.getAdminReports = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -440,7 +461,7 @@ exports.getAdminReports = async (req, res) => {
 // POST /api/admin/reports
 exports.generateAdminReport = async (req, res) => {
   try {
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
 
@@ -477,8 +498,49 @@ exports.generateAdminReport = async (req, res) => {
   }
 };
 
+// POST /api/admin/payout/:transactionId
+exports.processManualPayout = async (req, res) => {
+  try {
+    if (req.role !== "admin") {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
 
+    const { transactionId } = req.params;
+    const Transaction = require('../models/transaction');
+    const User = require('../models/user');
 
+    const transaction = await Transaction.findById(transactionId);
+    if (!transaction) {
+      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    }
 
+    if (transaction.type !== 'Payout' || transaction.status !== 'Pending') {
+      return res.status(400).json({ success: false, message: 'Invalid transaction type or status for payout' });
+    }
 
+    const freelancer = await User.findById(transaction.userId);
+    if (!freelancer) {
+      return res.status(404).json({ success: false, message: 'Freelancer not found' });
+    }
 
+    // In a real scenario, this is where you'd call RazorpayX API
+    // using axios to https://api.razorpay.com/v1/payouts
+    // For now, we simulate success
+
+    transaction.status = 'Processed';
+    // Deduct from freelancer balance
+    if (freelancer.balance >= transaction.amount) {
+      freelancer.balance -= transaction.amount;
+      await freelancer.save();
+    } else {
+      return res.status(400).json({ success: false, message: 'Insufficient freelancer balance' });
+    }
+
+    await transaction.save();
+
+    return res.status(200).json({ success: true, message: 'Payout processed successfully', transaction });
+
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};

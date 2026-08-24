@@ -57,6 +57,17 @@ const supportRequestSchema = new mongoose.Schema({
     required: true
   },
 
+  category: {
+    type: String,
+    required: true
+  },
+
+  priority: {
+    type: String,
+    enum: ["High", "Medium", "Low"],
+    default: "Medium"
+  },
+
   message: {
     type: String,
     required: true

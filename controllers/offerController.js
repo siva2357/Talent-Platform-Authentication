@@ -56,7 +56,7 @@ exports.createOffer = async (req, res) => {
       return res.status(404).json({ success: false, message: "Application not found" });
     }
 
-    if (req.role !== "Client") {
+    if (req.role !== "client") {
       return res.status(403).json({ success: false, message: "Only clients can send offers" });
     }
 
@@ -67,7 +67,7 @@ exports.createOffer = async (req, res) => {
     // Check if an offer already exists for this application
     const existingOffer = await Offer.findOne({ applicationId: application._id });
     if (existingOffer && existingOffer.offerStatus !== 'declined' && existingOffer.offerStatus !== 'revoked') {
-        return res.status(400).json({ success: false, message: "An active offer already exists for this application" });
+      return res.status(400).json({ success: false, message: "An active offer already exists for this application" });
     }
 
     const offer = new Offer({
@@ -84,7 +84,7 @@ exports.createOffer = async (req, res) => {
     await offer.save();
 
     // Update Application Status
-    application.applicationStatus = "shortlisted";
+    application.applicationStatus = "hired";
     await application.save();
 
     await notifyFreelancerStageUpdate(application, "Contract Offer Received");
@@ -107,7 +107,7 @@ exports.signOffer = async (req, res) => {
       return res.status(404).json({ success: false, message: "Offer not found" });
     }
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can sign offers" });
     }
 
@@ -156,7 +156,7 @@ exports.declineOffer = async (req, res) => {
       return res.status(404).json({ success: false, message: "Offer not found" });
     }
 
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can decline offers" });
     }
 
@@ -207,7 +207,7 @@ exports.getOfferById = async (req, res) => {
 
     // Verify ownership
     if (offer.freelancerId._id.toString() !== req.userId.toString() &&
-        offer.clientId._id.toString() !== req.userId.toString()) {
+      offer.clientId._id.toString() !== req.userId.toString()) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
 
@@ -220,7 +220,7 @@ exports.getOfferById = async (req, res) => {
 exports.getFreelancerOffers = async (req, res) => {
   try {
     const freelancerId = req.userId;
-    if (req.role !== "Freelancer") {
+    if (req.role !== "freelancer") {
       return res.status(403).json({ success: false, message: "Only freelancers can access this route" });
     }
 
@@ -251,9 +251,9 @@ exports.getFreelancerOffers = async (req, res) => {
         date: new Date(offer.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         budget: `₹${contract.estimatedBudget}`,
         contractType: contract.budgetType === "Hourly Rate" ? "Hourly" : "Fixed Price",
-        level: "Intermediate", 
+        level: "Intermediate",
         description: contract.contractDescription || "",
-        techStack: ["Angular", "TypeScript", "Node.js"], 
+        techStack: ["Angular", "TypeScript", "Node.js"],
         expiresIn: "5 Days",
         startDate: new Date(contract.contractStartDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         status: offer.offerStatus === "sent" ? "Pending" : (offer.offerStatus === "accepted" ? "Accepted" : "Declined"),
@@ -327,7 +327,7 @@ exports.getOfferPDF = async (req, res) => {
     });
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "networkidle0" });
-    
+
     const pdfBuffer = await page.pdf({
       format: "A4",
       printBackground: true,

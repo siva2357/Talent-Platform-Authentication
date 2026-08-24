@@ -9,7 +9,7 @@ const Blog = require("../models/blog");
 exports.createBlog = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -19,15 +19,17 @@ exports.createBlog = async (req, res) => {
     const {
       title,
       category,
-      description,
-      mediaUrl,
+      content,
+      featuredMedia,
+      blogBanner,
+      tags,
       status
     } = req.body;
 
-    if (!title || !category || !description) {
+    if (!title || !category || !content) {
       return res.status(400).json({
         success: false,
-        message: "Title, category and description are required"
+        message: "Title, category and content are required"
       });
     }
 
@@ -35,8 +37,10 @@ exports.createBlog = async (req, res) => {
       adminId: req.userId,
       title,
       category,
-      description,
-      mediaUrl,
+      content,
+      featuredMedia,
+      blogBanner,
+      tags: tags || [],
       status
     });
 
@@ -65,7 +69,7 @@ exports.createBlog = async (req, res) => {
 exports.getAllBlogsAdmin = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -99,7 +103,7 @@ exports.getAllBlogsAdmin = async (req, res) => {
 exports.getBlogByIdAdmin = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -139,7 +143,7 @@ exports.getBlogByIdAdmin = async (req, res) => {
 exports.updateBlog = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"
@@ -158,15 +162,19 @@ exports.updateBlog = async (req, res) => {
     const {
       title,
       category,
-      description,
-      mediaUrl,
+      content,
+      featuredMedia,
+      blogBanner,
+      tags,
       status
     } = req.body;
 
     blog.title = title ?? blog.title;
     blog.category = category ?? blog.category;
-    blog.description = description ?? blog.description;
-    blog.mediaUrl = mediaUrl ?? blog.mediaUrl;
+    blog.content = content ?? blog.content;
+    blog.featuredMedia = featuredMedia ?? blog.featuredMedia;
+    blog.blogBanner = blogBanner ?? blog.blogBanner;
+    blog.tags = tags ?? blog.tags;
     blog.status = status ?? blog.status;
 
     await blog.save();
@@ -196,7 +204,7 @@ exports.updateBlog = async (req, res) => {
 exports.deleteBlog = async (req, res) => {
   try {
 
-    if (req.role !== "Admin") {
+    if (req.role !== "admin") {
       return res.status(403).json({
         success: false,
         message: "Access denied"

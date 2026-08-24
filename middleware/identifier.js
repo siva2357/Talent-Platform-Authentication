@@ -39,18 +39,14 @@ exports.identifier = (req, res, next) => {
             decoded.id?._id ||
             decoded.userId;
 
-        req.role =
-            decoded.id?.role ||
-            decoded.role;
+        req.role = (decoded.id?.role || decoded.role)?.toLowerCase();
 
         req.user = {
             ...decoded,
             userId:
                 decoded.id?._id ||
                 decoded.userId,
-            role:
-                decoded.id?.role ||
-                decoded.role
+            role: (decoded.id?.role || decoded.role)?.toLowerCase()
         };
 
         console.log("ROLE =>", req.role);

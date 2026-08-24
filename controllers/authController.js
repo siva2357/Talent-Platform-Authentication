@@ -56,8 +56,7 @@ exports.register = async (req, res, next) => {
         verificationCode,
         verificationCodeValidation,
         emailVerified: false,
-        profileCompleted: false,
-        mobileVerification: false
+        profileCompleted: false
       },
       role,
       status: "inactive"
@@ -127,9 +126,8 @@ exports.login = async (req, res, next) => {
       return res.status(200).json({
         success: true,
         token,
-        role: user.role || "Admin",
-        profileCompleted: true,
-        mobileVerification: true
+        role: user.role || "admin",
+        profileCompleted: true
       });
     }
 
@@ -152,8 +150,7 @@ exports.login = async (req, res, next) => {
       success: true,
       token,
       role: user.role,
-      profileCompleted: user.registrationDetails.profileCompleted,
-      mobileVerification: user.registrationDetails.mobileVerification
+      profileCompleted: user.registrationDetails.profileCompleted
     });
   } catch (err) {
     next(err);
