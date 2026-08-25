@@ -63,30 +63,10 @@ const clientProfileSchema = Joi.object({
   })).default([])
 });
 
-const sendPhoneOTPSchema = Joi.object({
-  phoneNumber: Joi.string().required().pattern(/^\+?[1-9]\d{1,14}$/).messages({
-    "any.required": "Phone number is required",
-    "string.empty": "Phone number cannot be empty",
-    "string.pattern.base": "Please provide a valid E.164 phone number"
-  })
-});
 
-const verifyPhoneOTPSchema = Joi.object({
-  phoneNumber: Joi.string().required().pattern(/^\+?[1-9]\d{1,14}$/).messages({
-    "any.required": "Phone number is required",
-    "string.empty": "Phone number cannot be empty",
-    "string.pattern.base": "Please provide a valid E.164 phone number"
-  }),
-  otp: Joi.string().length(6).required().messages({
-    "any.required": "OTP code is required",
-    "string.length": "OTP code must be exactly 6 characters long",
-    "string.empty": "OTP code cannot be empty"
-  })
-});
+
 
 module.exports = {
   freelancerProfileSchema,
-  clientProfileSchema,
-  sendPhoneOTPSchema,
-  verifyPhoneOTPSchema
+  clientProfileSchema
 };
