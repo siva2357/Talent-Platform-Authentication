@@ -91,21 +91,25 @@ const applicationSchema = new mongoose.Schema(
         type: String,
         default: "",
       },
-
       description: {
         type: String,
         default: "",
       },
-
       date: {
         type: Date,
       },
-
+      time: {
+        type: String,
+        default: "",
+      },
+      link: {
+        type: String,
+        default: "",
+      },
       status: {
         type: String,
         default: "pending",
       },
-
       feedback: {
         type: String,
         default: "",

@@ -21,7 +21,7 @@ exports.createContract = async (req, res) => {
     }
 
     const { contractTitle, estimatedBudget, contractStartDate, contractEndDate, contractDescription, contractType, contractSubject, status, visibility, currency, contractCategory } = validatedData;
-    
+
     if (estimatedBudget < 30000 || estimatedBudget > 75000) {
       return res.status(400).json({
         success: false,
@@ -38,7 +38,7 @@ exports.createContract = async (req, res) => {
       });
     }
 
-    
+
 
     const contract = await Contract.create({
       clientId,
@@ -157,14 +157,14 @@ exports.getMyContractById = async (req, res) => {
       _id: req.params.id,
       clientId
     })
-    .populate({
-      path: 'applicants.applicationId',
-      select: 'applicationStatus'
-    })
-    .populate({
-      path: 'applicants.freelancerId',
-      select: 'registrationDetails'
-    });
+      .populate({
+        path: 'applicants.applicationId',
+        select: 'applicationStatus'
+      })
+      .populate({
+        path: 'applicants.freelancerId',
+        select: 'registrationDetails'
+      });
 
     if (!contract) {
       return res.status(404).json({
@@ -245,15 +245,15 @@ exports.updateContract = async (req, res) => {
 
     const newStartDate = contractStartDate !== undefined ? new Date(contractStartDate) : new Date(contract.contractStartDate);
     const newEndDate = contractEndDate !== undefined ? new Date(contractEndDate) : new Date(contract.contractEndDate);
-    
+
     if (newEndDate < newStartDate) {
       return res.status(400).json({
         success: false,
         message: "End date must be greater than start date"
       });
     }
-    
-    
+
+
 
     if (contractTitle !== undefined) {
       contract.contractTitle = contractTitle;
@@ -289,7 +289,7 @@ exports.updateContract = async (req, res) => {
 
     if (status !== undefined) {
       contract.status = status;
-      
+
       // Pass the same status to the ContractDiary if it exists
       const ContractDiary = require("../models/contractDiary");
       const diary = await ContractDiary.findOne({ contractId: contract._id });
@@ -1107,7 +1107,7 @@ exports.withdrawContractApplication = async (req, res) => {
     // Validation Rules for Withdrawal
     // ========================================
 
-    if (application.applicationStatus !== "application received") {
+    if (application.applicationStatus !== "application submitted") {
       return res.status(400).json({
         success: false,
         message: "You cannot withdraw an application that has already been processed."
@@ -1381,36 +1381,33 @@ exports.getContractApplicants = async (req, res) => {
         const freelancerProfile =
           freelancerId
             ? await FreelancerProfile.findOne({
-                userId: freelancerId
-              })
+              userId: freelancerId
+            })
             : null;
 
         const offer = await Offer.findOne({ applicationId: application._id });
 
-return {
-  applicationId: application._id,
-  applicationStatus: application.applicationStatus,
-  offerStatus: offer ? offer.offerStatus : "none",
+        return {
+          applicationId: application._id,
+          applicationStatus: application.applicationStatus,
+          offerStatus: offer ? offer.offerStatus : "none",
 
-  appliedAt: application.createdAt,
-  assessment: application.assessment,
-  interview: application.interview,
+          appliedAt: application.createdAt,
+          assessment: application.assessment,
+          interview: application.interview,
 
-  freelancer: {
-    _id: freelancerId || null,
-    fullName: freelancerProfile?.basicInformation?.fullName || "N/A",
-    email: freelancerProfile?.basicInformation?.email || "N/A",
-    profilePhoto: freelancerProfile?.basicInformation?.profilePhoto || "",
-    professionalHeadline: freelancerProfile?.basicInformation?.professionalHeadline || "N/A",
-    gender: freelancerProfile?.basicInformation?.gender || "N/A",
-    country: freelancerProfile?.location?.country || "N/A",
-    city: freelancerProfile?.location?.city || "N/A",
-    timezone: freelancerProfile?.location?.timezone || "N/A",
-    availability: freelancerProfile?.availability || [],
-    emailVerified: freelancerProfile?.verification?.emailAddress || false,
-    phoneVerified: freelancerProfile?.verification?.phoneNumber || false
-  }
-};
+          freelancer: {
+            _id: freelancerId || null,
+            fullName: freelancerProfile?.basicInformation?.fullName || "N/A",
+            email: freelancerProfile?.basicInformation?.email || "N/A",
+            profilePhoto: freelancerProfile?.basicInformation?.profilePhoto || "",
+            professionalHeadline: freelancerProfile?.professionalDetails?.professionalHeadline || "N/A",
+            gender: freelancerProfile?.basicInformation?.gender || "N/A",
+            country: freelancerProfile?.location?.country || "N/A",
+            city: freelancerProfile?.location?.city || "N/A",
+            availability: freelancerProfile?.professionalDetails?.availability || "N/A",
+          }
+        };
 
       })
     );
@@ -1453,7 +1450,7 @@ exports.getHiredTalents = async (req, res) => {
     }
 
     const Offer = require("../models/offer");
-    const hiredOffers = await Offer.find({ clientId, contractId, offerStatus: "accepted"})
+    const hiredOffers = await Offer.find({ clientId, contractId, offerStatus: "accepted" })
       .populate({
         path: "applicationId"
       })
@@ -1517,6 +1514,7 @@ exports.getHiredTalents = async (req, res) => {
 
   }
 };
+
 exports.getFreelancerMyContracts = async (req, res) => {
   try {
     if (req.role !== 'freelancer') {
@@ -1524,7 +1522,7 @@ exports.getFreelancerMyContracts = async (req, res) => {
     }
     const freelancerId = req.userId;
     const Offer = require('../models/offer');
-    
+
     // Find accepted offers (which act as active/completed contracts for freelancers)
     const hiredOffers = await Offer.find({ freelancerId, offerStatus: 'accepted' })
       .populate({
