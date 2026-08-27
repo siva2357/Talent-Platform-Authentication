@@ -64,19 +64,26 @@ exports.getFinanceStats = async (req, res) => {
       // Calculate the actual amount funded to escrow by this client
       const escrowFundedTxns = await Transaction.find({
         userId,
-        type: "Escrow Funded",
+        type: { $in: ["Escrow Funded", "Deposit"] },
         status: "Paid"
       });
       const totalEscrowFunded = escrowFundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const totalPlatformFees = escrowFundedTxns.reduce((sum, t) => sum + (t.platformFee || 0), 0);
+      
       const escrowBalance = Math.max(0, totalEscrowFunded - totalSpent);
+
+      // Calculate unfunded contracts
+      const totalEstimatedBudget = clientContracts.reduce((sum, c) => sum + (c.estimatedBudget || 0), 0);
+      const pendingPayments = Math.max(0, totalEstimatedBudget - totalEscrowFunded);
 
       return res.status(200).json({
         success: true,
         stats: {
           totalBalance,
-          totalSpent: totalSpent * 1.10,
-          upcomingPayments: escrowBalance * 1.10,
-          platformFeesPaid: totalSpent * 0.10
+          totalSpent: totalSpent,
+          upcomingPayments: escrowBalance,
+          platformFeesPaid: totalPlatformFees,
+          pendingPayments: pendingPayments
         }
       });
     } else if (role.toLowerCase() === "freelancer") {

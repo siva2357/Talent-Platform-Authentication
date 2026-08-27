@@ -25,10 +25,10 @@ const feedbackSchema = new mongoose.Schema(
     },
     categories: {
       qualityOfWork: { type: Number, default: 0, min: 0, max: 5 },
-      requirementUnderstanding: { type: Number, default: 0, min: 0, max: 5 },
+      requirementsAndDeliverables: { type: Number, default: 0, min: 0, max: 5 },
       communication: { type: Number, default: 0, min: 0, max: 5 },
       timeliness: { type: Number, default: 0, min: 0, max: 5 },
-      professionalism: { type: Number, default: 0, min: 0, max: 5 },
+      behaviorAndProfessionalism: { type: Number, default: 0, min: 0, max: 5 },
     },
     clientComments: {
       type: String,
@@ -41,11 +41,6 @@ const feedbackSchema = new mongoose.Schema(
     cons: {
       type: [String],
       default: [],
-    },
-    aiAnalysis: {
-      score: { type: Number, default: 0, min: 0, max: 100 },
-      insights: { type: String, default: "" },
-      suggestions: { type: [String], default: [] },
     },
   },
   { timestamps: true }

@@ -105,6 +105,10 @@ exports.getMyContracts = async (req, res) => {
       }
     }
 
+    const Feedback = require("../models/feedback");
+    const feedbacks = await Feedback.find({ clientId }).select("contractId");
+    const feedbackSet = new Set(feedbacks.map(f => f.contractId.toString()));
+
     const formattedContracts = contracts.map(contract => {
       const contractObj = contract.toObject();
       const dynamicSpent = diarySpentMap.has(contractObj._id.toString())
@@ -115,6 +119,7 @@ exports.getMyContracts = async (req, res) => {
         : 0;
       contractObj.spent = dynamicSpent;
       contractObj.funded = dynamicFunded;
+      contractObj.feedbackSubmitted = feedbackSet.has(contractObj._id.toString());
       return contractObj;
     });
 

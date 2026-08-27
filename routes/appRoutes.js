@@ -34,6 +34,7 @@ router.use("/contract-diary", contractDiaryRoutes);
 router.use("/dashboard", require("./dashboardRoutes"));
 router.use("/finance", require("./financeRoutes"));
 router.use("/blogs", require("./blogRoutes"));
+router.use("/feedback", require("./feedbackRoutes"));
 
 
 
