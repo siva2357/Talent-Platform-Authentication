@@ -12,10 +12,15 @@ const {
   getAdminStats,
   getAdminTransactions,
   getAdminFinancialStats,
-  getAdminReports,
-  generateAdminReport,
   processManualPayout
 } = require('../controllers/adminController');
+
+const {
+  getReports,
+  generateReport,
+  getReportData,
+  downloadReport
+} = require('../controllers/reportController');
 
 router.get('/profile', identifier, getAdminProfile);
 router.get('/clients', identifier, getAllClients);
@@ -27,8 +32,10 @@ router.get('/dashboard/stats', identifier, getAdminStats);
 
 router.get('/finances/transactions', identifier, getAdminTransactions);
 router.get('/finances/stats', identifier, getAdminFinancialStats);
-router.get('/reports', identifier, getAdminReports);
-router.post('/reports', identifier, generateAdminReport);
+router.get('/reports', identifier, getReports);
+router.post('/reports', identifier, generateReport);
+router.get('/reports/:id/data', identifier, getReportData);
+router.get('/reports/:id/download', identifier, downloadReport);
 
 router.get('/:id', identifier, getAdminById);
 
