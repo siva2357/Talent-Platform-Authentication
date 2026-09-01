@@ -65,11 +65,6 @@ const portfolioSchema = new mongoose.Schema(
       default: "",
     },
 
-    status: {
-      type: String,
-      enum: ["Published", "Draft"],
-      default: "Draft",
-    },
 
     visibility: {
       type: String,
