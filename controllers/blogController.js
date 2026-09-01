@@ -22,8 +22,7 @@ exports.createBlog = async (req, res) => {
       content,
       featuredMedia,
       blogBanner,
-      tags,
-      status
+      tags
     } = req.body;
 
     if (!title || !category || !content) {
@@ -40,8 +39,7 @@ exports.createBlog = async (req, res) => {
       content,
       featuredMedia,
       blogBanner,
-      tags: tags || [],
-      status
+      tags: tags || []
     });
 
     return res.status(201).json({
@@ -165,8 +163,7 @@ exports.updateBlog = async (req, res) => {
       content,
       featuredMedia,
       blogBanner,
-      tags,
-      status
+      tags
     } = req.body;
 
     blog.title = title ?? blog.title;
@@ -175,7 +172,6 @@ exports.updateBlog = async (req, res) => {
     blog.featuredMedia = featuredMedia ?? blog.featuredMedia;
     blog.blogBanner = blogBanner ?? blog.blogBanner;
     blog.tags = tags ?? blog.tags;
-    blog.status = status ?? blog.status;
 
     await blog.save();
 
@@ -247,7 +243,6 @@ exports.getAllPublishedBlogs = async (req, res) => {
   try {
 
     const blogs = await Blog.find({
-      status: "Published"
     }).sort({
       createdAt: -1
     });
@@ -277,8 +272,7 @@ exports.getBlogByIdPublic = async (req, res) => {
   try {
 
     const blog = await Blog.findOne({
-      _id: req.params.id,
-      status: "Published"
+      _id: req.params.id
     });
 
     if (!blog) {
