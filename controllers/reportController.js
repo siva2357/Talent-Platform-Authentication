@@ -88,24 +88,47 @@ exports.getReportData = async (req, res) => {
       tableData: []
     };
 
+    const period = req.query.period || 'yearly';
     const now = new Date();
     const currentFY = getFinancialYear(now);
-    const startOfFY = new Date(currentFY, 3, 1);
-    const endOfFY = new Date(currentFY + 1, 2, 31, 23, 59, 59);
+    
+    let startRange, endRange;
+    if (period === 'h1') {
+      startRange = new Date(currentFY, 3, 1);
+      endRange = new Date(currentFY, 8, 30, 23, 59, 59);
+    } else if (period === 'h2') {
+      startRange = new Date(currentFY, 9, 1);
+      endRange = new Date(currentFY + 1, 2, 31, 23, 59, 59);
+    } else if (period === 'q1') {
+      startRange = new Date(currentFY, 3, 1);
+      endRange = new Date(currentFY, 5, 30, 23, 59, 59);
+    } else if (period === 'q2') {
+      startRange = new Date(currentFY, 6, 1);
+      endRange = new Date(currentFY, 8, 30, 23, 59, 59);
+    } else if (period === 'q3') {
+      startRange = new Date(currentFY, 9, 1);
+      endRange = new Date(currentFY, 11, 31, 23, 59, 59);
+    } else if (period === 'q4') {
+      startRange = new Date(currentFY + 1, 0, 1);
+      endRange = new Date(currentFY + 1, 2, 31, 23, 59, 59);
+    } else {
+      startRange = new Date(currentFY, 3, 1);
+      endRange = new Date(currentFY + 1, 2, 31, 23, 59, 59);
+    }
 
     const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
     let monthsMap = {};
-    for (let i = 0; i < 12; i++) {
-      let d = new Date(startOfFY);
-      d.setMonth(d.getMonth() + i);
-      let m = d.getMonth();
-      let y = d.getFullYear();
+    let tempDate = new Date(startRange);
+    while (tempDate <= endRange) {
+      let m = tempDate.getMonth();
+      let y = tempDate.getFullYear();
       monthsMap[`${m}-${y}`] = { monthName: `${monthNames[m]} ${y}`, value1: 0, value2: 0 };
+      tempDate.setMonth(tempDate.getMonth() + 1);
     }
 
     if (report.category === 'Users') {
-      const users = await User.find({ createdAt: { $gte: startOfFY, $lte: endOfFY } }).sort({ createdAt: -1 });
+      const users = await User.find({ createdAt: { $gte: startRange, $lte: endRange } }).sort({ createdAt: -1 });
 
       users.forEach(u => {
         const d = new Date(u.createdAt);
@@ -117,17 +140,23 @@ exports.getReportData = async (req, res) => {
       });
 
       data.chartData = Object.values(monthsMap);
-      data.tableHeaders = ["Name", "Email", "Role", "Status", "Joined"];
+      data.tableHeaders = [
+        { label: "Name", key: "name" },
+        { label: "Email", key: "email" },
+        { label: "Role", key: "role" },
+        { label: "Status", key: "status" },
+        { label: "Joined", key: "joined" }
+      ];
       data.tableData = users.map(u => ({
-        col1: u.registrationDetails?.fullName || 'N/A',
-        col2: u.registrationDetails?.email || 'N/A',
-        col3: u.role,
-        col4: u.status,
-        col5: new Date(u.createdAt).toLocaleDateString()
+        name: u.registrationDetails?.fullName || 'N/A',
+        email: u.registrationDetails?.email || 'N/A',
+        role: u.role,
+        status: u.status,
+        joined: new Date(u.createdAt).toLocaleDateString()
       }));
 
     } else if (report.category === 'Contracts') {
-      const contracts = await Contract.find({ createdAt: { $gte: startOfFY, $lte: endOfFY } })
+      const contracts = await Contract.find({ createdAt: { $gte: startRange, $lte: endRange } })
         .populate('clientId')
         .populate('applicants.freelancerId')
         .sort({ createdAt: -1 });
@@ -142,7 +171,13 @@ exports.getReportData = async (req, res) => {
       });
 
       data.chartData = Object.values(monthsMap);
-      data.tableHeaders = ["Contract Title", "Contract Type", "Budget", "Client", "Freelancer"];
+      data.tableHeaders = [
+        { label: "Contract Title", key: "contractTitle" },
+        { label: "Contract Type", key: "contractType" },
+        { label: "Budget", key: "budget" },
+        { label: "Client", key: "client" },
+        { label: "Freelancer", key: "freelancer" }
+      ];
       data.tableData = contracts.map(c => {
         let freelancerName = 'Not Assigned';
         if (c.applicants && c.applicants.length > 0) {
@@ -150,17 +185,17 @@ exports.getReportData = async (req, res) => {
         }
         
         return {
-          col1: c.contractTitle || 'N/A',
-          col2: c.contractType || 'N/A',
-          col3: `₹${c.estimatedBudget || 0}`,
-          col4: c.clientId?.registrationDetails?.fullName || 'Unknown',
-          col5: freelancerName
+          contractTitle: c.contractTitle || 'N/A',
+          contractType: c.contractType || 'N/A',
+          budget: `₹${c.estimatedBudget || 0}`,
+          client: c.clientId?.registrationDetails?.fullName || 'Unknown',
+          freelancer: freelancerName
         };
       });
 
     } else {
       // Financial
-      const txns = await Transaction.find({ contractId: { $ne: null }, createdAt: { $gte: startOfFY, $lte: endOfFY } }).populate('contractId').sort({ createdAt: -1 });
+      const txns = await Transaction.find({ contractId: { $ne: null }, createdAt: { $gte: startRange, $lte: endRange } }).populate('contractId').sort({ createdAt: -1 });
 
       const contractFinancials = {};
       
@@ -200,13 +235,19 @@ exports.getReportData = async (req, res) => {
       });
 
       data.chartData = Object.values(monthsMap);
-      data.tableHeaders = ["Contract Title", "Budget", "Client Payment", "Freelancer Payout", "Platform Fee"];
+      data.tableHeaders = [
+        { label: "Contract Title", key: "contractTitle" },
+        { label: "Budget", key: "budget" },
+        { label: "Client Payment", key: "clientPayment" },
+        { label: "Freelancer Payout", key: "freelancerPayout" },
+        { label: "Platform Fee", key: "platformFee" }
+      ];
       data.tableData = processedContracts.map(c => ({
-          col1: c.title,
-          col2: `₹${c.budget}`,
-          col3: `₹${c.clientPayment}`,
-          col4: `₹${c.freelancerPayout}`,
-          col5: `₹${c.platformFee}`
+          contractTitle: c.title,
+          budget: `₹${c.budget}`,
+          clientPayment: `₹${c.clientPayment}`,
+          freelancerPayout: `₹${c.freelancerPayout}`,
+          platformFee: `₹${c.platformFee}`
       }));
     }
 
@@ -224,6 +265,34 @@ exports.downloadReport = async (req, res) => {
     const workbook = new excel.Workbook();
     workbook.creator = 'Talent-Hub Admin System';
 
+    const period = req.query.period || 'yearly';
+    const now = new Date();
+    const currentFY = getFinancialYear(now);
+    
+    let startRange, endRange;
+    if (period === 'h1') {
+      startRange = new Date(currentFY, 3, 1);
+      endRange = new Date(currentFY, 8, 30, 23, 59, 59);
+    } else if (period === 'h2') {
+      startRange = new Date(currentFY, 9, 1);
+      endRange = new Date(currentFY + 1, 2, 31, 23, 59, 59);
+    } else if (period === 'q1') {
+      startRange = new Date(currentFY, 3, 1);
+      endRange = new Date(currentFY, 5, 30, 23, 59, 59);
+    } else if (period === 'q2') {
+      startRange = new Date(currentFY, 6, 1);
+      endRange = new Date(currentFY, 8, 30, 23, 59, 59);
+    } else if (period === 'q3') {
+      startRange = new Date(currentFY, 9, 1);
+      endRange = new Date(currentFY, 11, 31, 23, 59, 59);
+    } else if (period === 'q4') {
+      startRange = new Date(currentFY + 1, 0, 1);
+      endRange = new Date(currentFY + 1, 2, 31, 23, 59, 59);
+    } else {
+      startRange = new Date(currentFY, 3, 1);
+      endRange = new Date(currentFY + 1, 2, 31, 23, 59, 59);
+    }
+
     if (report.category === 'Financial') {
       const sheet = workbook.addWorksheet('Financial Transactions');
       sheet.columns = [
@@ -234,7 +303,7 @@ exports.downloadReport = async (req, res) => {
         { header: 'Platform Fee (₹)', key: 'platformFee', width: 15 }
       ];
 
-      const txns = await Transaction.find({ contractId: { $ne: null } }).populate('contractId').sort({ createdAt: -1 });
+      const txns = await Transaction.find({ contractId: { $ne: null }, createdAt: { $gte: startRange, $lte: endRange } }).populate('contractId').sort({ createdAt: -1 });
       const contractFinancials = {};
       
       txns.forEach(t => {
@@ -280,7 +349,7 @@ exports.downloadReport = async (req, res) => {
         { header: 'Freelancer', key: 'freelancer', width: 25 }
       ];
 
-      const contracts = await Contract.find().populate('clientId').populate('applicants.freelancerId').sort({ createdAt: -1 });
+      const contracts = await Contract.find({ createdAt: { $gte: startRange, $lte: endRange } }).populate('clientId').populate('applicants.freelancerId').sort({ createdAt: -1 });
       contracts.forEach(c => {
         let freelancerName = 'Not Assigned';
         if (c.applicants && c.applicants.length > 0) {
@@ -293,6 +362,27 @@ exports.downloadReport = async (req, res) => {
           budget: c.estimatedBudget || 0,
           client: c.clientId?.registrationDetails?.fullName || 'Unknown',
           freelancer: freelancerName
+        });
+      });
+      sheet.getRow(1).font = { bold: true };
+    } else if (report.category === 'Users') {
+      const sheet = workbook.addWorksheet('User Data');
+      sheet.columns = [
+        { header: 'Name', key: 'name', width: 25 },
+        { header: 'Email', key: 'email', width: 30 },
+        { header: 'Role', key: 'role', width: 15 },
+        { header: 'Status', key: 'status', width: 15 },
+        { header: 'Joined', key: 'joined', width: 15 }
+      ];
+
+      const users = await User.find({ createdAt: { $gte: startRange, $lte: endRange } }).sort({ createdAt: -1 });
+      users.forEach(u => {
+        sheet.addRow({
+          name: u.registrationDetails?.fullName || 'N/A',
+          email: u.registrationDetails?.email || 'N/A',
+          role: u.role,
+          status: u.status,
+          joined: new Date(u.createdAt).toLocaleDateString()
         });
       });
       sheet.getRow(1).font = { bold: true };

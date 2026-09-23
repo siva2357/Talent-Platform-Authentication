@@ -227,7 +227,7 @@ exports.updateContract = async (req, res) => {
       });
     }
 
-    const allowedStatus = ["pending", "in progress", "completed"];
+    const allowedStatus = ["draft", "open", "in progress", "completed", "closed"];
 
     if (status && !allowedStatus.includes(status)) {
       return res.status(400).json({

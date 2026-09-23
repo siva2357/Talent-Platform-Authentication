@@ -1,4 +1,5 @@
 const Blog = require("../models/blog");
+const MasterData = require("../models/masterData");
 
 
 // ====================================
@@ -30,6 +31,14 @@ exports.createBlog = async (req, res) => {
         success: false,
         message: "Title, category and content are required"
       });
+    }
+
+    const blogCategoriesDoc = await MasterData.findOne({ category: "BlogCategories" });
+    if (blogCategoriesDoc) {
+      const validKeys = blogCategoriesDoc.options.map(opt => opt.key);
+      if (!validKeys.includes(category)) {
+        return res.status(400).json({ success: false, message: "Invalid blog category" });
+      }
     }
 
     const blog = await Blog.create({
@@ -165,6 +174,16 @@ exports.updateBlog = async (req, res) => {
       blogBanner,
       tags
     } = req.body;
+
+    if (category) {
+      const blogCategoriesDoc = await MasterData.findOne({ category: "BlogCategories" });
+      if (blogCategoriesDoc) {
+        const validKeys = blogCategoriesDoc.options.map(opt => opt.key);
+        if (!validKeys.includes(category)) {
+          return res.status(400).json({ success: false, message: "Invalid blog category" });
+        }
+      }
+    }
 
     blog.title = title ?? blog.title;
     blog.category = category ?? blog.category;

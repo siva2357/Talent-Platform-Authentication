@@ -420,7 +420,45 @@ exports.getAdminFinancialStats = async (req, res) => {
   }
 };
 
+// GET /api/admin/finances/status-options
+exports.getAdminFinanceStatusOptions = async (req, res) => {
+  try {
+    if (req.role !== "admin") {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    const options = [
+      { label: 'All Statuses', value: 'All Statuses' },
+      { label: 'Completed', value: 'Completed' },
+      { label: 'Pending', value: 'Pending' }
+    ];
+    return res.status(200).json(options);
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
 
+
+
+
+// GET /api/admin/users/status-options
+exports.getUserStatusOptions = async (req, res) => {
+  try {
+    if (req.role !== "admin") {
+      return res.status(403).json({ success: false, message: 'Access denied' });
+    }
+    const options = [
+      { label: 'All Statuses', value: 'All Statuses' },
+      { label: 'Active', value: 'Active' },
+      { label: 'Pending Approval', value: 'Pending Approval' },
+      { label: 'Suspended', value: 'Suspended' },
+      { label: 'Blocked', value: 'Blocked' },
+      { label: 'Deactivated', value: 'Deactivated' }
+    ];
+    return res.status(200).json(options);
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 
 // POST /api/admin/payout/:transactionId

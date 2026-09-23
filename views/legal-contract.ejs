@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Contract - Talent-Hub</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #60a5fa;
+            --text-dark: #1f2937;
+            --text-light: #6b7280;
+            --bg-gray: #f9fafb;
+            --border-color: #e5e7eb;
+        }
+
+        /* Optimized for Puppeteer PDF Generation */
+        body {
+            background-color: white;
+            /* Removed gray background */
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            color: var(--text-dark);
+            -webkit-print-color-adjust: exact;
+            /* Crucial for printing background colors in Puppeteer */
+            print-color-adjust: exact;
+        }
+
+        /* A4 Page Styling for Print */
+        .page {
+            width: 210mm;
+            height: 297mm;
+            /* Fixed height for A4 */
+            margin: 0 auto;
+            /* Center the page in the browser */
+            position: relative;
+            box-sizing: border-box;
+            padding: 40px 50px 80px 50px;
+            display: flex;
+            flex-direction: column;
+            page-break-after: always;
+            /* Force new page in PDF */
+            break-after: page;
+            overflow: hidden;
+            background: white;
+        }
+
+        .page:last-child {
+            page-break-after: auto;
+            break-after: auto;
+        }
+
+        /* Page Top Border */
+        .page::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 12px;
+            background: linear-gradient(to right, var(--primary-color) 70%, var(--secondary-color) 70%);
+        }
+
+        /* Page Bottom Border */
+        .page::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 8px;
+            background: linear-gradient(to right, var(--primary-color) 60%, var(--secondary-color) 60%);
+        }
+
+        /* Header Logo Section */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 40px;
+        }
+
+        .logo-circle {
+            width: 50px;
+            height: 50px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 18px;
+        }
+
+        .header-text h3 {
+            margin: 0;
+            font-size: 16px;
+            color: var(--primary-color);
+        }
+
+        .header-text p {
+            margin: 3px 0;
+            font-size: 11px;
+            color: var(--text-light);
+        }
+
+        /* Typography */
+        h1.title {
+            font-family: 'Playfair Display', serif;
+            color: var(--primary-color);
+            text-align: center;
+            font-size: 42px;
+            margin: 40px 0 10px 0;
+            line-height: 1.2;
+        }
+
+        .title-divider {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0 40px 0;
+        }
+
+        .title-divider::before,
+        .title-divider::after {
+            content: '';
+            width: 80px;
+            height: 1px;
+            background-color: var(--secondary-color);
+        }
+
+        .title-divider span {
+            color: var(--secondary-color);
+            margin: 0 15px;
+            font-size: 24px;
+        }
+
+        h2 {
+            font-family: 'Playfair Display', serif;
+            color: var(--primary-color);
+            font-size: 20px;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+        }
+
+        h3.sub-heading {
+            font-size: 14px;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            margin-top: 30px;
+        }
+
+        p {
+            font-size: 12px;
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+
+        .intro-text {
+            text-align: center;
+            margin: 20px 50px 50px 50px;
+        }
+
+        /* Party Cards */
+        .party-section {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+
+        .party-card {
+            border: 1px solid var(--border-color);
+            padding: 20px;
+            border-radius: 8px;
+            position: relative;
+        }
+
+        .party-card-title {
+            position: absolute;
+            top: -10px;
+            left: 20px;
+            background: white;
+            padding: 0 10px;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-light);
+            letter-spacing: 1px;
+        }
+
+        .party-details {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--border-color);
+        }
+
+        .info h4 {
+            margin: 0 0 5px 0;
+            font-size: 16px;
+            color: var(--primary-color);
+        }
+
+        .info p {
+            margin: 3px 0;
+            font-size: 12px;
+        }
+
+        /* Summary Boxes */
+        .summary-boxes {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-top: 40px;
+        }
+
+        .summary-box {
+            border: 1px solid var(--border-color);
+            padding: 15px 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .summary-icon {
+            color: var(--primary-color);
+            font-size: 24px;
+        }
+
+        .summary-text p.label {
+            margin: 0;
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-light);
+            text-transform: uppercase;
+        }
+
+        .summary-text p.value {
+            margin: 5px 0 0 0;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        /* Tables */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            font-size: 12px;
+        }
+
+        th,
+        td {
+            border: 1px solid var(--border-color);
+            padding: 12px 15px;
+            text-align: left;
+        }
+
+        th {
+            background-color: var(--bg-gray);
+            color: var(--primary-color);
+            font-weight: 700;
+        }
+
+        .table-striped tbody tr:nth-child(even) {
+            background-color: var(--bg-gray);
+        }
+
+        /* Lists */
+        ul {
+            font-size: 12px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+
+        ul li {
+            margin-bottom: 8px;
+        }
+
+        /* Signatures */
+        .signature-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-top: 30px;
+        }
+
+        .signature-block {
+            margin-top: 20px;
+        }
+
+        .signature-line {
+            border-bottom: 1px solid var(--text-light);
+            width: 100%;
+            height: 60px;
+            display: flex;
+            align-items: flex-end;
+            padding-bottom: 5px;
+            position: relative;
+        }
+
+        .signature-img {
+            height: 40px;
+            font-family: 'Brush Script MT', cursive;
+            font-size: 32px;
+            color: var(--primary-color);
+        }
+
+        .signed-badge {
+            background-color: #d1fae5;
+            color: #065f46;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            position: absolute;
+            right: 0;
+            bottom: 10px;
+            font-weight: 600;
+        }
+
+        .signature-details p {
+            margin: 5px 0;
+            font-size: 11px;
+        }
+
+        /* Final Page Centered Elements */
+        .final-page-center {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex-grow: 1;
+            text-align: center;
+        }
+
+        .handshake-icon {
+            width: 100px;
+            height: 100px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 50px;
+            margin: 30px 0;
+        }
+
+        .thank-you-box {
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-gray);
+            padding: 30px;
+            border-radius: 8px;
+            margin-top: 50px;
+            width: 80%;
+            text-align: center;
+        }
+
+        /* Page Footer */
+        .page-footer {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            font-size: 10px;
+            color: var(--text-light);
+        }
+
+        .page-footer-text {
+            font-size: 11px;
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- PAGE 1 -->
+    <div class="page">
+        <div style="text-align: center; margin-top: 40px; margin-bottom: 20px;">
+            <img src="../public/logo.png" alt="Talent Hub Logo" style="height: 180px; object-fit: contain;">
+        </div>
+        <h1 class="title" style="margin-top: 10px;">LEGAL CONTRACT<br>AGREEMENT</h1>
+        <div class="title-divider">
+            <span>&#10042;</span>
+        </div>
+
+        <p class="intro-text">
+            This Legal Contract Agreement is made and entered into<br>
+            on <strong><%= agreementDate %></strong> between the parties mentioned below.
+        </p>
+
+        <div class="party-section">
+            <div class="party-card">
+                <div class="party-card-title">CLIENT (COMPANY)</div>
+                <div class="party-details">
+                    <div class="logo-circle" style="width: 60px; height: 60px;">ABC</div>
+                    <div class="info">
+                        <h4><%= clientName %></h4>
+                        <p>123 Business Park, Hyderabad,</p>
+                        <p>Telangana - 500081, India</p>
+                        <p><strong>Email:</strong> <%= clientEmail %></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="party-card" style="margin-top: 10px;">
+                <div class="party-card-title">FREELANCER</div>
+                <div class="party-details">
+                    <img src="https://i.pravatar.cc/150?img=11" alt="Freelancer" class="avatar">
+                    <div class="info">
+                        <h4><%= freelancerName %></h4>
+                        <p>Senior Full Stack Developer</p>
+                        <p><strong>Email:</strong> <%= freelancerEmail %></p>
+                        <p><strong>Phone:</strong> +91 98765 43210</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="summary-boxes">
+            <div class="summary-box">
+                <div class="summary-icon">&#128196;</div>
+                <div class="summary-text">
+                    <p class="label">CONTRACT TITLE</p>
+                    <p class="value"><%= contractTitle %></p>
+                </div>
+            </div>
+            <div class="summary-box">
+                <div class="summary-icon">&#128187;</div>
+                <div class="summary-text">
+                    <p class="label">CONTRACT TYPE</p>
+                    <p class="value"><%= budgetType %></p>
+                </div>
+            </div>
+            <div class="summary-box">
+                <div class="summary-icon">&#128176;</div>
+                <div class="summary-text">
+                    <p class="label">CONTRACT VALUE</p>
+                    <p class="value"><%= estimatedBudget %><br><span
+                            style="font-size: 11px; font-weight: 400; color: var(--text-light);">(Rupees Sixty Thousand
+                            Only)</span></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="page-footer">Page 1 of 8</div>
+    </div>
+
+    <!-- PAGE 2 -->
+    <div class="page">
+        <h2>1. CONTRACT INFORMATION</h2>
+        <table class="table-striped">
+            <tbody>
+                <tr>
+                    <td style="font-weight: 700; width: 30%;">Contract Title</td>
+                    <td><%= contractTitle %></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Contract Type</td>
+                    <td><%= budgetType %></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Budget</td>
+                    <td><%= estimatedBudget %> (Rupees Sixty Thousand Only)</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Duration</td>
+                    <td>3 Months</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Start Date</td>
+                    <td><%= startDate %></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">End Date</td>
+                    <td><%= endDate %></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Category</td>
+                    <td>Web Development</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>2. SCOPE OF WORK</h2>
+        <p>The freelancer agrees to deliver a fully functional AI-powered CRM platform with the following key
+            deliverables:</p>
+        <ul>
+            <li>User management with roles and permissions</li>
+            <li>Leads tracking and pipeline management</li>
+            <li>Analytics dashboard and reporting</li>
+            <li>Workflow automation and notifications</li>
+            <li>API integrations and data import/export</li>
+        </ul>
+        <p>The freelancer shall ensure timely delivery, high quality of work and adhere to the requirements and
+            specifications agreed upon by both parties.</p>
+
+        <h2 style="margin-top: 40px;">3. PAYMENT SCHEDULE</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 15%; text-align: center;">Milestone</th>
+                    <th style="width: 45%;">Description</th>
+                    <th style="width: 20%; text-align: right;">Amount (₹)</th>
+                    <th style="width: 20%; text-align: right;">Release Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="text-align: center;">1</td>
+                    <td>Design & Wireframes</td>
+                    <td style="text-align: right;">20,000</td>
+                    <td style="text-align: right;"><%= startDate %></td>
+                </tr>
+                <tr>
+                    <td style="text-align: center;">2</td>
+                    <td>Development</td>
+                    <td style="text-align: right;">30,000</td>
+                    <td style="text-align: right;">Aug 20, 2026</td>
+                </tr>
+                <tr>
+                    <td style="text-align: center;">3</td>
+                    <td>Testing & Deployment</td>
+                    <td style="text-align: right;">10,000</td>
+                    <td style="text-align: right;">Sep 30, 2026</td>
+                </tr>
+                <tr>
+                    <td colspan="2" style="text-align: right; font-weight: 700;">Total</td>
+                    <td style="text-align: right; font-weight: 700;">60,000</td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="page-footer">Page 2 of 8</div>
+    </div>
+
+    <!-- PAGE 3 -->
+    <div class="page">
+        <h2>4. LEGAL TERMS & CONDITIONS</h2>
+        <p>This agreement is governed by and construed in accordance with the laws of India. Both parties agree to the
+            following terms:</p>
+
+        <h3 class="sub-heading">4.1 Confidentiality</h3>
+        <p>The freelancer shall maintain confidentiality of all proprietary information, documents and data shared by
+            the client.</p>
+
+        <h3 class="sub-heading">4.2 Intellectual Property</h3>
+        <p>All intellectual property rights of the final deliverables shall belong to the client upon full payment.</p>
+
+        <h3 class="sub-heading">4.3 Payment Terms</h3>
+        <p>Payments will be made to the freelancer as per the milestone schedule defined in this agreement.</p>
+
+        <h3 class="sub-heading">4.4 Delays & Extensions</h3>
+        <p>Any delays or additional requirements outside the scope will be mutually discussed and may lead to an
+            extension of timeline and/or additional charges.</p>
+
+        <h3 class="sub-heading">4.5 Termination</h3>
+        <p>Either party may terminate this contract with 7 days written notice. In case of termination, the client shall
+            pay for the work completed till the termination date.</p>
+
+        <h3 class="sub-heading">4.6 Dispute Resolution</h3>
+        <p>Any disputes arising under this agreement shall be resolved amicably. If unable to resolve, the matter shall
+            be subject to the exclusive jurisdiction of courts in Hyderabad, India.</p>
+
+        <div class="page-footer">Page 3 of 8</div>
+    </div>
+
+    <!-- PAGE 4 -->
+    <div class="page">
+        <h2>5. GENERAL TERMS</h2>
+
+        <h3 class="sub-heading">5.1 Entire Agreement</h3>
+        <p>This contract constitutes the entire agreement between the parties and supersedes all prior discussions,
+            understandings or agreements.</p>
+
+        <h3 class="sub-heading">5.2 Amendments</h3>
+        <p>Any amendments or modifications to this agreement must be made in writing and signed by both parties.</p>
+
+        <h3 class="sub-heading">5.3 Assignment</h3>
+        <p>The freelancer shall not assign or transfer any rights or obligations under this agreement without prior
+            written consent of the client.</p>
+
+        <h3 class="sub-heading">5.4 Notices</h3>
+        <p>All notices required or permitted under this agreement shall be in writing and shall be sent to the email
+            addresses of the respective parties.</p>
+
+        <h3 class="sub-heading">5.5 Force Majeure</h3>
+        <p>Neither party shall be liable for any delay or failure in performance due to circumstances beyond reasonable
+            control including acts of God, natural disasters, war, or government regulations.</p>
+
+        <div class="page-footer">Page 4 of 8</div>
+    </div>
+
+    <!-- PAGE 5 -->
+    <div class="page">
+        <h2>6. NON-DISCLOSURE</h2>
+        <div class="title-divider" style="margin: 10px 0;"><span>&#10042;</span></div>
+        <p>The freelancer agrees not to disclose any confidential or proprietary information of the client to any third
+            party and shall use such information only for the purpose of executing this contract.</p>
+
+        <h2 style="margin-top: 40px;">7. WARRANTIES</h2>
+        <div class="title-divider" style="margin: 10px 0;"><span>&#10042;</span></div>
+        <p>The freelancer warrants that the work delivered shall be original, free from defects and will be developed in
+            a professional and workmanlike manner.</p>
+
+        <h2 style="margin-top: 40px;">8. INDEMNIFICATION</h2>
+        <div class="title-divider" style="margin: 10px 0;"><span>&#10042;</span></div>
+        <p>The freelancer agrees to indemnify and hold harmless the client from any claims, losses, damages or expenses
+            arising out of breach of this contract or negligence in performance.</p>
+
+        <div class="page-footer">Page 5 of 8</div>
+    </div>
+
+    <!-- PAGE 6 -->
+    <div class="page">
+        <h2>9. ACCEPTANCE</h2>
+        <div class="title-divider" style="margin: 10px 0 30px 0;"><span>&#10042;</span></div>
+        <p>By signing below, both parties acknowledge that they have read, understood and agree to be bound by the terms
+            and conditions of this Legal Contract Agreement.</p>
+
+        <h3 class="sub-heading" style="margin-top: 40px; font-size: 12px; color: var(--text-dark);">CLIENT (COMPANY)
+        </h3>
+
+        <div class="party-details" style="margin-top: 20px; margin-bottom: 40px;">
+            <div class="logo-circle" style="width: 40px; height: 40px; font-size: 14px;">ABC</div>
+            <div class="info">
+                <h4 style="font-size: 14px;"><%= clientName %></h4>
+            </div>
+        </div>
+
+        <div class="signature-block" style="width: 50%;">
+            <p style="font-size: 11px; font-weight: 700; margin-bottom: 5px;">Authorized Signatory</p>
+            <div class="signature-line">
+                <div class="signature-img"><%= clientName %></div>
+                <div class="signed-badge">Signed</div>
+            </div>
+            <div class="signature-details" style="margin-top: 10px;">
+                <p>Name: <%= clientName %></p>
+                <p>Designation: CEO</p>
+                <p>Signed On: <%= signedDate %></p>
+            </div>
+        </div>
+
+        <div class="page-footer">Page 6 of 8</div>
+    </div>
+
+    <!-- PAGE 7 -->
+    <div class="page">
+        <h2>10. SIGNATURES</h2>
+
+        <div class="signature-grid">
+            <!-- Client Side -->
+            <div>
+                <h3 class="sub-heading" style="margin-top: 10px; font-size: 12px; color: var(--text-dark);">CLIENT
+                    (COMPANY)</h3>
+
+                <div class="party-details" style="margin-top: 20px; margin-bottom: 40px;">
+                    <div class="logo-circle" style="width: 40px; height: 40px; font-size: 14px;">ABC</div>
+                    <div class="info">
+                        <h4 style="font-size: 14px;"><%= clientName %></h4>
+                    </div>
+                </div>
+
+                <div class="signature-block">
+                    <p style="font-size: 11px; font-weight: 700; margin-bottom: 5px;">Authorized Signatory</p>
+                    <div class="signature-line">
+                        <div class="signature-img"><%= clientName %></div>
+                        <div class="signed-badge">Signed</div>
+                    </div>
+                    <div class="signature-details" style="margin-top: 10px;">
+                        <p>Name: <%= clientName %></p>
+                        <p>Designation: CEO</p>
+                        <p>Signed On: <%= signedDate %></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Freelancer Side -->
+            <div>
+                <h3 class="sub-heading" style="margin-top: 10px; font-size: 12px; color: var(--text-dark);">FREELANCER
+                </h3>
+
+                <div class="party-details" style="margin-top: 20px; margin-bottom: 40px;">
+                    <img src="https://i.pravatar.cc/150?img=11" alt="Freelancer" class="avatar"
+                        style="width: 40px; height: 40px;">
+                    <div class="info">
+                        <h4 style="font-size: 14px;"><%= freelancerName %></h4>
+                        <p style="font-size: 10px;">Senior Full Stack Developer</p>
+                    </div>
+                </div>
+
+                <div class="signature-block">
+                    <p style="font-size: 11px; font-weight: 700; margin-bottom: 5px;">Signature</p>
+                    <div class="signature-line">
+                        <div class="signature-img"><%= freelancerName %></div>
+                        <div class="signed-badge">Signed</div>
+                    </div>
+                    <div class="signature-details" style="margin-top: 10px;">
+                        <p>Name: <%= freelancerName %></p>
+                        <br>
+                        <p>Signed On: <%= signedDate %></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <p class="page-footer-text" style="position: absolute; bottom: 80px;">This Agreement has been executed on the
+            date first written above.</p>
+
+        <div class="page-footer">Page 7 of 8</div>
+    </div>
+
+    <!-- PAGE 8 -->
+    <div class="page">
+        <h2>11. CONTRACT SUMMARY</h2>
+        <div class="title-divider" style="margin: 10px 0;"><span>&#10042;</span></div>
+
+        <table class="table-striped" style="margin-top: 20px;">
+            <tbody>
+                <tr>
+                    <td style="font-weight: 700; width: 35%;">Contract Title</td>
+                    <td><%= contractTitle %></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Contract Type</td>
+                    <td><%= budgetType %></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Total Contract Value</td>
+                    <td><%= estimatedBudget %> (Rupees Sixty Thousand Only)</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Duration</td>
+                    <td>3 Months</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Start Date</td>
+                    <td><%= startDate %></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">End Date</td>
+                    <td><%= endDate %></td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Payment Terms</td>
+                    <td>As per Payment Schedule</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Governing Law</td>
+                    <td>Laws of India</td>
+                </tr>
+                <tr>
+                    <td style="font-weight: 700;">Jurisdiction</td>
+                    <td>Hyderabad, India</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div style="display: flex; justify-content: center;">
+            <div class="thank-you-box">
+                <div style="display: flex; justify-content: center; margin-bottom: 15px;">
+                    <div
+                        style="background-color: var(--primary-color); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                        &#129309;</div>
+                </div>
+                <p style="color: var(--primary-color); font-weight: 600; font-size: 14px; margin-bottom: 5px;">Thank you
+                    for partnering with <%= clientName %>.</p>
+                <p style="color: var(--text-light);">We look forward to a successful collaboration.</p>
+            </div>
+        </div>
+
+        <div class="page-footer">Page 8 of 8</div>
+    </div>
+
+    <!-- PAGE 9 (Back Cover) -->
+    <div class="page" style="justify-content: center; align-items: center;">
+        <div class="final-page-center">
+            <h1 class="title">LEGAL CONTRACT<br>AGREEMENT</h1>
+            <div class="title-divider">
+                <span>&#10042;</span>
+            </div>
+
+            <div class="handshake-icon">
+                &#129309;
+            </div>
+
+            <p style="color: var(--primary-color); font-weight: 500; margin-top: 30px; font-size: 14px;">
+                This contract is digitally signed by both parties<br>and is legally binding.
+            </p>
+
+            <div class="title-divider" style="margin-top: 40px; opacity: 0.5;">
+                <span>&#10042;</span>
+            </div>
+        </div>
+    </div>
+
+</body>
+
+</html>

@@ -618,11 +618,11 @@ exports.getContractPDF = async (req, res) => {
       signedDate: formatDate(offer.signedAt)
     };
 
-    const templatePath = path.join(__dirname, '..', 'views', 'contract-template.ejs');
+    const templatePath = path.join(__dirname, '..', 'views', 'legal-contract.ejs');
     const html = await ejs.renderFile(templatePath, data);
 
     const browser = await puppeteer.launch({
-      headless: "new",
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();
