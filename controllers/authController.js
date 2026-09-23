@@ -5,7 +5,8 @@ const {
   registerSchema, 
   loginSchema, 
   forgotPasswordSchema, 
-  resetPasswordSchema 
+  resetPasswordSchema,
+  changePasswordSchema
 } = require("../schemas/authSchemas");
 const { verifyUserOTP, verifyOTP, verifyResetOTP } = require("./otpController");
 
@@ -76,6 +77,41 @@ exports.register = async (req, res, next) => {
       message: "Registration successful. Please verify the OTP sent to your email.",
       email: lowerEmail
     });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// @desc    Resend OTP
+// @route   POST /api/auth/resend-otp
+// @access  Public
+exports.resendOTP = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+    const lowerEmail = email.toLowerCase();
+    
+    const user = await User.findOne({ "registrationDetails.email": lowerEmail });
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    
+    // Generate new OTP
+    const verificationCode = generateOTP();
+    user.registrationDetails.verificationCode = verificationCode;
+    user.registrationDetails.verificationCodeValidation = Date.now() + 10 * 60 * 1000;
+    
+    await user.save();
+    
+    try {
+      await sendVerificationEmail(lowerEmail, verificationCode);
+    } catch (emailErr) {
+      console.error("Failed to send verification email:", emailErr);
+    }
+    
+    res.status(200).json({ success: true, message: "OTP resent successfully" });
   } catch (err) {
     next(err);
   }
@@ -229,6 +265,40 @@ exports.resetPassword = async (req, res, next) => {
     if (err.statusCode) {
       return res.status(err.statusCode).json({ success: false, message: err.message });
     }
+    next(err);
+  }
+};
+
+// @desc    Change password
+// @route   POST /api/auth/change-password
+// @access  Private
+exports.changePassword = async (req, res, next) => {
+  try {
+    const { error, value } = changePasswordSchema.validate(req.body);
+    if (error) {
+      return res.status(400).json({ success: false, message: error.details[0].message });
+    }
+
+    const { oldPassword, newPassword } = value;
+    const user = await User.findById(req.user._id).select("+registrationDetails.password");
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const isMatch = await user.matchPassword(oldPassword);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, message: "Invalid old password" });
+    }
+
+    user.registrationDetails.password = newPassword;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Password changed successfully."
+    });
+  } catch (err) {
     next(err);
   }
 };

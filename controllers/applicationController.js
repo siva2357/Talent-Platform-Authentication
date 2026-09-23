@@ -297,6 +297,10 @@ exports.assessmentResult = async (req, res) => {
       application.assessment.status = "failed";
     }
 
+    if (req.body.notes !== undefined) {
+      application.assessment.notes = req.body.notes;
+    }
+
     await application.save();
 
     await notifyFreelancerStageUpdate(application, result === "passed" ? "Assessment Passed" : "Assessment Failed");
@@ -347,13 +351,17 @@ exports.scheduleInterview = async (req, res) => {
 
     application.applicationStatus = "interview scheduled";
 
+    let parsedDate = req.body.date ? new Date(req.body.date) : new Date();
+    if (req.body.date && req.body.time) {
+      parsedDate = new Date(`${req.body.date}T${req.body.time}`);
+    }
+
     application.interview = {
-      title: req.body.title,
-
-      description: req.body.description,
-
-      date: req.body.date,
-
+      title: req.body.title || "Interview Scheduled",
+      description: req.body.description || (req.body.link ? `Meeting link: ${req.body.link}` : ""),
+      date: parsedDate,
+      time: req.body.time || "",
+      link: req.body.link || "",
       status: "pending",
     };
 
@@ -610,11 +618,11 @@ exports.getContractPDF = async (req, res) => {
       signedDate: formatDate(offer.signedAt)
     };
 
-    const templatePath = path.join(__dirname, '..', 'views', 'contract-template.ejs');
+    const templatePath = path.join(__dirname, '..', 'views', 'legal-contract.ejs');
     const html = await ejs.renderFile(templatePath, data);
 
     const browser = await puppeteer.launch({
-      headless: "new",
+      headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     const page = await browser.newPage();

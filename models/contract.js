@@ -13,11 +13,6 @@ const contractSchema = new mongoose.Schema(
       trim: true
     },
 
-        visibility: {
-      type: String,
-      enum: ['public', 'private'],
-      default: 'private'
-    },
     contractCategory: {
       type: String,
       trim: true

@@ -6,13 +6,13 @@ const { deleteFileFromGCPByUrl } = require("../utils/gcpDeleteByUrl");
 const { deleteFolderFromGCP } = require("../utils/gcpCleaner");
 const bucketMap = require("../constants/bucketMap");
 const uploadSections = require("../constants/uploadSections");
-const { freelancerProfileSchema, clientProfileSchema, sendPhoneOTPSchema, verifyPhoneOTPSchema } = require("../schemas/profileSchemas");
+const { freelancerProfileSchema, clientProfileSchema, } = require("../schemas/profileSchemas");
 
 
 const Contract = require("../models/contract");
 const Offer = require("../models/offer");
 const ContractDiary = require("../models/contractDiary");
-
+const Application = require("../models/application");
 const Portfolio = require("../models/portfolio");
 
 
@@ -87,13 +87,11 @@ exports.completeProfile = async (req, res, next) => {
           skills: professionalDetails.skills || [],
           technologies: professionalDetails.technologies || [],
           availability: professionalDetails.availability || "",
-          preferredJobType: professionalDetails.preferredJobType || ""
         },
         location: {
           country: location.country || "",
           state: location.state || "",
           city: location.city || "",
-          timezone: location.timezone || ""
         },
         socialLinks: validatedData.socialLinks || [],
         languages: validatedData.languages || []

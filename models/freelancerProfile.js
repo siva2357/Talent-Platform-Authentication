@@ -20,13 +20,11 @@ const freelancerProfileSchema = new mongoose.Schema({
     skills: { type: [String], default: [] },
     technologies: { type: [String], default: [] },
     availability: { type: String, default: "" },
-    preferredJobType: { type: String, default: "" },
   },
   location: {
     country: { type: String, default: "" },
     state: { type: String, default: "" },
     city: { type: String, default: "" },
-    timezone: { type: String, default: "" },
   },
   socialLinks: [{
     platform: { type: String, default: "" },

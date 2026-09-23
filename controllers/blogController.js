@@ -1,4 +1,5 @@
 const Blog = require("../models/blog");
+const MasterData = require("../models/masterData");
 
 
 // ====================================
@@ -22,8 +23,7 @@ exports.createBlog = async (req, res) => {
       content,
       featuredMedia,
       blogBanner,
-      tags,
-      status
+      tags
     } = req.body;
 
     if (!title || !category || !content) {
@@ -33,6 +33,14 @@ exports.createBlog = async (req, res) => {
       });
     }
 
+    const blogCategoriesDoc = await MasterData.findOne({ category: "BlogCategories" });
+    if (blogCategoriesDoc) {
+      const validKeys = blogCategoriesDoc.options.map(opt => opt.key);
+      if (!validKeys.includes(category)) {
+        return res.status(400).json({ success: false, message: "Invalid blog category" });
+      }
+    }
+
     const blog = await Blog.create({
       adminId: req.userId,
       title,
@@ -40,8 +48,7 @@ exports.createBlog = async (req, res) => {
       content,
       featuredMedia,
       blogBanner,
-      tags: tags || [],
-      status
+      tags: tags || []
     });
 
     return res.status(201).json({
@@ -165,9 +172,18 @@ exports.updateBlog = async (req, res) => {
       content,
       featuredMedia,
       blogBanner,
-      tags,
-      status
+      tags
     } = req.body;
+
+    if (category) {
+      const blogCategoriesDoc = await MasterData.findOne({ category: "BlogCategories" });
+      if (blogCategoriesDoc) {
+        const validKeys = blogCategoriesDoc.options.map(opt => opt.key);
+        if (!validKeys.includes(category)) {
+          return res.status(400).json({ success: false, message: "Invalid blog category" });
+        }
+      }
+    }
 
     blog.title = title ?? blog.title;
     blog.category = category ?? blog.category;
@@ -175,7 +191,6 @@ exports.updateBlog = async (req, res) => {
     blog.featuredMedia = featuredMedia ?? blog.featuredMedia;
     blog.blogBanner = blogBanner ?? blog.blogBanner;
     blog.tags = tags ?? blog.tags;
-    blog.status = status ?? blog.status;
 
     await blog.save();
 
@@ -247,7 +262,6 @@ exports.getAllPublishedBlogs = async (req, res) => {
   try {
 
     const blogs = await Blog.find({
-      status: "Published"
     }).sort({
       createdAt: -1
     });
@@ -277,8 +291,7 @@ exports.getBlogByIdPublic = async (req, res) => {
   try {
 
     const blog = await Blog.findOne({
-      _id: req.params.id,
-      status: "Published"
+      _id: req.params.id
     });
 
     if (!blog) {
