@@ -13,6 +13,7 @@ const contractRoutes = require("./contractRoutes");
 const applicationRoutes = require("./applicationRoutes");
 const offerRoutes = require("./offerRoutes");
 const contractDiaryRoutes = require("./contractDiaryRoutes");
+const blogRoutes = require("./blogRoutes");
 
 
 const router = express.Router();
@@ -33,7 +34,7 @@ router.use("/offers", offerRoutes);
 router.use("/contract-diary", contractDiaryRoutes);
 router.use("/dashboard", require("./dashboardRoutes"));
 router.use("/finance", require("./financeRoutes"));
-router.use("/blogs", require("./blogRoutes"));
+router.use("/blogs", blogRoutes);
 router.use("/feedback", require("./feedbackRoutes"));
 router.use("/master-data", require("./masterDataRoutes"));
 

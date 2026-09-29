@@ -2,11 +2,6 @@ const Blog = require("../models/blog");
 const MasterData = require("../models/masterData");
 
 
-// ====================================
-// CREATE BLOG
-// POST /api/blogs/admin
-// ====================================
-
 exports.createBlog = async (req, res) => {
   try {
 
@@ -68,10 +63,6 @@ exports.createBlog = async (req, res) => {
 };
 
 
-// ====================================
-// GET ALL BLOGS ADMIN
-// GET /api/blogs/admin
-// ====================================
 
 exports.getAllBlogsAdmin = async (req, res) => {
   try {
@@ -102,10 +93,6 @@ exports.getAllBlogsAdmin = async (req, res) => {
 };
 
 
-// ====================================
-// GET BLOG BY ID ADMIN
-// GET /api/blogs/admin/:id
-// ====================================
 
 exports.getBlogByIdAdmin = async (req, res) => {
   try {
@@ -140,12 +127,6 @@ exports.getBlogByIdAdmin = async (req, res) => {
 
   }
 };
-
-
-// ====================================
-// UPDATE BLOG
-// PUT /api/blogs/admin/:id
-// ====================================
 
 exports.updateBlog = async (req, res) => {
   try {
@@ -210,12 +191,6 @@ exports.updateBlog = async (req, res) => {
   }
 };
 
-
-// ====================================
-// DELETE BLOG
-// DELETE /api/blogs/admin/:id
-// ====================================
-
 exports.deleteBlog = async (req, res) => {
   try {
 
@@ -253,10 +228,6 @@ exports.deleteBlog = async (req, res) => {
 };
 
 
-// ====================================
-// PUBLIC BLOGS
-// GET /api/blogs
-// ====================================
 
 exports.getAllPublishedBlogs = async (req, res) => {
   try {
@@ -281,11 +252,6 @@ exports.getAllPublishedBlogs = async (req, res) => {
   }
 };
 
-
-// ====================================
-// PUBLIC BLOG BY ID
-// GET /api/blogs/:id
-// ====================================
 
 exports.getBlogByIdPublic = async (req, res) => {
   try {

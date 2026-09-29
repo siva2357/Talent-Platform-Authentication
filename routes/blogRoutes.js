@@ -15,53 +15,14 @@ const {
 
 
 
-// ===========================
-// ADMIN ROUTES
-// ===========================
+router.post("/admin", identifier, createBlog);
+router.get("/admin", identifier, getAllBlogsAdmin);
+router.get("/admin/:id", identifier, getBlogByIdAdmin);
+router.put("/admin/:id", identifier, updateBlog);
+router.delete("/admin/:id", identifier, deleteBlog);
 
-router.post(
-  "/admin",
-  identifier,
-  createBlog
-);
-
-router.get(
-  "/admin",
-  identifier,
-  getAllBlogsAdmin
-);
-
-router.get(
-  "/admin/:id",
-  identifier,
-  getBlogByIdAdmin
-);
-
-router.put(
-  "/admin/:id",
-  identifier,
-  updateBlog
-);
-
-router.delete(
-  "/admin/:id",
-  identifier,
-  deleteBlog
-);
-
-// ===========================
-// PUBLIC ROUTES
-// ===========================
-
-router.get(
-  "/",
-  getAllPublishedBlogs
-);
-
-router.get(
-  "/:id",
-  getBlogByIdPublic
-);
+router.get("/", getAllPublishedBlogs);
+router.get("/:id", getBlogByIdPublic);
 
 
 
