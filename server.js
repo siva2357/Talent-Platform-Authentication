@@ -2,7 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-
+const { seedMasterData } = require("./seeders/masterDataSeeder");
 const app = express();
 
 /* ================= CORS ================= */
@@ -72,22 +72,37 @@ console.log(`🚀 Backend starting in ${isLocal ? "LOCAL" : "PRODUCTION"} mode..
 const startServer = async () => {
   try {
     if (MONGO_URI) {
-      await mongoose.connect(MONGO_URI, { autoIndex: true });
-      console.log(`📦 MongoDB Connected (${isLocal ? "LOCAL" : "PRODUCTION"})`);
+      await mongoose.connect(MONGO_URI, {
+        autoIndex: true
+      });
+
+      console.log(
+        `📦 MongoDB Connected (${isLocal ? "LOCAL" : "PRODUCTION"})`
+      );
+
+      // ================= MASTER DATA =================
+      await seedMasterData();
+      // =================================================
+
+      // ================= DEFAULT ADMIN =================
       await createDefaultAdmin();
       console.log("👤 Default admin ready");
+      // =================================================
     } else {
-      console.log("⚠️ No MongoDB URI found, running without database connection.");
+      console.log(
+        "⚠️ No MongoDB URI found, running without database connection."
+      );
     }
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`🌐 Server running on port ${PORT}`);
     });
   } catch (err) {
-    console.error("❌ MongoDB Connection Error:", err.message);
+    console.error("❌ Server Startup Error:", err.message);
     process.exit(1);
   }
 };
+
 
 startServer();
 
