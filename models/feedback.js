@@ -19,16 +19,16 @@ const feedbackSchema = new mongoose.Schema(
     },
     overallRating: {
       type: Number,
-      required: true,
+      default: 0,
       min: 0,
-      max: 5,
+      max: 10,
     },
     categories: {
-      qualityOfWork: { type: Number, default: 0, min: 0, max: 5 },
-      requirementsAndDeliverables: { type: Number, default: 0, min: 0, max: 5 },
-      communication: { type: Number, default: 0, min: 0, max: 5 },
-      timeliness: { type: Number, default: 0, min: 0, max: 5 },
-      behaviorAndProfessionalism: { type: Number, default: 0, min: 0, max: 5 },
+      qualityOfWork: { type: String, default: "" },
+      requirementsAndDeliverables: { type: String, default: "" },
+      communication: { type: String, default: "" },
+      timeliness: { type: String, default: "" },
+      behaviorAndProfessionalism: { type: String, default: "" },
     },
     clientComments: {
       type: String,

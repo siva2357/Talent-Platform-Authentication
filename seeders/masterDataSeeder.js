@@ -74,8 +74,8 @@ const seedData = [
   {
     category: "ContractTypes",
     options: [
-      { key: "part_time", value: "Part time" },
-      { key: "full_time", value: "Full time" }
+      { key: "fixed_price", value: "Fixed Price" },
+      { key: "hourly", value: "Hourly" }
     ]
   },
   {
