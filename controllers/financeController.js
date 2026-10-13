@@ -295,14 +295,15 @@ exports.withdrawFunds = async (req, res) => {
       }
     }
 
-    // We no longer deduct the balance immediately for manual admin payouts.
-    // The balance will be deducted when the admin processes the payout.
-
-    // Log Transaction as Pending Payout
     const referenceId = `WDN-${Math.floor(100000 + Math.random() * 900000)}`;
     const grossAmount = parseFloat(amount);
     const platformFee = Math.round((grossAmount * 0.075) * 100) / 100;
     const netReceived = Math.round((grossAmount - platformFee) * 100) / 100;
+
+    // Deduct the balance immediately to prevent multiple pending withdrawals exceeding the total balance.
+    // If an admin rejects the payout, the balance should be refunded.
+    user.balance = user.balance - grossAmount;
+    await user.save();
 
     const transaction = await Transaction.create({
       userId,
@@ -586,14 +587,32 @@ exports.getContractTransactions = async (req, res) => {
       .sort({ updatedAt: -1 })
       .lean();
 
+    let totalFund = 0;
+    let totalPhases = 0;
+    let pendingAmount = 0;
+    let totalReleased = 0;
+
     // Strip out heavy phase data (revisions, attachments, descriptions)
     const strippedDiaries = diaries.map(diary => {
+      totalFund += diary.contractId?.estimatedBudget || 0;
+      
+      const phases = diary.phases || [];
+      totalPhases += phases.length;
+      
+      pendingAmount += phases
+        .filter(p => p.status !== 'approved')
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+        
+      totalReleased += phases
+        .filter(p => p.status === 'approved')
+        .reduce((sum, p) => sum + (p.amount || 0), 0);
+
       return {
         _id: diary._id,
         overallStatus: diary.overallStatus,
         contractId: diary.contractId,
         freelancerId: diary.freelancerId,
-        phases: (diary.phases || []).map(p => ({
+        phases: phases.map(p => ({
           _id: p._id,
           name: p.name,
           deadline: p.deadline,
@@ -603,7 +622,17 @@ exports.getContractTransactions = async (req, res) => {
       };
     });
 
-    return res.status(200).json({ success: true, diaries: strippedDiaries });
+    const balance = totalFund - totalReleased;
+
+    const stats = {
+      totalFund,
+      totalPhases,
+      pendingAmount,
+      totalReleased,
+      balance
+    };
+
+    return res.status(200).json({ success: true, diaries: strippedDiaries, stats });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

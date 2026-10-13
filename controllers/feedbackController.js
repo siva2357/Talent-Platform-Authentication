@@ -24,10 +24,10 @@ exports.submitFeedback = async (req, res) => {
       cons,
     } = req.body;
 
-    if (!contractId || !freelancerId || overallRating === undefined) {
+    if (!contractId || !freelancerId) {
       return res.status(400).json({
         success: false,
-        message: "Please provide contractId, freelancerId, and overallRating.",
+        message: "Please provide contractId and freelancerId.",
       });
     }
 
@@ -76,8 +76,15 @@ exports.submitFeedback = async (req, res) => {
     // Update freelancer's profile score (Job Success Score / Rating)
     // We fetch all feedbacks for this freelancer and calculate the average
     const allFreelancerFeedback = await Feedback.find({ freelancerId });
-    const totalRating = allFreelancerFeedback.reduce((sum, f) => sum + f.overallRating, 0);
-    const averageRating = totalRating / allFreelancerFeedback.length;
+    
+    let averageRating = 0;
+    if (allFreelancerFeedback.length > 0) {
+      const validFeedbacks = allFreelancerFeedback.filter(f => f.overallRating !== undefined && f.overallRating > 0);
+      if (validFeedbacks.length > 0) {
+        const totalRating = validFeedbacks.reduce((sum, f) => sum + f.overallRating, 0);
+        averageRating = totalRating / validFeedbacks.length;
+      }
+    }
 
     const freelancer = await User.findById(freelancerId);
     if (freelancer && freelancer.profile) {
