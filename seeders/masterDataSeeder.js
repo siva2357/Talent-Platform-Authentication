@@ -1,9 +1,4 @@
-const mongoose = require("mongoose");
-require("dotenv").config({ path: __dirname + "/../.env" });
 const MasterData = require("../models/masterData");
-
-const isLocal = process.env.NODE_ENV !== "production" && !!process.env.MONGO_LOCAL_URI;
-const MONGO_URI = isLocal ? process.env.MONGO_LOCAL_URI : process.env.MONGO_URI;
 
 const seedData = [
   {
@@ -19,16 +14,47 @@ const seedData = [
     ]
   },
   {
-    category: "Skills",
+    category: "CompanyTypes",
     options: [
-      { key: "angular", value: "Angular" },
-      { key: "react", value: "React" },
-      { key: "node", value: "Node.js" },
-      { key: "python", value: "Python" },
-      { key: "java", value: "Java" },
-      { key: "ui_ux", value: "UI/UX Design" }
+      { key: "startup", value: "Startup" },
+      { key: "small_business", value: "Small Business" },
+      { key: "medium_business", value: "Medium Business" },
+      { key: "enterprise", value: "Enterprise" },
+      { key: "non_profit", value: "Non-Profit Organization" },
+      { key: "government", value: "Government Organization" },
+      { key: "other", value: "Other" }
     ]
   },
+
+  {
+    category: "Industries",
+    options: [
+      { key: "technology", value: "Technology" },
+      { key: "finance", value: "Finance & Banking" },
+      { key: "healthcare", value: "Healthcare" },
+      { key: "education", value: "Education" },
+      { key: "ecommerce", value: "E-commerce" },
+      { key: "manufacturing", value: "Manufacturing" },
+      { key: "marketing", value: "Marketing & Advertising" },
+      { key: "real_estate", value: "Real Estate" },
+      { key: "consulting", value: "Consulting" },
+      { key: "media", value: "Media & Entertainment" },
+      { key: "telecommunications", value: "Telecommunications" },
+      { key: "logistics", value: "Logistics & Transportation" },
+      { key: "other", value: "Other" }
+    ]
+  },
+
+  {
+    category: "LanguageProficiency",
+    options: [
+      { key: "basic", value: "Basic" },
+      { key: "conversational", value: "Conversational" },
+      { key: "fluent", value: "Fluent" },
+      { key: "native_bilingual", value: "Native or Bilingual" }
+    ]
+  },
+
   {
     category: "ExperienceLevel",
     options: [
@@ -181,30 +207,53 @@ const seedData = [
       { key: "account", value: "Account Management" },
       { key: "report", value: "Report User/Content" }
     ]
+  },
+  {
+    category: "Countries",
+    options: [
+      { key: "IN", value: "India" },
+      { key: "US", value: "United States" },
+      { key: "UK", value: "United Kingdom" }
+    ]
+  },
+  {
+    category: "States",
+    options: [
+      { key: "TS", value: "Telangana" },
+      { key: "AP", value: "Andhra Pradesh" },
+      { key: "KA", value: "Karnataka" }
+    ]
+  },
+  {
+    category: "Cities",
+    options: [
+      { key: "HYD", value: "Hyderabad" },
+      { key: "VJA", value: "Vijayawada" },
+      { key: "BLR", value: "Bengaluru" }
+    ]
   }
 ];
 
 const seedMasterData = async () => {
-  try {
-    if (!MONGO_URI) {
-      console.error("MONGO_URI is not defined in .env");
-      process.exit(1);
-    }
-    await mongoose.connect(MONGO_URI, { autoIndex: true });
-    console.log("Connected to MongoDB");
-
-    // Clear existing to avoid duplicates during dev seeding
-    await MasterData.deleteMany({});
-    console.log("Cleared existing master data");
-
-    await MasterData.insertMany(seedData);
-    console.log("Master Data Seeded Successfully");
-
-    process.exit(0);
-  } catch (error) {
-    console.error("Error seeding master data:", error);
-    process.exit(1);
+  for (const item of seedData) {
+    await MasterData.findOneAndUpdate(
+      { category: item.category },
+      {
+        $set: {
+          options: item.options
+        }
+      },
+      {
+        upsert: true,
+        new: true,
+        setDefaultsOnInsert: true
+      }
+    );
   }
+
+  console.log("✅ Master data seeded/updated successfully");
 };
 
-seedMasterData();
+module.exports = {
+  seedMasterData
+};
