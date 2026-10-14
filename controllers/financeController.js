@@ -3,6 +3,8 @@ const Transaction = require("../models/transaction");
 const ContractDiary = require("../models/contractDiary");
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
+const { generatePdfFromTemplate, sendPdfResponse } = require("../helpers/pdfHelper");
+const { buildContractInvoiceData, buildContractPaymentData } = require("../views/data");
 
 // Initialize Razorpay
 let razorpayInstance = null;
@@ -384,9 +386,6 @@ exports.downloadInvoicePdf = async (req, res) => {
 
     const Transaction = require("../models/transaction");
     const User = require("../models/user");
-    const ejs = require("ejs");
-    const puppeteer = require("puppeteer");
-    const path = require("path");
 
     // Find the transaction
     const txn = await Transaction.findById(id).populate("contractId");
@@ -404,64 +403,13 @@ exports.downloadInvoicePdf = async (req, res) => {
       return res.status(404).json({ success: false, message: "Client not found" });
     }
 
-    const formatDate = (dateVal) => {
-      if (!dateVal) return "N/A";
-      const d = new Date(dateVal);
-      return d.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-      });
-    };
+    const data = buildContractInvoiceData(txn, client);
 
-    let calculatedPlatformFee = txn.platformFee || 0;
-    if (txn.type === "Payment Released" && calculatedPlatformFee === 0) {
-      calculatedPlatformFee = txn.amount * 0.10;
-    }
-
-    // Prepare EJS template variables
-    const data = {
-      invoiceNumber: `INV-${txn._id.toString().substring(0, 8).toUpperCase()}`,
-      invoiceDate: formatDate(new Date()),
-      paymentDate: formatDate(txn.createdAt),
-      referenceId: txn.referenceId,
-      clientName: client.fullName || client.registrationDetails?.fullName || "Client",
-      clientEmail: client.email || "client@talenthub.com",
-      contractTitle: txn.contractId?.contractTitle || "Direct Escrow Deposit",
-      contractType: txn.contractId?.contractType || "N/A",
-      contractSubject: txn.contractId?.contractSubject || "N/A",
-      amountPaid: txn.amount.toFixed(2),
-      platformFee: calculatedPlatformFee.toFixed(2),
-      totalCharged: ((txn.amount || 0) + calculatedPlatformFee).toFixed(2)
-    };
-
-    // Render EJS HTML
-    const templatePath = path.join(__dirname, "..", "views", "contract-invoice.ejs");
-    const html = await ejs.renderFile(templatePath, data);
-
-    // Launch Puppeteer to generate PDF
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      margin: {
-        top: "10mm",
-        bottom: "10mm",
-        left: "10mm",
-        right: "10mm"
-      },
-      printBackground: true
+    const pdfBuffer = await generatePdfFromTemplate("contract-invoice.ejs", data, {
+      margin: { top: "10mm", bottom: "10mm", left: "10mm", right: "10mm" }
     });
 
-    await browser.close();
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="Invoice_${data.invoiceNumber}.pdf"`);
-    res.end(pdfBuffer, "binary");
+    sendPdfResponse(res, pdfBuffer, `Invoice_${data.invoiceNumber}.pdf`, false);
     return;
 
   } catch (error) {
@@ -482,9 +430,6 @@ exports.downloadPaymentStatementPdf = async (req, res) => {
     const ContractDiary = require("../models/contractDiary");
     const User = require("../models/user");
     const FreelancerProfile = require("../models/freelancerProfile");
-    const ejs = require("ejs");
-    const puppeteer = require("puppeteer");
-    const path = require("path");
 
     // Find the contract diary and populate related details
     const diary = await ContractDiary.findOne({ contractId, freelancerId: userId })
@@ -498,69 +443,13 @@ exports.downloadPaymentStatementPdf = async (req, res) => {
 
     const freelancerProfile = await FreelancerProfile.findOne({ userId });
 
-    const formatDate = (dateVal) => {
-      if (!dateVal) return "N/A";
-      const d = new Date(dateVal);
-      return d.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-      });
-    };
+    const data = buildContractPaymentData(diary, freelancerProfile);
 
-    // Calculate dynamic values
-    const approvedPhases = (diary.phases || []).filter(p => p.status === "approved");
-    const amountPaid = approvedPhases.reduce((sum, p) => sum + (p.amount || 0), 0);
-    const serviceFee = Math.round((amountPaid * 0.075) * 100) / 100;
-    const earnings = Math.round((amountPaid - serviceFee) * 100) / 100;
-
-    const projectDuration = `${formatDate(diary.contractId?.contractStartDate)} - ${formatDate(diary.contractId?.contractEndDate)}`;
-
-    // Prepare EJS template variables for contract-payment.ejs
-    const data = {
-      date: formatDate(new Date()),
-      contractId: diary.contractId?._id?.toString() || contractId,
-      freelancerName: diary.freelancerId?.registrationDetails?.fullName || "Freelancer",
-      freelancerTitle: freelancerProfile?.basicInformation?.professionalHeadline || "Freelancer",
-      freelancerLocation: freelancerProfile?.location?.city && freelancerProfile?.location?.country
-        ? `${freelancerProfile.location.city}, ${freelancerProfile.location.country}`
-        : "Remote",
-      clientName: diary.clientId?.registrationDetails?.fullName || "Client",
-      contractTitle: diary.contractId?.contractTitle || "Contract Project",
-      contractType: diary.contractId?.contractType || "N/A",
-      projectDuration,
-      amountPaid: amountPaid.toFixed(2),
-      serviceFee: serviceFee.toFixed(2),
-      earnings: earnings.toFixed(2)
-    };
-
-    // Render EJS HTML
-    const templatePath = path.join(__dirname, "..", "views", "contract-payment.ejs");
-    const html = await ejs.renderFile(templatePath, data);
-
-    // Launch Puppeteer to generate PDF
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      margin: {
-        top: "10mm",
-        bottom: "10mm",
-        left: "10mm",
-        right: "10mm"
-      },
-      printBackground: true
+    const pdfBuffer = await generatePdfFromTemplate("contract-payment.ejs", data, {
+      margin: { top: "10mm", bottom: "10mm", left: "10mm", right: "10mm" }
     });
 
-    await browser.close();
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="Payment_Statement_${data.contractId}.pdf"`);
-    res.end(pdfBuffer, "binary");
+    sendPdfResponse(res, pdfBuffer, `Payment_Statement_${data.contractId}.pdf`, false);
     return;
 
   } catch (error) {

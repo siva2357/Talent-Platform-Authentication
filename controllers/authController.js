@@ -1,5 +1,5 @@
 const User = require("../models/user");
-const { sendVerificationEmail } = require("../utils/emailSender");
+const { sendVerificationEmail, sendPasswordResetEmail } = require("../utils/emailSender");
 const jwt = require("jsonwebtoken");
 const { 
   registerSchema, 
@@ -67,7 +67,7 @@ exports.register = async (req, res, next) => {
 
     // Send verification email
     try {
-      await sendVerificationEmail(lowerEmail, verificationCode);
+      await sendVerificationEmail(lowerEmail, verificationCode, fullName);
     } catch (emailErr) {
       console.error("Failed to send verification email:", emailErr);
     }
@@ -106,7 +106,7 @@ exports.resendOTP = async (req, res, next) => {
     await user.save();
     
     try {
-      await sendVerificationEmail(lowerEmail, verificationCode);
+      await sendVerificationEmail(lowerEmail, verificationCode, user.registrationDetails?.fullName);
     } catch (emailErr) {
       console.error("Failed to send verification email:", emailErr);
     }
@@ -220,7 +220,7 @@ exports.forgotPassword = async (req, res, next) => {
 
     // Send email with reset OTP
     try {
-      await sendVerificationEmail(lowerEmail, resetOTP);
+      await sendPasswordResetEmail(lowerEmail, resetOTP, user.registrationDetails?.fullName);
     } catch (emailErr) {
       console.error("Failed to send password reset email:", emailErr);
     }

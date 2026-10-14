@@ -1,19 +1,19 @@
 const ContractDiary = require("../models/contractDiary");
-const Application   = require("../models/application");
-const User          = require("../models/user");
-const Transaction   = require("../models/transaction");
-const Contract      = require("../models/contract");
+const Application = require("../models/application");
+const User = require("../models/user");
+const Transaction = require("../models/transaction");
+const Contract = require("../models/contract");
 
 
 async function getDiaryAndVerify(diaryId, userId, role) {
   const diary = await ContractDiary.findById(diaryId)
     .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent")
-    .populate("clientId",   "registrationDetails.fullName registrationDetails.email")
+    .populate("clientId", "registrationDetails.fullName registrationDetails.email")
     .populate("freelancerId", "registrationDetails.fullName registrationDetails.email");
 
   if (!diary) return { error: "Contract diary not found", status: 404 };
 
-  if (role === "Client"     && diary.clientId._id.toString()     !== userId.toString())
+  if (role === "Client" && diary.clientId._id.toString() !== userId.toString())
     return { error: "Unauthorized", status: 403 };
 
   if (role === "Freelancer" && diary.freelancerId._id.toString() !== userId.toString())
@@ -107,7 +107,7 @@ exports.addPhase = async (req, res) => {
       clientAttachments.forEach(a => {
         mappedClientAttachments.push({
           fileName: a.fileName,
-          fileUrl:  a.fileUrl,
+          fileUrl: a.fileUrl,
           fileType: a.fileType || "",
           fileSize: a.fileSize || ""
         });
@@ -124,6 +124,22 @@ exports.addPhase = async (req, res) => {
     });
     await syncContractStatus(diary);
     await diary.save();
+
+    // In-app notification for Freelancer
+    try {
+      const Notification = require("../models/notification");
+      const clientName = diary.clientId?.registrationDetails?.fullName || "Client";
+      const contractTitle = diary.contractId?.contractTitle || "Contract";
+      await Notification.create({
+        userId: diary.freelancerId._id || diary.freelancerId,
+        role: "freelancer",
+        title: "New Milestone Added",
+        message: `${clientName} added milestone "${name}" (₹${phaseAmount}) to contract "${contractTitle}".`,
+        link: "/user/contracts"
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify freelancer on new phase:", notifErr);
+    }
 
     return res.status(200).json({ success: true, message: "Phase added and funded successfully", phases: diary.phases });
   } catch (err) {
@@ -152,7 +168,7 @@ exports.updatePhase = async (req, res) => {
     const newAmount = parseFloat(amount) || 0;
     const oldAmount = phase.amount || 0;
     const contract = diary.contractId;
-    
+
     if (newAmount !== oldAmount) {
       const totalBudget = contract.estimatedBudget || 0;
       const totalAllocated = diary.phases.reduce((sum, p) => sum + (p.amount || 0), 0) - oldAmount;
@@ -174,7 +190,7 @@ exports.updatePhase = async (req, res) => {
     if (Array.isArray(clientAttachments) && clientAttachments.length > 0) {
       phase.clientAttachments = clientAttachments.map(a => ({
         fileName: a.fileName,
-        fileUrl:  a.fileUrl,
+        fileUrl: a.fileUrl,
         fileType: a.fileType || "",
         fileSize: a.fileSize || ""
       }));
@@ -223,7 +239,7 @@ exports.reviewPhase = async (req, res) => {
 
     const latestRevision =
       phase.revisions[
-        phase.revisions.length - 1
+      phase.revisions.length - 1
       ];
 
     if (!latestRevision) {
@@ -405,6 +421,26 @@ exports.reviewPhase = async (req, res) => {
 
     await diary.save();
 
+    // In-app notification for Freelancer on review
+    try {
+      const Notification = require("../models/notification");
+      const clientName = diary.clientId?.registrationDetails?.fullName || "Client";
+      const contractTitle = diary.contractId?.contractTitle || "Contract";
+      const isApproved = action === "approve";
+
+      await Notification.create({
+        userId: diary.freelancerId._id || diary.freelancerId,
+        role: "freelancer",
+        title: isApproved ? "Milestone Approved & Paid 🎉" : "Milestone Changes Requested",
+        message: isApproved
+          ? `${clientName} approved milestone "${phase.name}" for "${contractTitle}". ₹${phase.amount || 0} released to your balance!`
+          : `${clientName} requested revisions for milestone "${phase.name}" on "${contractTitle}". Check client feedback.`,
+        link: "/user/contracts"
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify freelancer on phase review:", notifErr);
+    }
+
     return res.status(200).json({
       success: true,
       message:
@@ -530,14 +566,14 @@ exports.getDiaryById = async (req, res) => {
   try {
     const diary = await ContractDiary.findById(req.params.id)
       .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent")
-      .populate("clientId",   "registrationDetails.fullName registrationDetails.email")
+      .populate("clientId", "registrationDetails.fullName registrationDetails.email")
       .populate("freelancerId", "registrationDetails.fullName registrationDetails.email");
 
     if (!diary) return res.status(404).json({ success: false, message: "Diary not found" });
 
     const isOwner =
-      diary.clientId._id.toString()     === req.userId.toString() ||
-      diary.freelancerId._id.toString()  === req.userId.toString();
+      diary.clientId._id.toString() === req.userId.toString() ||
+      diary.freelancerId._id.toString() === req.userId.toString();
 
     if (!isOwner) return res.status(403).json({ success: false, message: "Unauthorized" });
 
@@ -617,11 +653,27 @@ exports.submitPhaseUpdate = async (req, res) => {
     phase.status = "submitted";
     phase.submittedAt = new Date();
 
-await syncContractStatus(
-  diary
-);
+    await syncContractStatus(
+      diary
+    );
 
-await diary.save();
+    await diary.save();
+
+    // In-app notification for Client
+    try {
+      const Notification = require("../models/notification");
+      const freelancerName = diary.freelancerId?.registrationDetails?.fullName || "Freelancer";
+      const contractTitle = diary.contractId?.contractTitle || "Contract";
+      await Notification.create({
+        userId: diary.clientId._id || diary.clientId,
+        role: "client",
+        title: "Milestone Deliverables Submitted",
+        message: `${freelancerName} submitted work deliverables for milestone "${phase.name}" on "${contractTitle}".`,
+        link: "/user/contracts"
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify client on milestone submission:", notifErr);
+    }
 
     return res.status(200).json({
       success: true,
@@ -655,11 +707,11 @@ exports.startPhase = async (req, res) => {
 
     phase.status = "in-progress";
 
-await syncContractStatus(
-  diary
-);
+    await syncContractStatus(
+      diary
+    );
 
-await diary.save();
+    await diary.save();
 
     return res.status(200).json({ success: true, message: "Phase started", phase });
   } catch (err) {

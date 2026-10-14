@@ -3,10 +3,13 @@ const Application = require("../models/application");
 const Contract = require("../models/contract");
 const User = require("../models/user");
 const Notification = require("../models/notification");
-const sendMail = require("../middleware/sendMail");
 const path = require("path");
-const ejs = require("ejs");
-const puppeteer = require("puppeteer");
+const { generatePdfFromTemplate, sendPdfResponse } = require("../helpers/pdfHelper");
+const { 
+  sendContractOfferEmail, 
+  sendOfferAcceptedNotification, 
+  sendOfferDeclinedNotification 
+} = require("../utils/emailSender");
 
 const notifyFreelancerStageUpdate = async (application, statusText) => {
   try {
@@ -26,21 +29,11 @@ const notifyFreelancerStageUpdate = async (application, statusText) => {
 
     // 2. Send email notification
     if (freelancerUser?.registrationDetails?.email) {
-      await sendMail.sendMail({
-        from: `"Talent Hub" <${process.env.NODE_CODE_SENDING_EMAIL_ADDRESS}>`,
-        to: freelancerUser.registrationDetails.email,
-        subject: "Talent Hub - Contract Offer Received",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #4A90E2; text-align: center;">Contract Offer Received</h2>
-            <p>Hello ${freelancerUser.registrationDetails.fullName},</p>
-            <p>You have received a new contract offer for <strong>${contract?.contractTitle || 'Contract'}</strong> from the client.</p>
-            <p><strong>Status:</strong> ${statusText}</p>
-            <p>Please log in to your account and go to the Offers tab to view the details and sign the contract.</p>
-            <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
-            <p style="text-align: center; color: #aaa; font-size: 12px;">© ${new Date().getFullYear()} Talent Hub. All rights reserved.</p>
-          </div>
-        `
+      await sendContractOfferEmail(freelancerUser.registrationDetails.email, {
+        freelancerName: freelancerUser.registrationDetails.fullName,
+        clientName,
+        contractTitle: contract?.contractTitle,
+        statusText
       });
     }
   } catch (err) {
@@ -138,6 +131,57 @@ exports.signOffer = async (req, res) => {
       await application.save();
     }
 
+    // Notifications and Email on Offer Accepted & Contract Signed
+    try {
+      const clientUser = await User.findById(offer.clientId);
+      const freelancerUser = await User.findById(offer.freelancerId);
+      const clientName = clientUser?.registrationDetails?.fullName || "Client";
+      const freelancerName = freelancerUser?.registrationDetails?.fullName || "Freelancer";
+      const contractTitle = contract?.contractTitle || "Contract";
+
+      // 1. In-app notification for Client
+      await Notification.create({
+        userId: offer.clientId,
+        role: "client",
+        title: "Contract Signed & Activated!",
+        message: `${freelancerName} has signed the contract offer for "${contractTitle}". The contract is now active!`,
+        link: "/user/contracts"
+      });
+
+      // 2. In-app notification for Freelancer
+      await Notification.create({
+        userId: offer.freelancerId,
+        role: "freelancer",
+        title: "Contract Signed Successfully",
+        message: `You signed the contract agreement for "${contractTitle}". Work is now in progress!`,
+        link: "/user/contracts"
+      });
+
+      // 3. Email to Client
+      if (clientUser?.registrationDetails?.email) {
+        await sendOfferAcceptedNotification(clientUser.registrationDetails.email, {
+          recipientName: clientName,
+          otherPartyName: freelancerName,
+          contractTitle,
+          amount: contract?.estimatedBudget,
+          isClient: true
+        });
+      }
+
+      // 4. Email confirmation to Freelancer
+      if (freelancerUser?.registrationDetails?.email) {
+        await sendOfferAcceptedNotification(freelancerUser.registrationDetails.email, {
+          recipientName: freelancerName,
+          otherPartyName: clientName,
+          contractTitle,
+          amount: contract?.estimatedBudget,
+          isClient: false
+        });
+      }
+    } catch (notifErr) {
+      console.error("Failed to notify parties on offer acceptance:", notifErr);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Contract accepted and signed successfully",
@@ -173,6 +217,36 @@ exports.declineOffer = async (req, res) => {
     if (application) {
       application.applicationStatus = "rejected";
       await application.save();
+    }
+
+    // Notifications and Email on Offer Declined
+    try {
+      const clientUser = await User.findById(offer.clientId);
+      const freelancerUser = await User.findById(offer.freelancerId);
+      const contract = await Contract.findById(offer.contractId);
+      const clientName = clientUser?.registrationDetails?.fullName || "Client";
+      const freelancerName = freelancerUser?.registrationDetails?.fullName || "Freelancer";
+      const contractTitle = contract?.contractTitle || "Contract";
+
+      // In-app notification for Client
+      await Notification.create({
+        userId: offer.clientId,
+        role: "client",
+        title: "Contract Offer Declined",
+        message: `${freelancerName} has declined the contract offer for "${contractTitle}".`,
+        link: "/user/contracts"
+      });
+
+      // Email to Client
+      if (clientUser?.registrationDetails?.email) {
+        await sendOfferDeclinedNotification(clientUser.registrationDetails.email, {
+          recipientName: clientName,
+          otherPartyName: freelancerName,
+          contractTitle
+        });
+      }
+    } catch (notifErr) {
+      console.error("Failed to notify client on offer decline:", notifErr);
     }
 
     return res.status(200).json({
@@ -286,59 +360,13 @@ exports.getOfferPDF = async (req, res) => {
       return res.status(404).json({ success: false, message: "Offer not found" });
     }
 
-    // Format dates helper
-    const formatDate = (date) => {
-      if (!date) return "N/A";
-      return new Date(date).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric"
-      });
-    };
+    const data = buildContractTemplateData(offer);
 
-    // EJS Template Data
-    const data = {
-      contractTitle: offer.contractId?.contractTitle || "N/A",
-      agreementDate: formatDate(offer.updatedAt),
-      clientName: offer.clientId?.registrationDetails?.fullName || "Client Name",
-      clientEmail: offer.clientId?.registrationDetails?.email || "",
-      freelancerName: offer.freelancerId?.registrationDetails?.fullName || "Freelancer Name",
-      freelancerEmail: offer.freelancerId?.registrationDetails?.email || "",
-      estimatedBudget: `₹${offer.contractId?.estimatedBudget || 0}`,
-      budgetType: offer.contractId?.budgetType || "Fixed Price",
-      startDate: formatDate(offer.contractId?.contractStartDate),
-      endDate: formatDate(offer.contractId?.contractEndDate),
-      scopeOfWork: offer.scopeOfWork || "",
-      additionalTerms: offer.additionalTerms || "",
-      offerStatus: offer.offerStatus || "none",
-      clientSignature: offer.clientSignature || "",
-      freelancerSignature: offer.freelancerSignature || "",
-      offerSentDate: formatDate(offer.createdAt),
-      signedDate: formatDate(offer.signedAt)
-    };
+    // Generate PDF using centralized helper
+    const pdfBuffer = await generatePdfFromTemplate("contract-template.ejs", data);
 
-    // Render EJS HTML
-    const templatePath = path.join(__dirname, "..", "views", "contract-template.ejs");
-    const html = await ejs.renderFile(templatePath, data);
-
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"]
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "networkidle0" });
-
-    const pdfBuffer = await page.pdf({
-      format: "A4",
-      printBackground: true,
-      margin: { top: "20px", right: "20px", bottom: "20px", left: "20px" }
-    });
-
-    await browser.close();
-
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename=contract-${offer._id}.pdf`);
-    res.send(pdfBuffer);
+    // Send PDF inline so it displays in iframe and can be downloaded
+    sendPdfResponse(res, pdfBuffer, `contract-${offer._id}.pdf`, true);
   } catch (error) {
     console.error("Error generating PDF:", error);
     res.status(500).json({ success: false, message: "Failed to generate contract PDF" });

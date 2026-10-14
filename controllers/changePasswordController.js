@@ -1,7 +1,7 @@
 const User = require("../models/user");
 const bcrypt = require("bcrypt");
 const { changePasswordSchema } = require("../schemas/authSchemas");
-const transport = require("../middleware/sendMail");
+const { sendPasswordChangedEmail } = require("../utils/emailSender");
 
 exports.changePassword = async (req, res) => {
     try {
@@ -87,23 +87,23 @@ exports.changePassword = async (req, res) => {
         user.registrationDetails.password = newPassword;
         await user.save();
 
+        /* ================= IN-APP NOTIFICATION ================= */
+        try {
+            const Notification = require("../models/notification");
+            await Notification.create({
+                userId: user._id,
+                role: (user.role || finalRole || "client").toLowerCase(),
+                title: "Password Updated",
+                message: "Your Talent-Hub account password was successfully updated.",
+                link: "/user/profile-settings"
+            });
+        } catch (notifErr) {
+            console.error("Failed to create password change in-app notification:", notifErr);
+        }
+
         /* ================= EMAIL NOTIFICATION ================= */
         try {
-            await transport.sendMail({
-                from: process.env.NODE_CODE_SENDING_EMAIL_ADDRESS,
-                to: user.registrationDetails.email,
-                subject: "Password Changed Successfully",
-                html: `
-                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                        <h2 style="color: #4A90E2; text-align: center;">Security Alert</h2>
-                        <p>Hello ${user.registrationDetails.fullName || 'User'},</p>
-                        <p>Your Talent Hub account password has been successfully updated.</p>
-                        <p>If you did not make this change, please contact support immediately.</p>
-                        <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
-                        <p style="text-align: center; color: #aaa; font-size: 12px;">© ${new Date().getFullYear()} Talent Hub. All rights reserved.</p>
-                    </div>
-                `
-            });
+            await sendPasswordChangedEmail(user.registrationDetails.email, user.registrationDetails.fullName);
         } catch (emailErr) {
             console.error("Failed to send password change notification email:", emailErr);
         }
