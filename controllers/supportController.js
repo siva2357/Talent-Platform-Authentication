@@ -1,5 +1,11 @@
 const SupportRequest = require("../models/supportRequest");
 const User = require("../models/user");
+const Notification = require("../models/notification");
+const {
+  sendSupportTicketCreatedEmail,
+  sendSupportTicketReplyEmail,
+  sendSupportTicketStatusEmail
+} = require("../utils/emailSender");
 
 // Create support ticket (Client or Freelancer)
 exports.createTicket = async (req, res) => {
@@ -35,6 +41,34 @@ exports.createTicket = async (req, res) => {
     });
 
     await newTicket.save();
+
+    // 1. In-app notification
+    try {
+      await Notification.create({
+        userId: req.userId,
+        role: user.role || "freelancer",
+        title: "Support Ticket Created",
+        message: `Your support ticket #${newTicket.ticketId} has been created. Our team will review it shortly.`,
+        link: "/user/support"
+      });
+    } catch (notifErr) {
+      console.error("Failed to create in-app notification for support ticket:", notifErr);
+    }
+
+    // 2. Email confirmation
+    try {
+      if (userEmail) {
+        await sendSupportTicketCreatedEmail(userEmail, {
+          fullName: userName,
+          ticketId: newTicket.ticketId,
+          subject: newTicket.subject,
+          category: newTicket.category,
+          message: newTicket.message
+        });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send support ticket created email:", emailErr);
+    }
 
     return res.status(201).json({
       success: true,
@@ -137,8 +171,31 @@ exports.updateTicketStatus = async (req, res) => {
     }
 
     ticket.status = status;
-
     await ticket.save();
+
+    // In-app & email notification if status changed to Resolved or Closed
+    if (status === "Resolved" || status === "Closed") {
+      try {
+        await Notification.create({
+          userId: ticket.userId,
+          role: ticket.userType.toLowerCase(),
+          title: `Ticket ${status}`,
+          message: `Your support ticket #${ticket.ticketId} has been updated to ${status}.`,
+          link: "/user/support"
+        });
+
+        if (ticket.userEmail) {
+          await sendSupportTicketStatusEmail(ticket.userEmail, {
+            fullName: ticket.userName,
+            ticketId: ticket.ticketId,
+            subject: ticket.subject,
+            status
+          });
+        }
+      } catch (notifErr) {
+        console.error("Failed to notify user on ticket status update:", notifErr);
+      }
+    }
 
     return res.status(200).json({
       success: true,
@@ -195,6 +252,35 @@ exports.replyToTicket = async (req, res) => {
 
     await ticket.save();
 
+    // In-app notification for ticket owner
+    try {
+      await Notification.create({
+        userId: ticket.userId,
+        role: ticket.userType.toLowerCase(),
+        title: "Support Ticket Reply",
+        message: `Support team replied to your ticket #${ticket.ticketId}: "${message.substring(0, 80)}..."`,
+        link: "/user/support"
+      });
+    } catch (notifErr) {
+      console.error("Failed to create in-app notification for ticket reply:", notifErr);
+    }
+
+    // Email notification for ticket owner
+    try {
+      if (ticket.userEmail) {
+        await sendSupportTicketReplyEmail(ticket.userEmail, {
+          recipientName: ticket.userName,
+          ticketId: ticket.ticketId,
+          subject: ticket.subject,
+          senderRole: "Support Admin",
+          senderName: "Talent-Hub Support Team",
+          message
+        });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send support ticket reply email:", emailErr);
+    }
+
     return res.status(200).json({
       success: true,
       message: "Reply added successfully",
@@ -231,8 +317,34 @@ exports.resolveTicket = async (req, res) => {
     }
 
     ticket.status = "Resolved";
-
     await ticket.save();
+
+    // In-app notification
+    try {
+      await Notification.create({
+        userId: ticket.userId,
+        role: ticket.userType.toLowerCase(),
+        title: "Ticket Resolved",
+        message: `Your support ticket #${ticket.ticketId} has been resolved.`,
+        link: "/user/support"
+      });
+    } catch (notifErr) {
+      console.error("Failed to create in-app notification:", notifErr);
+    }
+
+    // Email notification
+    try {
+      if (ticket.userEmail) {
+        await sendSupportTicketStatusEmail(ticket.userEmail, {
+          fullName: ticket.userName,
+          ticketId: ticket.ticketId,
+          subject: ticket.subject,
+          status: "Resolved"
+        });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send support ticket resolved email:", emailErr);
+    }
 
     return res.status(200).json({
       success: true,
@@ -321,8 +433,34 @@ exports.closeTicket = async (req, res) => {
     }
 
     ticket.status = "Closed";
-
     await ticket.save();
+
+    // In-app notification
+    try {
+      await Notification.create({
+        userId: ticket.userId,
+        role: ticket.userType.toLowerCase(),
+        title: "Ticket Closed",
+        message: `Support ticket #${ticket.ticketId} has been closed by admin.`,
+        link: "/user/support"
+      });
+    } catch (notifErr) {
+      console.error("Failed to create in-app notification:", notifErr);
+    }
+
+    // Email notification
+    try {
+      if (ticket.userEmail) {
+        await sendSupportTicketStatusEmail(ticket.userEmail, {
+          fullName: ticket.userName,
+          ticketId: ticket.ticketId,
+          subject: ticket.subject,
+          status: "Closed"
+        });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send support ticket closed email:", emailErr);
+    }
 
     return res.status(200).json({
       success: true,

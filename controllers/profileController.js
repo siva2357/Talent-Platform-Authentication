@@ -7,6 +7,7 @@ const { deleteFolderFromGCP } = require("../utils/gcpCleaner");
 const bucketMap = require("../constants/bucketMap");
 const uploadSections = require("../constants/uploadSections");
 const { freelancerProfileSchema, clientProfileSchema, } = require("../schemas/profileSchemas");
+const { sendProfileCompletedEmail } = require("../utils/emailSender");
 
 
 const Contract = require("../models/contract");
@@ -172,6 +173,41 @@ exports.completeProfile = async (req, res, next) => {
     // 4. Update user profileCompleted status
     user.registrationDetails.profileCompleted = true;
     await user.save();
+
+    // 5. Send Profile Completion & Verification Email Notification
+    try {
+      if (user.registrationDetails?.email) {
+        const profileTitle = role.toLowerCase() === "freelancer"
+          ? savedProfile?.basicInformation?.profileTitle
+          : savedProfile?.companyDetails?.companyName;
+        const skills = role.toLowerCase() === "freelancer"
+          ? (savedProfile?.skills?.map(s => s.name || s) || [])
+          : undefined;
+
+        await sendProfileCompletedEmail(user.registrationDetails.email, {
+          fullName: user.registrationDetails.fullName,
+          role,
+          profileTitle,
+          skills
+        });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send profile completion email:", emailErr);
+    }
+
+    // 6. In-App Notification for Profile Completion
+    try {
+      const Notification = require("../models/notification");
+      await Notification.create({
+        userId: user._id,
+        role: role.toLowerCase(),
+        title: "Profile Completed & Verified 🎉",
+        message: "Your profile has been completed and verified. You are now live on the Talent-Hub marketplace!",
+        link: role.toLowerCase() === "freelancer" ? "/user/contracts" : "/user/manage-talents"
+      });
+    } catch (notifErr) {
+      console.error("Failed to create profile completion in-app notification:", notifErr);
+    }
 
     res.status(200).json({
       success: true,

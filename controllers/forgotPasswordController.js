@@ -1,6 +1,6 @@
 const Joi = require('joi');
 const User = require("../models/user");
-const transport = require("../middleware/sendMail");
+const { sendPasswordResetEmail, sendPasswordChangedEmail } = require("../utils/emailSender");
 const { hmacProcess } = require("../utils/hashing");
 const bcrypt = require('bcrypt');
 
@@ -24,12 +24,11 @@ exports.sendForgotPasswordCode = async (req, res) => {
             process.env.HMAC_VERIFICATION_CODE_SECRET
         );
 
-        await transport.sendMail({
-            from: process.env.NODE_CODE_SENDING_EMAIL_ADDRESS,
-            to: email,
-            subject: "OTP for Password Reset",
-            html: `<h2>Your OTP is: ${codeValue}</h2>`
-        });
+        try {
+            await sendPasswordResetEmail(email, codeValue, user.registrationDetails?.fullName);
+        } catch (emailErr) {
+            console.error("Failed to send password reset email:", emailErr);
+        }
 
         user.registrationDetails.forgotPasswordCode = hashedCodeValue;
         user.registrationDetails.forgotPasswordCodeValidation = Date.now();
@@ -149,6 +148,25 @@ exports.resetPassword = async (req, res) => {
         user.registrationDetails.forgotPasswordVerified = false;
 
         await user.save();
+
+        try {
+            await sendPasswordChangedEmail(user.registrationDetails.email, user.registrationDetails?.fullName);
+        } catch (emailErr) {
+            console.error("Failed to send password reset confirmation email:", emailErr);
+        }
+
+        try {
+            const Notification = require("../models/notification");
+            await Notification.create({
+                userId: user._id,
+                role: (user.role || "client").toLowerCase(),
+                title: "Password Reset Successful",
+                message: "Your Talent-Hub password was reset successfully.",
+                link: "/user/profile-settings"
+            });
+        } catch (notifErr) {
+            console.error("Failed to create password reset in-app notification:", notifErr);
+        }
 
         return res.status(200).json({
             success: true,

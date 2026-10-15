@@ -2,7 +2,7 @@ const SystemReport = require('../models/systemReport');
 const Contract = require('../models/contract');
 const Transaction = require('../models/transaction');
 const User = require('../models/user');
-const excel = require('exceljs');
+const { createWorkbook, addStyledWorksheet, sendWorkbookResponse } = require('../helpers/excelHelper');
 const mongoose = require('mongoose');
 
 // Helper to get financial year (e.g. FY 26-27 starts April 1st 2026)
@@ -262,10 +262,13 @@ exports.downloadReport = async (req, res) => {
     const report = await SystemReport.findById(req.params.id);
     if (!report) return res.status(404).json({ success: false, message: 'Report not found' });
 
-    const workbook = new excel.Workbook();
-    workbook.creator = 'Talent-Hub Admin System';
+    const workbook = createWorkbook({
+      title: report.title,
+      creator: 'Talent-Hub Admin System'
+    });
 
     const period = req.query.period || 'yearly';
+    const format = req.query.format || 'xlsx';
     const now = new Date();
     const currentFY = getFinancialYear(now);
     
@@ -294,18 +297,20 @@ exports.downloadReport = async (req, res) => {
     }
 
     if (report.category === 'Financial') {
-      const sheet = workbook.addWorksheet('Financial Transactions');
-      sheet.columns = [
-        { header: 'Contract Title', key: 'title', width: 25 },
-        { header: 'Budget (₹)', key: 'budget', width: 15 },
-        { header: 'Client Payment (₹)', key: 'clientPayment', width: 20 },
-        { header: 'Freelancer Payout (₹)', key: 'freelancerPayout', width: 20 },
-        { header: 'Platform Fee (₹)', key: 'platformFee', width: 15 }
+      const columns = [
+        { header: 'Contract Title', key: 'title', width: 30 },
+        { header: 'Budget (₹)', key: 'budget', width: 16 },
+        { header: 'Client Payment (₹)', key: 'clientPayment', width: 22 },
+        { header: 'Freelancer Payout (₹)', key: 'freelancerPayout', width: 22 },
+        { header: 'Platform Fee (₹)', key: 'platformFee', width: 18 }
       ];
 
-      const txns = await Transaction.find({ contractId: { $ne: null }, createdAt: { $gte: startRange, $lte: endRange } }).populate('contractId').sort({ createdAt: -1 });
+      const txns = await Transaction.find({
+        contractId: { $ne: null },
+        createdAt: { $gte: startRange, $lte: endRange }
+      }).populate('contractId').sort({ createdAt: -1 });
+
       const contractFinancials = {};
-      
       txns.forEach(t => {
         if (!t.contractId) return;
         const cId = t.contractId._id.toString();
@@ -329,76 +334,70 @@ exports.downloadReport = async (req, res) => {
         }
       });
 
-      Object.values(contractFinancials).forEach(c => {
-        sheet.addRow({
-          title: c.title,
-          budget: c.budget,
-          clientPayment: c.clientPayment,
-          freelancerPayout: c.freelancerPayout,
-          platformFee: c.platformFee
-        });
-      });
-      sheet.getRow(1).font = { bold: true };
+      const rows = Object.values(contractFinancials);
+      addStyledWorksheet(workbook, 'Financial Transactions', columns, rows);
+
     } else if (report.category === 'Contracts') {
-      const sheet = workbook.addWorksheet('Contract Data');
-      sheet.columns = [
-        { header: 'Contract Title', key: 'title', width: 25 },
+      const columns = [
+        { header: 'Contract Title', key: 'title', width: 30 },
         { header: 'Contract Type', key: 'type', width: 20 },
-        { header: 'Budget (₹)', key: 'budget', width: 15 },
+        { header: 'Budget (₹)', key: 'budget', width: 16 },
         { header: 'Client', key: 'client', width: 25 },
         { header: 'Freelancer', key: 'freelancer', width: 25 }
       ];
 
-      const contracts = await Contract.find({ createdAt: { $gte: startRange, $lte: endRange } }).populate('clientId').populate('applicants.freelancerId').sort({ createdAt: -1 });
-      contracts.forEach(c => {
+      const contracts = await Contract.find({
+        createdAt: { $gte: startRange, $lte: endRange }
+      }).populate('clientId').populate('applicants.freelancerId').sort({ createdAt: -1 });
+
+      const rows = contracts.map(c => {
         let freelancerName = 'Not Assigned';
         if (c.applicants && c.applicants.length > 0) {
-           freelancerName = c.applicants[0].freelancerId?.registrationDetails?.fullName || 'Applicant(s)';
+          freelancerName = c.applicants[0].freelancerId?.registrationDetails?.fullName || 'Applicant(s)';
         }
-
-        sheet.addRow({
+        return {
           title: c.contractTitle || 'N/A',
           type: c.contractType || 'N/A',
           budget: c.estimatedBudget || 0,
           client: c.clientId?.registrationDetails?.fullName || 'Unknown',
           freelancer: freelancerName
-        });
+        };
       });
-      sheet.getRow(1).font = { bold: true };
+
+      addStyledWorksheet(workbook, 'Contract Data', columns, rows);
+
     } else if (report.category === 'Users') {
-      const sheet = workbook.addWorksheet('User Data');
-      sheet.columns = [
+      const columns = [
         { header: 'Name', key: 'name', width: 25 },
-        { header: 'Email', key: 'email', width: 30 },
-        { header: 'Role', key: 'role', width: 15 },
-        { header: 'Status', key: 'status', width: 15 },
-        { header: 'Joined', key: 'joined', width: 15 }
+        { header: 'Email', key: 'email', width: 32 },
+        { header: 'Role', key: 'role', width: 16 },
+        { header: 'Status', key: 'status', width: 16 },
+        { header: 'Joined', key: 'joined', width: 18 }
       ];
 
-      const users = await User.find({ createdAt: { $gte: startRange, $lte: endRange } }).sort({ createdAt: -1 });
-      users.forEach(u => {
-        sheet.addRow({
-          name: u.registrationDetails?.fullName || 'N/A',
-          email: u.registrationDetails?.email || 'N/A',
-          role: u.role,
-          status: u.status,
-          joined: new Date(u.createdAt).toLocaleDateString()
-        });
-      });
-      sheet.getRow(1).font = { bold: true };
+      const users = await User.find({
+        createdAt: { $gte: startRange, $lte: endRange }
+      }).sort({ createdAt: -1 });
+
+      const rows = users.map(u => ({
+        name: u.registrationDetails?.fullName || 'N/A',
+        email: u.registrationDetails?.email || 'N/A',
+        role: u.role,
+        status: u.status,
+        joined: new Date(u.createdAt).toLocaleDateString()
+      }));
+
+      addStyledWorksheet(workbook, 'User Data', columns, rows);
+
     } else {
-      const sheet = workbook.addWorksheet('General Data');
-      sheet.columns = [{ header: 'Info', key: 'info', width: 50 }];
-      sheet.addRow({ info: 'No specific data found for this category.' });
+      const columns = [{ header: 'Info', key: 'info', width: 50 }];
+      const rows = [{ info: 'No specific data found for this category.' }];
+      addStyledWorksheet(workbook, 'General Data', columns, rows);
     }
 
-    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="${report.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.xlsx"`);
-
-    await workbook.xlsx.write(res);
-    res.end();
+    await sendWorkbookResponse(res, workbook, report.title, format);
   } catch (error) {
-    console.error(error);
+    console.error('Report download error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

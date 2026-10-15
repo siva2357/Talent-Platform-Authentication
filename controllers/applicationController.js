@@ -3,42 +3,71 @@ const Contract = require("../models/contract");
 const FreelancerProfile = require("../models/freelancerProfile");
 const User = require("../models/user");
 const Notification = require("../models/notification");
-const sendMail = require("../middleware/sendMail");
+const { sendApplicationStageEmail } = require("../utils/emailSender");
 
-const notifyFreelancerStageUpdate = async (application, statusText) => {
+const notifyFreelancerStageUpdate = async (application, statusText, extra = {}) => {
   try {
     const freelancerUser = await User.findById(application.freelancerId);
     const contract = await Contract.findById(application.contractId);
     const clientUser = await User.findById(application.clientId);
     const clientName = clientUser?.registrationDetails?.fullName || "Client";
 
+    let notifTitle = `Stage Update: ${statusText}`;
+    let notifMessage = `Your application status for "${contract?.contractTitle || 'Contract'}" has been updated to "${statusText}" by ${clientName}.`;
+
+    const lowerStatus = statusText.toLowerCase();
+    if (lowerStatus.includes("shortlist")) {
+      notifTitle = "Application Shortlisted";
+      notifMessage = `Congratulations! Your application for "${contract?.contractTitle}" has been shortlisted by ${clientName}.`;
+    } else if (lowerStatus.includes("interview scheduled")) {
+      notifTitle = "Interview Scheduled";
+      notifMessage = `An interview for "${contract?.contractTitle}" has been scheduled with ${clientName}.`;
+    } else if (lowerStatus.includes("interview completed")) {
+      notifTitle = "Interview Completed";
+      notifMessage = `Your interview for "${contract?.contractTitle}" was marked as completed by ${clientName}.`;
+    } else if (lowerStatus.includes("assessment assigned")) {
+      notifTitle = "Assessment Task Assigned";
+      notifMessage = `An assessment task has been assigned for "${contract?.contractTitle}" by ${clientName}.`;
+    } else if (lowerStatus.includes("assessment passed")) {
+      notifTitle = "Assessment Passed 🎉";
+      notifMessage = `You passed the assessment for "${contract?.contractTitle}".`;
+    } else if (lowerStatus.includes("assessment failed")) {
+      notifTitle = "Assessment Update";
+      notifMessage = `Your assessment for "${contract?.contractTitle}" was marked as failed.`;
+    } else if (lowerStatus.includes("hired")) {
+      notifTitle = "Application Accepted - Hired! 🚀";
+      notifMessage = `Congratulations! ${clientName} has selected you for "${contract?.contractTitle}".`;
+    } else if (lowerStatus.includes("declined") || lowerStatus.includes("rejected")) {
+      notifTitle = "Application Update";
+      notifMessage = `Your application for "${contract?.contractTitle}" was not selected by ${clientName}.`;
+    }
+
     // 1. Create in-app notification
     await Notification.create({
       userId: application.freelancerId,
       role: "freelancer",
-      title: "Recruitment Stage Updated",
-      message: `Your application status for "${contract?.contractTitle || 'Contract'}" has been updated to "${statusText}" by ${clientName}.`,
+      title: notifTitle,
+      message: notifMessage,
       link: "/user/proposals"
     });
 
     // 2. Send email notification
     if (freelancerUser?.registrationDetails?.email) {
-      await sendMail.sendMail({
-        from: `"Talent Hub" <${process.env.NODE_CODE_SENDING_EMAIL_ADDRESS}>`,
-        to: freelancerUser.registrationDetails.email,
-        subject: "Talent Hub - Application Stage Updated",
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-            <h2 style="color: #4A90E2; text-align: center;">Application Status Updated</h2>
-            <p>Hello ${freelancerUser.registrationDetails.fullName},</p>
-            <p>Your application for the contract <strong>${contract?.contractTitle || 'Contract'}</strong> has been updated by the client.</p>
-            <p><strong>New Status:</strong> ${statusText}</p>
-            \${application.interview?.feedback ? \`<p><strong>Feedback:</strong> \${application.interview.feedback}</p>\` : ''}
-            <p>Please log in to your account to view details or proceed with next steps.</p>
-            <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
-            <p style="text-align: center; color: #aaa; font-size: 12px;">© \${new Date().getFullYear()} Talent Hub. All rights reserved.</p>
-          </div>
-        `
+      const interviewDate = application.interview?.date 
+        ? new Date(application.interview.date).toLocaleDateString("en-US", { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
+        : undefined;
+
+      await sendApplicationStageEmail(freelancerUser.registrationDetails.email, {
+        freelancerName: freelancerUser.registrationDetails.fullName,
+        clientName,
+        contractTitle: contract?.contractTitle,
+        statusText,
+        feedback: extra.feedback || application.interview?.feedback || application.assessment?.notes,
+        interviewDate: extra.interviewDate || interviewDate,
+        interviewTime: extra.interviewTime || application.interview?.time,
+        interviewLink: extra.interviewLink || application.interview?.link,
+        assessmentTitle: extra.assessmentTitle || application.assessment?.title,
+        assessmentDescription: extra.assessmentDescription || application.assessment?.description
       });
     }
   } catch (err) {
@@ -239,9 +268,25 @@ exports.submitAssessment = async (req, res) => {
     }
 
     application.applicationStatus = "assessment completed";
-    // application.assessment.status = "completed";
-
     await application.save();
+
+    // In-app notification for Client
+    try {
+      const freelancerUser = await User.findById(application.freelancerId);
+      const contract = await Contract.findById(application.contractId);
+      const freelancerName = freelancerUser?.registrationDetails?.fullName || "A freelancer";
+      const contractTitle = contract?.contractTitle || "Contract";
+
+      await Notification.create({
+        userId: application.clientId,
+        role: "client",
+        title: "Assessment Submitted",
+        message: `${freelancerName} has submitted their assessment for "${contractTitle}". Please review the submission.`,
+        link: "/user/hired-talent?tab=offers"
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify client on assessment submission:", notifErr);
+    }
 
     return res.status(200).json({
       success: true,
@@ -571,9 +616,7 @@ exports.getInterviews = async (req, res) => {
 
 exports.getContractPDF = async (req, res) => {
   try {
-    const ejs = require('ejs');
-    const puppeteer = require('puppeteer');
-    const path = require('path');
+    const { generatePdfFromTemplate, sendPdfResponse } = require('../helpers/pdfHelper');
     const Offer = require('../models/offer');
     
     // Find the offer for this application
@@ -587,58 +630,19 @@ exports.getContractPDF = async (req, res) => {
     }
     
     // Only client or freelancer of this offer can access
-    if (offer.clientId._id.toString() !== req.userId.toString() && offer.freelancerId._id.toString() !== req.userId.toString()) {
+    const clientIdStr = offer.clientId?._id ? offer.clientId._id.toString() : offer.clientId?.toString();
+    const freelancerIdStr = offer.freelancerId?._id ? offer.freelancerId._id.toString() : offer.freelancerId?.toString();
+    const currentUserIdStr = req.userId.toString();
+
+    if (clientIdStr !== currentUserIdStr && freelancerIdStr !== currentUserIdStr) {
       return res.status(403).json({ success: false, message: 'Unauthorized to access this contract' });
     }
 
-    const formatDate = (dateVal) => {
-      if (!dateVal) return 'N/A';
-      return new Date(dateVal).toLocaleDateString('en-US', {
-        year: 'numeric', month: 'long', day: 'numeric'
-      });
-    };
+    const { buildContractTemplateData } = require('../views/data');
+    const data = buildContractTemplateData(offer);
 
-    const data = {
-      contractTitle: offer.contractId?.contractTitle || 'N/A',
-      agreementDate: formatDate(offer.updatedAt),
-      clientName: offer.clientId?.registrationDetails?.fullName || 'Client Name',
-      clientEmail: offer.clientId?.registrationDetails?.email || '',
-      freelancerName: offer.freelancerId?.registrationDetails?.fullName || 'Freelancer Name',
-      freelancerEmail: offer.freelancerId?.registrationDetails?.email || '',
-      estimatedBudget: `₹${offer.contractId?.estimatedBudget || 0}`,
-      budgetType: offer.contractId?.budgetType || 'Fixed Price',
-      startDate: formatDate(offer.contractId?.contractStartDate),
-      endDate: formatDate(offer.contractId?.contractEndDate),
-      scopeOfWork: offer.scopeOfWork || '',
-      additionalTerms: offer.additionalTerms || '',
-      offerStatus: offer.offerStatus || 'none',
-      clientSignature: offer.clientSignature || '',
-      freelancerSignature: offer.freelancerSignature || '',
-      offerSentDate: formatDate(offer.createdAt),
-      signedDate: formatDate(offer.signedAt)
-    };
-
-    const templatePath = path.join(__dirname, '..', 'views', 'legal-contract.ejs');
-    const html = await ejs.renderFile(templatePath, data);
-
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
-    
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' }
-    });
-
-    await browser.close();
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', `attachment; filename=contract-${offer._id}.pdf`);
-    res.send(pdfBuffer);
+    const pdfBuffer = await generatePdfFromTemplate('contract-template.ejs', data);
+    sendPdfResponse(res, pdfBuffer, `contract-${offer._id}.pdf`, true);
   } catch (error) {
     console.error('Error generating contract PDF:', error);
     res.status(500).json({ success: false, message: 'Failed to generate contract PDF' });

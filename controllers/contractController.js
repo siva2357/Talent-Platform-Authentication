@@ -5,7 +5,7 @@ const FreelancerProfile = require("../models/freelancerProfile");
 const Application = require("../models/application");
 const User = require("../models/user");
 const Notification = require("../models/notification");
-const sendMail = require("../middleware/sendMail");
+const { sendNewApplicationNotification, sendApplicationWithdrawnNotification } = require("../utils/emailSender");
 const { createContractSchema } = require("../schemas/contractSchemas");
 
 
@@ -1035,23 +1035,22 @@ exports.applyToContract = async (req, res) => {
         });
 
         if (clientUser.registrationDetails?.email) {
-          await sendMail.sendMail({
-            from: `"Talent Hub" <${process.env.NODE_CODE_SENDING_EMAIL_ADDRESS}>`,
-            to: clientUser.registrationDetails.email,
-            subject: "Talent Hub - New Contract Application Received",
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                <h2 style="color: #4A90E2; text-align: center;">New Application Received</h2>
-                <p>Hello ${clientUser.registrationDetails.fullName},</p>
-                <p><strong>${freelancerUser?.registrationDetails?.fullName || "A freelancer"}</strong> has applied for your contract project: <strong>${contract.contractTitle}</strong>.</p>
-                <p>Log in to your dashboard to review their proposal and portfolio.</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
-                <p style="text-align: center; color: #aaa; font-size: 12px;">© ${new Date().getFullYear()} Talent Hub. All rights reserved.</p>
-              </div>
-            `
+          await sendNewApplicationNotification(clientUser.registrationDetails.email, {
+            clientName: clientUser.registrationDetails.fullName,
+            freelancerName: freelancerUser?.registrationDetails?.fullName,
+            contractTitle: contract.contractTitle
           });
         }
       }
+
+      // In-app confirmation notification for Freelancer
+      await Notification.create({
+        userId: freelancerId,
+        role: "freelancer",
+        title: "Proposal Submitted",
+        message: `Your application for "${contract.contractTitle}" has been submitted successfully.`,
+        link: "/user/proposals"
+      });
     } catch (err) {
       console.error("Failed to notify client on application:", err);
     }
@@ -1151,19 +1150,10 @@ exports.withdrawContractApplication = async (req, res) => {
         });
 
         if (clientUser.registrationDetails?.email) {
-          await sendMail.sendMail({
-            from: `"Talent Hub" <${process.env.NODE_CODE_SENDING_EMAIL_ADDRESS}>`,
-            to: clientUser.registrationDetails.email,
-            subject: "Talent Hub - Contract Application Withdrawn",
-            html: `
-              <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
-                <h2 style="color: #D0021B; text-align: center;">Application Withdrawn</h2>
-                <p>Hello ${clientUser.registrationDetails.fullName},</p>
-                <p><strong>${freelancerUser?.registrationDetails?.fullName || "A freelancer"}</strong> has withdrawn their application for your contract: <strong>${contract.contractTitle}</strong>.</p>
-                <hr style="border: none; border-top: 1px solid #eee; margin-top: 30px;" />
-                <p style="text-align: center; color: #aaa; font-size: 12px;">© ${new Date().getFullYear()} Talent Hub. All rights reserved.</p>
-              </div>
-            `
+          await sendApplicationWithdrawnNotification(clientUser.registrationDetails.email, {
+            clientName: clientUser.registrationDetails.fullName,
+            freelancerName: freelancerUser?.registrationDetails?.fullName,
+            contractTitle: contract.contractTitle
           });
         }
       }
