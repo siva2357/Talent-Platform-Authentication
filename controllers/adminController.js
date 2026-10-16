@@ -262,7 +262,7 @@ exports.getAdminStats = async (req, res) => {
 
     const totalClients = await User.countDocuments({ role: "client" });
     const totalFreelancers = await User.countDocuments({ role: "freelancer" });
-    const totalContracts = await Contract.countDocuments({ status: "completed" });
+    const activeContracts = await Contract.countDocuments({ status: "in-progress" });
 
     // Calculate commissions dynamically by summing platform fees
     const txs = await Transaction.find({});
@@ -357,13 +357,13 @@ exports.getAdminStats = async (req, res) => {
       clients: clientsData,
       freelancers: freelancersData,
       revenue: quarterlyRevenue,
-      contracts: [totalContracts, completedContracts, openContracts, closedContracts]
+      contracts: [activeContracts, completedContracts, openContracts, closedContracts]
     };
 
     return res.status(200).json({
       totalClients,
       totalFreelancers,
-      totalContracts,
+      completedContracts,
       totalCommissions,
       activities: activities.slice(0, 5),
       chartData

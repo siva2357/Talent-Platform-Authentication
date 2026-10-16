@@ -309,7 +309,19 @@ exports.getMyProfile = async (req, res, next) => {
 
 exports.getProfileById = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.id);
+    let user = await User.findById(req.params.id);
+    if (!user) {
+      const fp = await FreelancerProfile.findById(req.params.id);
+      if (fp) {
+        user = await User.findById(fp.userId);
+      } else {
+        const cp = await ClientProfile.findById(req.params.id);
+        if (cp) {
+          user = await User.findById(cp.userId);
+        }
+      }
+    }
+
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
@@ -356,8 +368,21 @@ exports.getProfileById = async (req, res, next) => {
       profile = await ClientProfile.findOne({ userId: user._id });
       contracts = await Contract
         .find({ clientId: user._id })
-        .select("-applicants -savedBy -spent")
         .sort({ createdAt: -1 });
+
+      const totalSpent = contracts.reduce((acc, c) => acc + (c.spent || c.estimatedBudget || 0), 0);
+      const totalContracts = contracts.length;
+      const activeContracts = contracts.filter(c => c.status === "in progress" || c.status === "open").length;
+      const completedContracts = contracts.filter(c => c.status === "completed").length;
+
+      let plainProfile = profile ? (profile.toObject ? profile.toObject() : { ...profile }) : {};
+      plainProfile.metrics = {
+        totalContracts,
+        completedContracts,
+        activeContracts,
+        totalSpent
+      };
+      profile = plainProfile;
     }
 
     const responsePayload = {
@@ -732,19 +757,24 @@ exports.getFreelancerProfileById = async (req, res, next) => {
       });
     }
 
-    if (!profile) {
+    let freelancerUser = null;
+    if (profile) {
+      freelancerUser = await User.findById(profile.userId).select("status createdAt registrationDetails");
+    } else {
+      freelancerUser = await User.findById(id).select("status createdAt registrationDetails role");
+    }
+
+    if (!profile && !freelancerUser) {
       return res.status(404).json({
         success: false,
         message: "Freelancer profile not found"
       });
     }
 
-    const freelancerUser = await User.findById(
-      profile.userId
-    ).select("status");
+    const targetUserId = profile ? profile.userId : freelancerUser._id;
 
     const freelancerOffers = await Offer.find({
-      freelancerId: profile.userId,
+      freelancerId: targetUserId,
       offerStatus: "accepted"
     }).populate("contractId");
 
@@ -757,13 +787,13 @@ exports.getFreelancerProfileById = async (req, res, next) => {
     ).length;
 
     const portfolio = await Portfolio.find({
-      freelancerId: profile.userId
+      freelancerId: targetUserId
     }).sort({ createdAt: -1 });
 
-    const plainProfile = profile.toObject();
+    const plainProfile = profile ? profile.toObject() : {};
 
     // Fetch Contract Diaries (Completed Contracts / History)
-    const dbDiaries = await ContractDiary.find({ freelancerId: profile.userId })
+    const dbDiaries = await ContractDiary.find({ freelancerId: targetUserId })
       .populate("contractId")
       .populate("clientId", "registrationDetails.fullName")
       .sort({ updatedAt: -1 });
@@ -777,13 +807,12 @@ exports.getFreelancerProfileById = async (req, res, next) => {
       let review = undefined;
       let rating = undefined;
       if (diary.phases) {
-        // Find the last approved phase with clientFeedback
         const feedbackPhase = [...diary.phases]
           .reverse()
           .find(p => p.status === "approved" && p.clientFeedback);
         if (feedbackPhase) {
           review = feedbackPhase.clientFeedback;
-          rating = 5.0; // Assuming 5.0 if approved, since rating isn't explicitly in schema, or adjust as needed
+          rating = 5.0;
         }
       }
 
@@ -799,15 +828,21 @@ exports.getFreelancerProfileById = async (req, res, next) => {
         rating
       });
     }
+
     // Flatten nested objects
     const responseProfile = {
       ...plainProfile,
       ...(plainProfile.basicInformation || {}),
       ...(plainProfile.professionalDetails || {}),
       ...(plainProfile.location || {}),
+      fullName: plainProfile.basicInformation?.fullName || freelancerUser?.registrationDetails?.fullName,
+      email: plainProfile.basicInformation?.email || freelancerUser?.registrationDetails?.email,
+      phoneNumber: plainProfile.basicInformation?.phoneNumber || freelancerUser?.registrationDetails?.phoneNumber || "",
+      profilePhoto: plainProfile.basicInformation?.profilePhoto || null,
       activeContracts,
       completedContracts,
-      status: freelancerUser ? freelancerUser.status : "inactive"
+      status: freelancerUser ? (freelancerUser.status === 'active' ? 'Active' : (freelancerUser.status === 'suspended' ? 'Suspended' : (freelancerUser.status === 'blocked' ? 'Blocked' : 'Pending Approval'))) : "Active",
+      joinedDate: freelancerUser?.createdAt ? freelancerUser.createdAt.toISOString().split('T')[0] : ""
     };
 
     delete responseProfile.basicInformation;
@@ -817,7 +852,8 @@ exports.getFreelancerProfileById = async (req, res, next) => {
     delete responseProfile.verification;
 
     return res.status(200).json({
-      requestId: req.id, // optional
+      requestId: req.id,
+      success: true,
       data: {
         success: true,
         profile: responseProfile,
@@ -829,6 +865,87 @@ exports.getFreelancerProfileById = async (req, res, next) => {
     next(err);
   }
 };
+
+exports.getClientProfileById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    let profile = await ClientProfile.findById(id);
+
+    if (!profile) {
+      profile = await ClientProfile.findOne({
+        userId: id
+      });
+    }
+
+    let clientUser = null;
+    if (profile) {
+      clientUser = await User.findById(profile.userId);
+    } else {
+      clientUser = await User.findById(id);
+    }
+
+    if (!profile && !clientUser) {
+      return res.status(404).json({
+        success: false,
+        message: "Client profile not found"
+      });
+    }
+
+    const targetUserId = profile ? profile.userId : clientUser._id;
+    const contracts = await Contract.find({ clientId: targetUserId }).sort({ createdAt: -1 });
+
+    const totalSpent = contracts.reduce((acc, c) => acc + (c.spent || c.estimatedBudget || 0), 0);
+    const totalProjects = contracts.length;
+    const activeProjects = contracts.filter(c => c.status === "in progress" || c.status === "open").length;
+    const completedProjects = contracts.filter(c => c.status === "completed").length;
+
+    const plainProfile = profile ? profile.toObject() : {};
+
+    const responseProfile = {
+      ...plainProfile,
+      ...(plainProfile.basicInformation || {}),
+      ...(plainProfile.professionalDetails || {}),
+      ...(plainProfile.location || {}),
+      fullName: plainProfile.basicInformation?.fullName || clientUser?.registrationDetails?.fullName,
+      clientName: clientUser?.registrationDetails?.fullName || plainProfile.basicInformation?.fullName,
+      email: plainProfile.basicInformation?.email || clientUser?.registrationDetails?.email,
+      phoneNumber: plainProfile.basicInformation?.phoneNumber || clientUser?.registrationDetails?.phoneNumber || "",
+      profilePhoto: plainProfile.basicInformation?.profilePhoto || null,
+      status: clientUser ? (clientUser.status === 'active' ? 'Active' : (clientUser.status === 'suspended' ? 'Suspended' : (clientUser.status === 'blocked' ? 'Blocked' : 'Deactivated'))) : "Active",
+      joinedDate: clientUser?.createdAt ? clientUser.createdAt.toISOString().split('T')[0] : "",
+      totalSpent,
+      totalProjects,
+      activeProjects,
+      completedProjects,
+      industry: plainProfile.professionalDetails?.industry || "Tech Services"
+    };
+
+    delete responseProfile.basicInformation;
+    delete responseProfile.professionalDetails;
+    delete responseProfile.location;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        success: true,
+        profile: responseProfile,
+        contracts: contracts.map(c => ({
+          _id: c._id,
+          contractTitle: c.contractTitle,
+          estimatedBudget: c.estimatedBudget,
+          spent: c.spent || 0,
+          status: c.status,
+          createdAt: c.createdAt
+        }))
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+exports.getClientById = exports.getClientProfileById;
 
 exports.saveTalent = async (req, res, next) => {
   try {
