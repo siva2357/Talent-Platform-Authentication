@@ -7,6 +7,8 @@ const {
   deleteProfile,
   getAllFreelancers,
   getFreelancerProfileById,
+  getClientProfileById,
+  getClientById,
   saveTalent,
   unsaveTalent,
   getSavedTalents,
@@ -26,6 +28,7 @@ router.delete("/delete", protect, deleteProfile);
 // Freelancer search & detail (Client & Admin / General authenticated)
 router.get("/freelancers", protect, getAllFreelancers);
 router.get("/freelancer/:id", protect, getFreelancerProfileById);
+router.get("/client/:id", protect, getClientProfileById);
 
 // Bookmarks/Saved Talents (Clients only)
 router.post("/save-talent/:id", protect, saveTalent);

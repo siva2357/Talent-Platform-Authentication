@@ -558,12 +558,33 @@ exports.getApplicationById = async (req, res) => {
     }
 
     // Verify ownership
-    if (application.freelancerId._id.toString() !== req.userId.toString() &&
-        application.clientId._id.toString() !== req.userId.toString()) {
+    if (application.freelancerId?._id?.toString() !== req.userId.toString() &&
+        application.clientId?._id?.toString() !== req.userId.toString()) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
 
-    return res.status(200).json({ success: true, application });
+    const FreelancerProfile = require("../models/freelancerProfile");
+    const freelancerId = application.freelancerId?._id;
+    const freelancerProfile = freelancerId
+      ? await FreelancerProfile.findOne({ userId: freelancerId })
+      : null;
+
+    const appObj = application.toObject();
+    appObj.freelancer = {
+      _id: freelancerId || null,
+      fullName: freelancerProfile?.basicInformation?.fullName || application.freelancerId?.registrationDetails?.fullName || "N/A",
+      email: freelancerProfile?.basicInformation?.email || application.freelancerId?.registrationDetails?.email || "N/A",
+      phone: freelancerProfile?.basicInformation?.phoneNumber || freelancerProfile?.basicInformation?.phone || "N/A",
+      profilePhoto: freelancerProfile?.basicInformation?.profilePhoto || "",
+      professionalHeadline: freelancerProfile?.professionalDetails?.professionalHeadline || "Professional Freelancer",
+      gender: freelancerProfile?.basicInformation?.gender || "N/A",
+      country: freelancerProfile?.location?.country || "N/A",
+      city: freelancerProfile?.location?.city || "N/A",
+      availability: freelancerProfile?.professionalDetails?.availability || "N/A",
+      skills: freelancerProfile?.professionalDetails?.skills || []
+    };
+
+    return res.status(200).json({ success: true, application: appObj });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

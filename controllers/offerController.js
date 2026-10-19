@@ -5,40 +5,62 @@ const User = require("../models/user");
 const Notification = require("../models/notification");
 const path = require("path");
 const { generatePdfFromTemplate, sendPdfResponse } = require("../helpers/pdfHelper");
-const { 
-  sendContractOfferEmail, 
-  sendOfferAcceptedNotification, 
-  sendOfferDeclinedNotification 
+const { buildContractTemplateData } = require("../views/data");
+const {
+  sendContractOfferEmail,
+  sendOfferAcceptedNotification,
+  sendOfferDeclinedNotification
 } = require("../utils/emailSender");
 
-const notifyFreelancerStageUpdate = async (application, statusText) => {
+const notifyFreelancerOfferSent = async (application, offer, statusText = "Contract Offer Received") => {
   try {
     const freelancerUser = await User.findById(application.freelancerId);
     const contract = await Contract.findById(application.contractId);
     const clientUser = await User.findById(application.clientId);
     const clientName = clientUser?.registrationDetails?.fullName || "Client";
+    const freelancerName = freelancerUser?.registrationDetails?.fullName || "Freelancer";
+    const contractTitle = contract?.contractTitle || "Contract Project";
+    const amount = contract?.estimatedBudget;
+    const scopeOfWork = offer?.scopeOfWork;
+    const offerId = offer?._id;
+
+    console.log(`[Offer Notification] Preparing notification & email for freelancer ${freelancerUser?.registrationDetails?.email || application.freelancerId}`);
 
     // 1. Create in-app notification
     await Notification.create({
       userId: application.freelancerId,
       role: "freelancer",
-      title: "Recruitment Stage Updated",
-      message: `Your application status for "${contract?.contractTitle || 'Contract'}" has been updated to "${statusText}" by ${clientName}.`,
-      link: "/user/offers"
+      title: "Contract Offer Received 💼",
+      message: `${clientName} has sent you a legal contract offer for "${contractTitle}". Please review the terms and sign the agreement.`,
+      link: offerId ? `/view-contract-offer/${offerId}` : "/proposal-offers"
     });
 
     // 2. Send email notification
     if (freelancerUser?.registrationDetails?.email) {
-      await sendContractOfferEmail(freelancerUser.registrationDetails.email, {
-        freelancerName: freelancerUser.registrationDetails.fullName,
+      console.log(`[Offer Email] Sending contract offer email to ${freelancerUser.registrationDetails.email}...`);
+      const emailResult = await sendContractOfferEmail(freelancerUser.registrationDetails.email, {
+        freelancerName,
         clientName,
-        contractTitle: contract?.contractTitle,
-        statusText
+        contractTitle,
+        statusText: statusText || "Offer Sent",
+        amount,
+        scopeOfWork,
+        offerId
       });
+      console.log(`[Offer Email] Result for ${freelancerUser.registrationDetails.email}:`, emailResult);
+    } else {
+      console.warn(`[Offer Email] Freelancer with ID ${application.freelancerId} has no email address.`);
     }
   } catch (err) {
-    console.error("Failed to notify freelancer stage update:", err);
+    console.error("Failed to notify freelancer of contract offer:", err);
   }
+};
+
+const notifyFreelancerStageUpdate = (application, offerOrStatus, maybeStatus) => {
+  if (offerOrStatus && typeof offerOrStatus === "object" && offerOrStatus._id) {
+    return notifyFreelancerOfferSent(application, offerOrStatus, maybeStatus);
+  }
+  return notifyFreelancerOfferSent(application, null, typeof offerOrStatus === "string" ? offerOrStatus : "Contract Offer Received");
 };
 
 exports.createOffer = async (req, res) => {
@@ -78,9 +100,10 @@ exports.createOffer = async (req, res) => {
 
     // Update Application Status
     application.applicationStatus = "hired";
+    application.offerStatus = "sent";
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, "Contract Offer Received");
+    await notifyFreelancerOfferSent(application, offer, "Contract Offer Received");
 
     return res.status(200).json({
       success: true,
@@ -145,7 +168,7 @@ exports.signOffer = async (req, res) => {
         role: "client",
         title: "Contract Signed & Activated!",
         message: `${freelancerName} has signed the contract offer for "${contractTitle}". The contract is now active!`,
-        link: "/user/contracts"
+        link: "/manage-contract"
       });
 
       // 2. In-app notification for Freelancer
@@ -154,7 +177,7 @@ exports.signOffer = async (req, res) => {
         role: "freelancer",
         title: "Contract Signed Successfully",
         message: `You signed the contract agreement for "${contractTitle}". Work is now in progress!`,
-        link: "/user/contracts"
+        link: "/my-contracts"
       });
 
       // 3. Email to Client
@@ -234,7 +257,7 @@ exports.declineOffer = async (req, res) => {
         role: "client",
         title: "Contract Offer Declined",
         message: `${freelancerName} has declined the contract offer for "${contractTitle}".`,
-        link: "/user/contracts"
+        link: "/manage-contract"
       });
 
       // Email to Client
@@ -279,9 +302,13 @@ exports.getOfferById = async (req, res) => {
       return res.status(404).json({ success: false, message: "Offer not found" });
     }
 
-    // Verify ownership
-    if (offer.freelancerId._id.toString() !== req.userId.toString() &&
-      offer.clientId._id.toString() !== req.userId.toString()) {
+    // Verify ownership safely
+    const freelancerIdStr = offer.freelancerId?._id?.toString() || offer.freelancerId?.toString();
+    const clientIdStr = offer.clientId?._id?.toString() || offer.clientId?.toString();
+
+    if (freelancerIdStr && clientIdStr &&
+      freelancerIdStr !== req.userId.toString() &&
+      clientIdStr !== req.userId.toString()) {
       return res.status(403).json({ success: false, message: "Unauthorized access" });
     }
 

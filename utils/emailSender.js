@@ -207,9 +207,10 @@ async function sendMailSafe(mailOptions) {
     };
 
     const info = await transport.sendMail(finalOptions);
+    console.log(`📧 [EMAIL SENT] To: ${mailOptions.to} | Subject: "${mailOptions.subject}" | MessageId: ${info.messageId}`);
     return { success: true, messageId: info.messageId };
   } catch (error) {
-    console.error("❌ Email Sending Failed:", error.message);
+    console.error(`❌ [EMAIL ERROR] To: ${mailOptions?.to} | Subject: "${mailOptions?.subject}" | Error: ${error.message}`);
     return { success: false, error: error.message };
   }
 }
@@ -417,7 +418,11 @@ async function sendProfileCompletedEmail(email, { fullName, role, profileTitle, 
 /**
  * 5. Contract Offer Sent Notification
  */
-async function sendContractOfferEmail(email, { freelancerName, clientName, contractTitle, statusText, amount, scopeOfWork }) {
+async function sendContractOfferEmail(email, { freelancerName, clientName, contractTitle, statusText, amount, scopeOfWork, offerId }) {
+  const offerUrl = offerId 
+    ? `${FRONTEND_URL}/view-contract-offer/${offerId}` 
+    : `${FRONTEND_URL}/proposal-offers`;
+
   const contentHtml = `
     <h2 class="content-heading" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">New Contract Offer! 💼</h2>
     <p style="margin: 0 0 12px 0; font-size: 13px; color: #475569;">
@@ -466,7 +471,7 @@ async function sendContractOfferEmail(email, { freelancerName, clientName, contr
     </p>
 
     <div class="btn-container" style="text-align: center; margin: 14px 0 6px 0;">
-      <a href="${FRONTEND_URL}/user/offers" class="btn-cta" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
+      <a href="${offerUrl}" class="btn-cta" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
         Review & Sign Offer →
       </a>
     </div>
@@ -491,6 +496,7 @@ async function sendOfferAcceptedNotification(email, { recipientName, otherPartyN
   const mainMessage = isClient
     ? `Great news! <strong>${otherPartyName || "The freelancer"}</strong> has accepted and signed the contract offer for <strong>${contractTitle || "your project"}</strong>.`
     : `You have successfully accepted and signed the contract offer for <strong>${contractTitle || "the project"}</strong> with <strong>${otherPartyName || "the Client"}</strong>.`;
+  const contractUrl = isClient ? `${FRONTEND_URL}/manage-contract` : `${FRONTEND_URL}/my-contracts`;
 
   const contentHtml = `
     <h2 class="content-heading" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Contract Agreement Signed & Active! 🚀</h2>
@@ -532,7 +538,7 @@ async function sendOfferAcceptedNotification(email, { recipientName, otherPartyN
     </p>
 
     <div class="btn-container" style="text-align: center; margin: 14px 0 6px 0;">
-      <a href="${FRONTEND_URL}/user/contracts" class="btn-cta" style="display: inline-block; background: #16a34a; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
+      <a href="${contractUrl}" class="btn-cta" style="display: inline-block; background: #16a34a; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
         Go to Contract Workspace →
       </a>
     </div>

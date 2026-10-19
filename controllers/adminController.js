@@ -6,6 +6,7 @@ const FreelancerProfile = require('../models/freelancerProfile');
 const Contract = require('../models/contract');
 const Transaction = require('../models/transaction');
 
+
 const defaultAdmin = {
   registrationDetails: {
     fullName: "Admin User",
@@ -261,7 +262,7 @@ exports.getAdminStats = async (req, res) => {
 
     const totalClients = await User.countDocuments({ role: "client" });
     const totalFreelancers = await User.countDocuments({ role: "freelancer" });
-    const activeContracts = await Contract.countDocuments({ status: "in progress" });
+    const activeContracts = await Contract.countDocuments({ status: "in-progress" });
 
     // Calculate commissions dynamically by summing platform fees
     const txs = await Transaction.find({});
@@ -304,7 +305,7 @@ exports.getAdminStats = async (req, res) => {
 
     const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-    
+
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       labels.push(monthNames[d.getMonth()]);
@@ -330,18 +331,39 @@ exports.getAdminStats = async (req, res) => {
     const openContracts = await Contract.countDocuments({ status: "open" });
     const closedContracts = await Contract.countDocuments({ status: "closed" });
 
+    // Calculate actual quarterly revenue from transactions for current year
+    const currentYear = now.getFullYear();
+    const quarterlyRevenue = [0, 0, 0, 0];
+    txs.forEach(t => {
+      if (t.platformFee && t.createdAt) {
+        const txDate = new Date(t.createdAt);
+        if (txDate.getFullYear() === currentYear) {
+          const q = Math.floor(txDate.getMonth() / 3);
+          if (q >= 0 && q <= 3) {
+            quarterlyRevenue[q] += t.platformFee;
+          }
+        }
+      }
+    });
+
+    // Fallback if all quarterly revenues are 0 but totalCommissions > 0
+    if (totalCommissions > 0 && quarterlyRevenue.every(v => v === 0)) {
+      const currentQuarter = Math.floor(now.getMonth() / 3);
+      quarterlyRevenue[currentQuarter] = totalCommissions;
+    }
+
     const chartData = {
       labels,
       clients: clientsData,
       freelancers: freelancersData,
-      revenue: [totalCommissions * 0.4, totalCommissions * 0.3, totalCommissions * 0.2, totalCommissions * 0.1],
+      revenue: quarterlyRevenue,
       contracts: [activeContracts, completedContracts, openContracts, closedContracts]
     };
 
     return res.status(200).json({
       totalClients,
       totalFreelancers,
-      activeContracts,
+      completedContracts,
       totalCommissions,
       activities: activities.slice(0, 5),
       chartData
@@ -361,7 +383,8 @@ exports.getAdminTransactions = async (req, res) => {
 
     const formattedTxs = [];
 
-    const payoutTxs = await Transaction.find({ type: 'Payout' })
+    // 1. Payout and withdrawal requests
+    const payoutTxs = await Transaction.find({ type: { $in: ['Payout', 'Withdrawal'] } })
       .populate('userId', 'registrationDetails.fullName')
       .populate({
         path: 'contractId',
@@ -371,18 +394,51 @@ exports.getAdminTransactions = async (req, res) => {
     for (const p of payoutTxs) {
       formattedTxs.push({
         id: p._id.toString(),
-        contractTitle: p.contractId?.contractTitle || "Manual Payout",
+        contractTitle: p.contractId?.contractTitle || "Direct Freelancer Payout",
         clientName: p.contractId?.clientId?.registrationDetails?.fullName || "-",
-        freelancerName: p.userId?.registrationDetails?.fullName || "freelancer",
+        freelancerName: p.userId?.registrationDetails?.fullName || "Freelancer",
         budget: p.amount,
         freelancerPayment: p.amount - (p.platformFee || 0),
         amount: p.amount,
         platformFee: p.platformFee || 0,
-        status: p.status === 'Processed' || p.status === 'Paid' ? 'Completed' : p.status,
+        status: p.status === 'Processed' || p.status === 'Paid' ? 'Completed' : (p.status === 'Pending' ? 'Pending' : p.status),
         date: p.createdAt ? p.createdAt.toISOString().split('T')[0] : "",
         type: "Payout"
       });
     }
+
+    // 2. Platform contracts and their financial records
+    const contracts = await Contract.find({})
+      .populate('clientId', 'registrationDetails.fullName')
+      .populate('applicants.freelancerId', 'registrationDetails.fullName');
+
+    for (const contract of contracts) {
+      const contractTxs = await Transaction.find({ contractId: contract._id });
+      const commission = contractTxs.reduce((sum, t) => sum + (t.platformFee || 0), 0);
+
+      const freelancerUser = contract.applicants?.[0]?.freelancerId;
+      const freelancerName = freelancerUser?.registrationDetails?.fullName || "Assigned Freelancer";
+
+      const clientPayment = (contract.spent && contract.spent > 0) ? contract.spent : (contract.estimatedBudget || 0);
+      const freelancerPayout = clientPayment;
+
+      formattedTxs.push({
+        id: contract._id.toString(),
+        contractTitle: contract.contractTitle || "Untitled Contract",
+        clientName: contract.clientId?.registrationDetails?.fullName || "Client",
+        freelancerName: freelancerName,
+        budget: clientPayment,
+        freelancerPayment: freelancerPayout,
+        amount: clientPayment,
+        platformFee: commission > 0 ? commission : Math.round(clientPayment * 0.10),
+        status: contract.status === 'completed' ? 'Completed' : (contract.status === 'in progress' ? 'In Progress' : 'Pending'),
+        date: contract.createdAt ? contract.createdAt.toISOString().split('T')[0] : "",
+        type: contract.status === 'completed' ? 'Contract Completed' : 'Contract Escrow'
+      });
+    }
+
+    // Sort by date descending
+    formattedTxs.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     return res.status(200).json(formattedTxs);
   } catch (err) {
@@ -405,7 +461,8 @@ exports.getAdminFinancialStats = async (req, res) => {
     const completedPayouts = payoutTxs.filter(t => t.status === 'Processed' || t.status === 'Completed' || t.status === 'Paid');
     const pendingPayouts = payoutTxs.filter(t => t.status === 'Pending');
 
-    const platformCommissions = payoutTxs.reduce((sum, t) => sum + (t.platformFee || 0), 0);
+    // Calculate total platform commissions across all platform transactions
+    const platformCommissions = txs.reduce((sum, t) => sum + (t.platformFee || 0), 0);
     const pendingWithdrawals = pendingPayouts.reduce((sum, t) => sum + (t.amount || 0), 0);
     const successfulPayouts = completedPayouts.length;
 
@@ -429,7 +486,8 @@ exports.getAdminFinanceStatusOptions = async (req, res) => {
     const options = [
       { label: 'All Statuses', value: 'All Statuses' },
       { label: 'Completed', value: 'Completed' },
-      { label: 'Pending', value: 'Pending' }
+      { label: 'Pending', value: 'Pending' },
+      { label: 'In Progress', value: 'In Progress' }
     ];
     return res.status(200).json(options);
   } catch (err) {
@@ -469,8 +527,7 @@ exports.processManualPayout = async (req, res) => {
     }
 
     const { transactionId } = req.params;
-    const Transaction = require('../models/transaction');
-    const User = require('../models/user');
+
 
     const transaction = await Transaction.findById(transactionId);
     if (!transaction) {
