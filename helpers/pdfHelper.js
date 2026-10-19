@@ -77,7 +77,7 @@ async function generatePdfFromHtml(html, options = {}) {
       }
     });
 
-    return pdfBuffer;
+    return Buffer.from(pdfBuffer);
   } finally {
     if (browser) {
       try {
@@ -110,16 +110,17 @@ async function generatePdfFromTemplate(templateName, data = {}, options = {}) {
 /**
  * Helper to send PDF response with proper headers.
  * @param {object} res - Express response object
- * @param {Buffer} pdfBuffer - The PDF binary buffer
+ * @param {Buffer|Uint8Array} pdfBuffer - The PDF binary buffer
  * @param {string} filename - The filename for the PDF download/display
  * @param {boolean} inline - Whether to display inline (true) or force download (false)
  */
 function sendPdfResponse(res, pdfBuffer, filename = "document.pdf", inline = true) {
+  const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
   const disposition = inline ? "inline" : "attachment";
   res.setHeader("Content-Type", "application/pdf");
   res.setHeader("Content-Disposition", `${disposition}; filename="${filename}"`);
-  res.setHeader("Content-Length", pdfBuffer.length);
-  res.send(pdfBuffer);
+  res.setHeader("Content-Length", buffer.length);
+  res.end(buffer);
 }
 
 module.exports = {

@@ -81,11 +81,12 @@ exports.getFinanceStats = async (req, res) => {
       return res.status(200).json({
         success: true,
         stats: {
-          totalBalance,
-          totalSpent: totalSpent,
-          upcomingPayments: escrowBalance,
-          platformFeesPaid: totalPlatformFees,
-          pendingPayments: pendingPayments
+          totalBalance: totalBalance || 0,
+          totalSpent: totalSpent || 0,
+          escrowBalance: escrowBalance || 0,
+          upcomingPayments: escrowBalance || 0,
+          platformFeesPaid: totalPlatformFees || 0,
+          pendingPayments: pendingPayments || 0
         }
       });
     } else if (role.toLowerCase() === "freelancer") {
