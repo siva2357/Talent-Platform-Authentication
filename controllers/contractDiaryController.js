@@ -895,3 +895,83 @@ exports.getFreelancerAllDiaries = async (req, res) => {
 
   }
 };
+
+// ==========================================
+// SHARED: Download Contract Worksheet PDF (Client & Freelancer)
+// GET /api/contract-diary/worksheet/:contractId/download
+// ==========================================
+exports.downloadContractWorksheetPdf = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const userId = req.userId;
+    const FreelancerProfile = require("../models/freelancerProfile");
+    const { generatePdfFromTemplate, sendPdfResponse } = require("../helpers/pdfHelper");
+    const { buildContractWorksheetData } = require("../views/data");
+
+    // 1. Fetch Contract
+    const contract = await Contract.findById(contractId)
+      .populate("clientId", "fullName registrationDetails email");
+
+    if (!contract) {
+      return res.status(404).json({ success: false, message: "Contract not found" });
+    }
+
+    // 2. Fetch Diary
+    let diary = await ContractDiary.findOne({ contractId })
+      .populate("contractId")
+      .populate("clientId", "fullName registrationDetails email")
+      .populate("freelancerId", "fullName registrationDetails email");
+
+    // 3. Authorization check
+    // The user must be the client who created the contract OR the freelancer assigned to it
+    const isClient = contract.clientId?._id
+      ? contract.clientId._id.toString() === userId.toString()
+      : contract.clientId?.toString() === userId.toString();
+
+    let isFreelancer = diary?.freelancerId?._id
+      ? diary.freelancerId._id.toString() === userId.toString()
+      : (diary?.freelancerId ? diary.freelancerId.toString() === userId.toString() : false);
+
+    let freelancerUser = diary?.freelancerId;
+    if (!isClient && !isFreelancer) {
+      const Offer = require("../models/offer");
+      const acceptedOffer = await Offer.findOne({ contractId, offerStatus: "accepted" })
+        .populate("freelancerId", "fullName registrationDetails email");
+
+      if (acceptedOffer && acceptedOffer.freelancerId) {
+        if (acceptedOffer.freelancerId._id.toString() === userId.toString()) {
+          freelancerUser = acceptedOffer.freelancerId;
+          isFreelancer = true;
+        } else {
+          return res.status(403).json({ success: false, message: "Unauthorized to access this contract worksheet" });
+        }
+      } else {
+        return res.status(403).json({ success: false, message: "Unauthorized to access this contract worksheet" });
+      }
+    }
+
+    const freelancerIdForProfile = freelancerUser?._id || diary?.freelancerId?._id || diary?.freelancerId;
+    const freelancerProfile = freelancerIdForProfile
+      ? await FreelancerProfile.findOne({ userId: freelancerIdForProfile })
+      : null;
+
+    if (!diary) {
+      diary = {
+        contractId: contract,
+        clientId: contract.clientId,
+        freelancerId: freelancerUser || { fullName: "Freelancer" },
+        phases: []
+      };
+    } else if (!diary.freelancerId && freelancerUser) {
+      diary.freelancerId = freelancerUser;
+    }
+
+    const data = buildContractWorksheetData(diary, contract, freelancerProfile);
+    const pdfBuffer = await generatePdfFromTemplate("contract-worksheet.ejs", data);
+
+    sendPdfResponse(res, pdfBuffer, `Contract_Worksheet_${contract._id}.pdf`, false);
+  } catch (error) {
+    console.error("Error generating contract worksheet PDF:", error);
+    res.status(500).json({ success: false, message: "Failed to generate contract worksheet PDF: " + error.message });
+  }
+};

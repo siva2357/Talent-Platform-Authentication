@@ -259,14 +259,14 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 30px;
-            font-size: 12px;
+            margin-bottom: 20px;
+            font-size: 11.5px;
         }
 
         th,
         td {
             border: 1px solid var(--border-color);
-            padding: 12px 15px;
+            padding: 8px 12px;
             text-align: left;
         }
 
@@ -282,14 +282,14 @@
 
         /* Lists */
         ul {
-            font-size: 12px;
-            line-height: 1.6;
-            margin-bottom: 20px;
+            font-size: 11.5px;
+            line-height: 1.5;
+            margin-bottom: 14px;
             padding-left: 20px;
         }
 
         ul li {
-            margin-bottom: 8px;
+            margin-bottom: 5px;
         }
 
         /* Signatures */
@@ -393,10 +393,17 @@
 
     <!-- PAGE 1 -->
     <div class="page">
-        <div style="text-align: center; margin-top: 40px; margin-bottom: 20px;">
-            <img src="../public/logo.png" alt="Talent Hub Logo" style="height: 180px; object-fit: contain;">
+        <div style="text-align: center; margin-top: 25px; margin-bottom: 18px;">
+            <% if (typeof logoBase64 !== 'undefined' && logoBase64) { %>
+                <img src="<%= logoBase64 %>" alt="Talent Hub Logo" style="height: 64px; max-width: 320px; object-fit: contain;">
+            <% } else { %>
+                <div style="font-size: 24px; font-weight: 800; color: #2563eb;">Talent Hub</div>
+            <% } %>
         </div>
-        <h1 class="title" style="margin-top: 10px;">LEGAL CONTRACT<br>AGREEMENT</h1>
+        <div style="text-align: center; margin-bottom: 8px;">
+            <span style="display: inline-block; background: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 4px 14px; border-radius: 9999px; border: 1px solid #bfdbfe;">Official Legal Service Agreement</span>
+        </div>
+        <h1 class="title" style="margin-top: 6px;">LEGAL CONTRACT<br>AGREEMENT</h1>
         <div class="title-divider">
             <span>&#10042;</span>
         </div>
@@ -410,7 +417,7 @@
             <div class="party-card">
                 <div class="party-card-title">CLIENT (COMPANY)</div>
                 <div class="party-details">
-                    <div class="logo-circle" style="width: 60px; height: 60px;">ABC</div>
+                    <div class="logo-circle" style="width: 60px; height: 60px;"><%= typeof clientInitials !== 'undefined' ? clientInitials : (clientName ? clientName.substring(0, 2).toUpperCase() : 'CL') %></div>
                     <div class="info">
                         <h4><%= clientName %></h4>
                         <p>123 Business Park, Hyderabad,</p>
@@ -423,12 +430,12 @@
             <div class="party-card" style="margin-top: 10px;">
                 <div class="party-card-title">FREELANCER</div>
                 <div class="party-details">
-                    <img src="https://i.pravatar.cc/150?img=11" alt="Freelancer" class="avatar">
+                    <div class="logo-circle" style="width: 60px; height: 60px; background: #059669;"><%= typeof freelancerInitials !== 'undefined' ? freelancerInitials : (freelancerName ? freelancerName.substring(0, 2).toUpperCase() : 'FL') %></div>
                     <div class="info">
                         <h4><%= freelancerName %></h4>
-                        <p>Senior Full Stack Developer</p>
+                        <p><%= typeof freelancerTitle !== 'undefined' && freelancerTitle ? freelancerTitle : 'Senior Professional Freelancer' %></p>
                         <p><strong>Email:</strong> <%= freelancerEmail %></p>
-                        <p><strong>Phone:</strong> +91 98765 43210</p>
+                        <p><strong>Phone:</strong> <%= typeof freelancerPhone !== 'undefined' && freelancerPhone ? freelancerPhone : '+91 98765 43210' %></p>
                     </div>
                 </div>
             </div>
@@ -464,7 +471,7 @@
     <!-- PAGE 2 -->
     <div class="page">
         <h2>1. CONTRACT INFORMATION</h2>
-        <table class="table-striped">
+        <table class="table-striped" style="margin-bottom: 18px;">
             <tbody>
                 <tr>
                     <td style="font-weight: 700; width: 30%;">Contract Title</td>
@@ -480,7 +487,7 @@
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Duration</td>
-                    <td>3 Months</td>
+                    <td><%= typeof duration !== 'undefined' && duration ? duration : '3 Months' %></td>
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Start Date</td>
@@ -492,25 +499,23 @@
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Category</td>
-                    <td>Web Development</td>
+                    <td><%= typeof contractCategory !== 'undefined' && contractCategory ? contractCategory : 'Web Development' %></td>
                 </tr>
             </tbody>
         </table>
 
         <h2>2. SCOPE OF WORK</h2>
-        <p>The freelancer agrees to deliver a fully functional AI-powered CRM platform with the following key
-            deliverables:</p>
-        <ul>
-            <li>User management with roles and permissions</li>
-            <li>Leads tracking and pipeline management</li>
-            <li>Analytics dashboard and reporting</li>
-            <li>Workflow automation and notifications</li>
-            <li>API integrations and data import/export</li>
-        </ul>
-        <p>The freelancer shall ensure timely delivery, high quality of work and adhere to the requirements and
-            specifications agreed upon by both parties.</p>
+        <p><%= typeof scopeOfWork !== 'undefined' && scopeOfWork ? scopeOfWork : ('The freelancer agrees to deliver the project deliverables for ' + contractTitle + ' as specified below:') %></p>
+        <% if (typeof deliverables !== 'undefined' && deliverables && deliverables.length > 0) { %>
+            <ul>
+                <% for (var i = 0; i < deliverables.length; i++) { %>
+                    <li><%= deliverables[i] %></li>
+                <% } %>
+            </ul>
+        <% } %>
+        <p>The freelancer shall ensure timely delivery, high quality of work and adhere to the requirements and specifications agreed upon by both parties.</p>
 
-        <h2 style="margin-top: 40px;">3. PAYMENT SCHEDULE</h2>
+        <h2 style="margin-top: 25px;">3. PAYMENT SCHEDULE</h2>
         <table>
             <thead>
                 <tr>
@@ -521,29 +526,33 @@
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td style="text-align: center;">1</td>
-                    <td>Design & Wireframes</td>
-                    <td style="text-align: right;">20,000</td>
-                    <td style="text-align: right;"><%= startDate %></td>
-                </tr>
-                <tr>
-                    <td style="text-align: center;">2</td>
-                    <td>Development</td>
-                    <td style="text-align: right;">30,000</td>
-                    <td style="text-align: right;">Aug 20, 2026</td>
-                </tr>
-                <tr>
-                    <td style="text-align: center;">3</td>
-                    <td>Testing & Deployment</td>
-                    <td style="text-align: right;">10,000</td>
-                    <td style="text-align: right;">Sep 30, 2026</td>
-                </tr>
-                <tr>
-                    <td colspan="2" style="text-align: right; font-weight: 700;">Total</td>
-                    <td style="text-align: right; font-weight: 700;">60,000</td>
-                    <td></td>
-                </tr>
+                <% if (typeof milestones !== 'undefined' && milestones && milestones.length > 0) { %>
+                    <% for (var i = 0; i < milestones.length; i++) { %>
+                        <tr>
+                            <td style="text-align: center;"><%= milestones[i].milestoneNumber || (i + 1) %></td>
+                            <td><%= milestones[i].name || milestones[i].description %></td>
+                            <td style="text-align: right;"><%= milestones[i].amountFormatted || milestones[i].amount %></td>
+                            <td style="text-align: right;"><%= milestones[i].releaseDate || startDate %></td>
+                        </tr>
+                    <% } %>
+                    <tr>
+                        <td colspan="2" style="text-align: right; font-weight: 700;">Total</td>
+                        <td style="text-align: right; font-weight: 700;"><%= typeof totalMilestonesAmount !== 'undefined' ? totalMilestonesAmount : estimatedBudget %></td>
+                        <td></td>
+                    </tr>
+                <% } else { %>
+                    <tr>
+                        <td style="text-align: center;">1</td>
+                        <td>Full Project Delivery & Scope Execution</td>
+                        <td style="text-align: right;"><%= estimatedBudget %></td>
+                        <td style="text-align: right;"><%= endDate %></td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="text-align: right; font-weight: 700;">Total</td>
+                        <td style="text-align: right; font-weight: 700;"><%= estimatedBudget %></td>
+                        <td></td>
+                    </tr>
+                <% } %>
             </tbody>
         </table>
 
@@ -638,7 +647,7 @@
         </h3>
 
         <div class="party-details" style="margin-top: 20px; margin-bottom: 40px;">
-            <div class="logo-circle" style="width: 40px; height: 40px; font-size: 14px;">ABC</div>
+            <div class="logo-circle" style="width: 40px; height: 40px; font-size: 14px;"><%= typeof clientInitials !== 'undefined' ? clientInitials : (clientName ? clientName.substring(0, 2).toUpperCase() : 'CL') %></div>
             <div class="info">
                 <h4 style="font-size: 14px;"><%= clientName %></h4>
             </div>
@@ -652,7 +661,7 @@
             </div>
             <div class="signature-details" style="margin-top: 10px;">
                 <p>Name: <%= clientName %></p>
-                <p>Designation: CEO</p>
+                <p>Designation: <%= typeof clientDesignation !== 'undefined' ? clientDesignation : 'Authorized Signatory' %></p>
                 <p>Signed On: <%= signedDate %></p>
             </div>
         </div>
@@ -671,7 +680,7 @@
                     (COMPANY)</h3>
 
                 <div class="party-details" style="margin-top: 20px; margin-bottom: 40px;">
-                    <div class="logo-circle" style="width: 40px; height: 40px; font-size: 14px;">ABC</div>
+                    <div class="logo-circle" style="width: 40px; height: 40px; font-size: 14px;"><%= typeof clientInitials !== 'undefined' ? clientInitials : (clientName ? clientName.substring(0, 2).toUpperCase() : 'CL') %></div>
                     <div class="info">
                         <h4 style="font-size: 14px;"><%= clientName %></h4>
                     </div>
@@ -685,7 +694,7 @@
                     </div>
                     <div class="signature-details" style="margin-top: 10px;">
                         <p>Name: <%= clientName %></p>
-                        <p>Designation: CEO</p>
+                        <p>Designation: <%= typeof clientDesignation !== 'undefined' ? clientDesignation : 'Authorized Signatory' %></p>
                         <p>Signed On: <%= signedDate %></p>
                     </div>
                 </div>
@@ -697,11 +706,10 @@
                 </h3>
 
                 <div class="party-details" style="margin-top: 20px; margin-bottom: 40px;">
-                    <img src="https://i.pravatar.cc/150?img=11" alt="Freelancer" class="avatar"
-                        style="width: 40px; height: 40px;">
+                    <div class="logo-circle" style="width: 40px; height: 40px; font-size: 14px; background: #059669;"><%= typeof freelancerInitials !== 'undefined' ? freelancerInitials : (freelancerName ? freelancerName.substring(0, 2).toUpperCase() : 'FL') %></div>
                     <div class="info">
                         <h4 style="font-size: 14px;"><%= freelancerName %></h4>
-                        <p style="font-size: 10px;">Senior Full Stack Developer</p>
+                        <p style="font-size: 10px;"><%= typeof freelancerTitle !== 'undefined' ? freelancerTitle : 'Senior Freelancer' %></p>
                     </div>
                 </div>
 
@@ -747,7 +755,7 @@
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Duration</td>
-                    <td>3 Months</td>
+                    <td><%= typeof duration !== 'undefined' && duration ? duration : '3 Months' %></td>
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Start Date</td>
@@ -763,11 +771,11 @@
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Governing Law</td>
-                    <td>Laws of India</td>
+                    <td><%= typeof governingLaw !== 'undefined' && governingLaw ? governingLaw : 'Laws of India' %></td>
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Jurisdiction</td>
-                    <td>Hyderabad, India</td>
+                    <td><%= typeof jurisdiction !== 'undefined' && jurisdiction ? jurisdiction : 'Hyderabad, India' %></td>
                 </tr>
             </tbody>
         </table>

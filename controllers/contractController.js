@@ -1557,3 +1557,52 @@ exports.getFreelancerMyContracts = async (req, res) => {
     return res.status(500).json({ success: false, message: error.message });
   }
 };
+
+exports.downloadLegalContractPdf = async (req, res) => {
+  try {
+    const contractId = req.params.id;
+    const Offer = require("../models/offer");
+    const ContractDiary = require("../models/contractDiary");
+    const { buildLegalContractData } = require("../views/data");
+    const { generatePdfFromTemplate, sendPdfResponse } = require("../helpers/pdfHelper");
+
+    let offer = await Offer.findOne({ contractId })
+      .populate("clientId")
+      .populate("freelancerId")
+      .populate("contractId");
+
+    const diary = await ContractDiary.findOne({ contractId });
+
+    let freelancerProfile = null;
+    if (offer?.freelancerId) {
+      freelancerProfile = await FreelancerProfile.findOne({
+        userId: offer.freelancerId._id || offer.freelancerId
+      });
+    }
+
+    if (!offer) {
+      const contract = await Contract.findById(contractId).populate("clientId");
+      if (!contract) {
+        return res.status(404).json({ success: false, message: "Contract not found" });
+      }
+      offer = {
+        contractId: contract,
+        clientId: contract.clientId,
+        scopeOfWork: contract.contractDescription,
+        offerStatus: "none"
+      };
+    }
+
+    const data = buildLegalContractData(offer, { diary, freelancerProfile });
+    const pdfBuffer = await generatePdfFromTemplate("legal-contract.ejs", data, {
+      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+      printBackground: true
+    });
+
+    sendPdfResponse(res, pdfBuffer, `Legal_Contract_${contractId}.pdf`, false);
+  } catch (error) {
+    console.error("Error downloading legal contract PDF in contractController:", error);
+    res.status(500).json({ success: false, message: "Failed to download legal contract PDF" });
+  }
+};
+

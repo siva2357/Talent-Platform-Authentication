@@ -10,10 +10,16 @@ const {
   submitPhaseUpdate,
   startPhase,
   getDiaryByContractId,
-  getFreelancerAllDiaries
+  getFreelancerAllDiaries,
+  downloadContractWorksheetPdf
 } = require("../controllers/contractDiaryController");
 
 const { identifier } = require("../middleware/identifier");
+
+// ============================================================
+// Worksheet Download (Client & Freelancer)
+// ============================================================
+router.get("/worksheet/:contractId/download", identifier, downloadContractWorksheetPdf);
 
 // ============================================================
 // Listing Routes (must come before /:id)

@@ -659,10 +659,24 @@ exports.getContractPDF = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Unauthorized to access this contract' });
     }
 
-    const { buildContractTemplateData } = require('../views/data');
-    const data = buildContractTemplateData(offer);
+    let diary = null;
+    let freelancerProfile = null;
+    try {
+      const ContractDiary = require('../models/contractDiary');
+      diary = await ContractDiary.findOne({ contractId: offer.contractId?._id || offer.contractId });
+      const FreelancerProfile = require('../models/freelancerProfile');
+      freelancerProfile = await FreelancerProfile.findOne({ userId: offer.freelancerId?._id || offer.freelancerId });
+    } catch (e) {
+      console.warn('Non-fatal: could not query contract diary or profile in applicationController:', e.message);
+    }
 
-    const pdfBuffer = await generatePdfFromTemplate('contract-template.ejs', data);
+    const { buildLegalContractData } = require('../views/data');
+    const data = buildLegalContractData(offer, { diary, freelancerProfile });
+
+    const pdfBuffer = await generatePdfFromTemplate('legal-contract.ejs', data, {
+      margin: { top: '0', right: '0', bottom: '0', left: '0' },
+      printBackground: true
+    });
     sendPdfResponse(res, pdfBuffer, `contract-${offer._id}.pdf`, true);
   } catch (error) {
     console.error('Error generating contract PDF:', error);

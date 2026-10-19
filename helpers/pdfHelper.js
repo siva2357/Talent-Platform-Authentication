@@ -102,8 +102,15 @@ async function generatePdfFromTemplate(templateName, data = {}, options = {}) {
     throw new Error(`EJS Template not found at: ${templatePath}`);
   }
 
+  // Ensure logoBase64 is available for templates
+  const { logoBase64 } = require("../views/data");
+  const templateData = {
+    logoBase64,
+    ...data
+  };
+
   // Render EJS HTML with provided data
-  const html = await ejs.renderFile(templatePath, data, { async: true });
+  const html = await ejs.renderFile(templatePath, templateData, { async: true });
   return await generatePdfFromHtml(html, options);
 }
 

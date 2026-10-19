@@ -37,22 +37,14 @@
         /* A4 Page Styling for Print */
         .page {
             width: 210mm;
-            height: 297mm;
+            min-height: 297mm;
             margin: 0 auto;
             position: relative;
             box-sizing: border-box;
-            padding: 40px 50px 0 50px;
+            padding: 30px 40px;
             display: flex;
             flex-direction: column;
-            page-break-after: always;
-            break-after: page;
-            overflow: hidden;
             background: white;
-        }
-
-        .page:last-child {
-            page-break-after: auto;
-            break-after: auto;
         }
 
         /* Header Layout */
@@ -646,34 +638,45 @@
             text-transform: uppercase;
         }
 
-        /* Bottom Dark Strip */
-        .bottom-dark-strip {
-            background-color: var(--dark-blue);
-            color: white;
-            padding: 15px 50px;
+        /* Bottom Light Strip */
+        .bottom-dark-strip,
+        .bottom-light-strip {
+            background-color: #f8fafc;
+            border-top: 1px solid var(--border-blue);
+            color: var(--text-dark);
+            padding: 14px 40px;
             font-size: 10px;
             margin-top: auto;
-            margin-left: -50px;
-            margin-right: -50px;
+            margin-left: -40px;
+            margin-right: -40px;
+            margin-bottom: -30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .bottom-dark-strip .left-text {
+        .bottom-dark-strip .left-text,
+        .bottom-light-strip .left-text {
             display: flex;
             align-items: center;
             gap: 6px;
+            font-weight: 600;
+            color: var(--text-dark);
         }
 
-        .bottom-dark-strip .center-text {
-            color: var(--border-gray);
+        .bottom-dark-strip .center-text,
+        .bottom-light-strip .center-text {
+            color: var(--text-light);
+            font-size: 9.5px;
         }
 
-        .bottom-dark-strip .right-text {
+        .bottom-dark-strip .right-text,
+        .bottom-light-strip .right-text {
             display: flex;
             align-items: center;
             gap: 6px;
+            color: var(--primary-blue);
+            font-weight: 600;
         }
     </style>
 </head>
@@ -685,27 +688,30 @@
         <!-- Header Section -->
         <div class="header">
             <div class="logo-container">
-                <img src="../public/logo 2.png" alt="Talent Hub Logo" class="logo-img">
-
+                <% if (typeof logoBase64 !== 'undefined' && logoBase64) { %>
+                    <img src="<%= logoBase64 %>" alt="Talent Hub Logo" class="logo-img">
+                <% } else { %>
+                    <div style="font-size: 24px; font-weight: 800; color: var(--primary-blue);">Talent Hub</div>
+                <% } %>
             </div>
 
             <div class="header-meta">
                 <h2>CONTRACT TIMELINE</h2>
-                <div class="contract-badge">CONTRACT ID: CON-2025-0426</div>
+                <div class="contract-badge"><%= typeof contractId !== 'undefined' ? contractId : 'CONTRACT TIMELINE' %></div>
 
                 <div class="date-row">
                     <div class="date-item">
                         <span class="icon">&#128197;</span>
                         <div class="date-text">
                             <h5>Start Date</h5>
-                            <p>May 23, 2025</p>
+                            <p><%= typeof startDate !== 'undefined' ? startDate : 'N/A' %></p>
                         </div>
                     </div>
                     <div class="date-item">
                         <span class="icon">&#127937;</span>
                         <div class="date-text">
                             <h5>End Date</h5>
-                            <p>Nov 23, 2025</p>
+                            <p><%= typeof endDate !== 'undefined' ? endDate : 'N/A' %></p>
                         </div>
                     </div>
                 </div>
@@ -718,7 +724,7 @@
                 <div class="summary-icon">&#128188;</div>
                 <div class="item-text">
                     <h5>Client</h5>
-                    <p>TechNova Solutions Pvt. Ltd.</p>
+                    <p><%= typeof clientName !== 'undefined' ? clientName : 'Client' %></p>
                 </div>
             </div>
 
@@ -726,7 +732,7 @@
                 <div class="summary-icon">&#128100;</div>
                 <div class="item-text">
                     <h5>Freelancer</h5>
-                    <p>Siva Prasad Kurra<span class="sub">Angular Developer</span></p>
+                    <p><%= typeof freelancerName !== 'undefined' ? freelancerName : 'Freelancer' %><span class="sub"><%= typeof freelancerTitle !== 'undefined' ? freelancerTitle : '' %></span></p>
                 </div>
             </div>
 
@@ -734,7 +740,7 @@
                 <div class="summary-icon">&#128221;</div>
                 <div class="item-text">
                     <h5>Project</h5>
-                    <p>E-commerce Web Application</p>
+                    <p><%= typeof projectTitle !== 'undefined' ? projectTitle : 'Contract Project' %></p>
                 </div>
             </div>
 
@@ -742,8 +748,8 @@
                 <div class="summary-icon">&#8377;</div>
                 <div class="item-text">
                     <h5>Total Contract Value</h5>
-                    <p>₹ 75,000.00</p>
-                    <div class="active-badge">Completed</div>
+                    <p>₹ <%= typeof totalBudget !== 'undefined' ? totalBudget : '0.00' %></p>
+                    <div class="active-badge"><%= typeof status !== 'undefined' ? status : 'Completed' %></div>
                 </div>
             </div>
         </div>
@@ -767,205 +773,90 @@
                 </div>
             </div>
 
-            <!-- Milestone 1 -->
-            <div class="timeline-row">
-                <div class="node-col">
-                    <div class="node-circle">01</div>
-                </div>
-                <div class="timeline-card">
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>Milestone 1</h4>
-                            <div class="phase-badge">Phase 1</div>
+            <!-- Dynamic Milestones Loop -->
+            <% if (typeof phases !== 'undefined' && phases && phases.length > 0) { %>
+                <% phases.forEach(function(phase) { %>
+                    <div class="timeline-row">
+                        <div class="node-col">
+                            <div class="node-circle"><%= phase.index %></div>
                         </div>
-                    </div>
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>Requirement Analysis & Planning</h4>
-                            <p class="sub">Gather requirements and create project plan</p>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="milestone-date">
-                            <span class="icon">&#128197;</span>
+                        <div class="timeline-card">
                             <div>
-                                <p class="main">May 23, 2025</p>
-                                <p class="sub">Completed on<br>May 23, 2025</p>
+                                <div class="milestone-desc">
+                                    <h4><%= phase.name %></h4>
+                                    <div class="phase-badge">Phase <%= phase.index %></div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="milestone-desc">
+                                    <h4><%= phase.name %></h4>
+                                    <p class="sub"><%= phase.description %></p>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="milestone-date">
+                                    <span class="icon">&#128197;</span>
+                                    <div>
+                                        <p class="main"><%= phase.dueDate %></p>
+                                        <p class="sub">Completed on<br><%= phase.completedDate %></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="milestone-amount">
+                                    <h4>₹ <%= phase.amount %></h4>
+                                    <p><%= phase.percentage %>% of total</p>
+                                </div>
+                            </div>
+                            <div class="milestone-status">
+                                <div class="status-badge <%= (phase.status && (phase.status.toLowerCase() === 'completed' || phase.status.toLowerCase() === 'approved')) ? 'completed' : 'pending' %>">
+                                    <span>&#10004;</span> <%= phase.status %>
+                                </div>
+                                <div class="status-sub">Paid on<br><%= phase.paidDate %></div>
                             </div>
                         </div>
                     </div>
-                    <div>
-                        <div class="milestone-amount">
-                            <h4>₹ 15,000.00</h4>
-                            <p>20% of total</p>
-                        </div>
+                <% }); %>
+            <% } else { %>
+                <div class="timeline-row">
+                    <div class="node-col">
+                        <div class="node-circle">01</div>
                     </div>
-                    <div class="milestone-status">
-                        <div class="status-badge completed"><span>&#10004;</span> Completed</div>
-                        <div class="status-sub">Paid on<br>May 23, 2025</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Milestone 2 -->
-            <div class="timeline-row">
-                <div class="node-col">
-                    <div class="node-circle">02</div>
-                </div>
-                <div class="timeline-card">
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>Milestone 2</h4>
-                            <div class="phase-badge">Phase 2</div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>UI/UX Design</h4>
-                            <p class="sub">Design system, wireframes and user interface</p>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="milestone-date">
-                            <span class="icon">&#128197;</span>
-                            <div>
-                                <p class="main">Jun 23, 2025</p>
-                                <p class="sub">Completed on<br>Jun 20, 2025</p>
+                    <div class="timeline-card">
+                        <div>
+                            <div class="milestone-desc">
+                                <h4>Full Contract Scope</h4>
+                                <div class="phase-badge">Phase 01</div>
                             </div>
                         </div>
-                    </div>
-                    <div>
-                        <div class="milestone-amount">
-                            <h4>₹ 15,000.00</h4>
-                            <p>20% of total</p>
-                        </div>
-                    </div>
-                    <div class="milestone-status">
-                        <div class="status-badge completed"><span>&#10004;</span> Completed</div>
-                        <div class="status-sub">Paid on<br>Jun 20, 2025</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Milestone 3 -->
-            <div class="timeline-row">
-                <div class="node-col">
-                    <div class="node-circle">03</div>
-                </div>
-                <div class="timeline-card">
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>Milestone 3</h4>
-                            <div class="phase-badge">Phase 3</div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>Frontend Development</h4>
-                            <p class="sub">Implement UI and frontend functionality</p>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="milestone-date">
-                            <span class="icon">&#128197;</span>
-                            <div>
-                                <p class="main">Aug 23, 2025</p>
-                                <p class="sub">Completed on<br>Aug 18, 2025</p>
+                        <div>
+                            <div class="milestone-desc">
+                                <h4>Project Execution & Final Delivery</h4>
+                                <p class="sub">Completed deliverables according to contract specifications.</p>
                             </div>
                         </div>
-                    </div>
-                    <div>
-                        <div class="milestone-amount">
-                            <h4>₹ 22,500.00</h4>
-                            <p>30% of total</p>
-                        </div>
-                    </div>
-                    <div class="milestone-status">
-                        <div class="status-badge completed"><span>&#10004;</span> Completed</div>
-                        <div class="status-sub">Paid on<br>Aug 18, 2025</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Milestone 4 -->
-            <div class="timeline-row">
-                <div class="node-col">
-                    <div class="node-circle">04</div>
-                </div>
-                <div class="timeline-card">
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>Milestone 4</h4>
-                            <div class="phase-badge">Phase 4</div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>Backend Development</h4>
-                            <p class="sub">APIs, database and server integration</p>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="milestone-date">
-                            <span class="icon">&#128197;</span>
-                            <div>
-                                <p class="main">Oct 23, 2025</p>
-                                <p class="sub">Completed on<br>Oct 15, 2025</p>
+                        <div>
+                            <div class="milestone-date">
+                                <span class="icon">&#128197;</span>
+                                <div>
+                                    <p class="main"><%= typeof endDate !== 'undefined' ? endDate : 'Completed' %></p>
+                                    <p class="sub">Completed on<br><%= typeof endDate !== 'undefined' ? endDate : 'Completed' %></p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    <div>
-                        <div class="milestone-amount">
-                            <h4>₹ 15,000.00</h4>
-                            <p>20% of total</p>
-                        </div>
-                    </div>
-                    <div class="milestone-status">
-                        <div class="status-badge completed"><span>&#10004;</span> Completed</div>
-                        <div class="status-sub">Paid on<br>Oct 15, 2025</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Milestone 5 -->
-            <div class="timeline-row">
-                <div class="node-col">
-                    <div class="node-circle">05</div>
-                </div>
-                <div class="timeline-card">
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>Milestone 5</h4>
-                            <div class="phase-badge">Phase 5</div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="milestone-desc">
-                            <h4>Testing & Deployment</h4>
-                            <p class="sub">Testing, bug fixes and deployment</p>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="milestone-date">
-                            <span class="icon">&#128197;</span>
-                            <div>
-                                <p class="main">Nov 23, 2025</p>
-                                <p class="sub">Completed on<br>Nov 20, 2025</p>
+                        <div>
+                            <div class="milestone-amount">
+                                <h4>₹ <%= typeof totalBudget !== 'undefined' ? totalBudget : '0.00' %></h4>
+                                <p>100% of total</p>
                             </div>
                         </div>
-                    </div>
-                    <div>
-                        <div class="milestone-amount">
-                            <h4>₹ 7,500.00</h4>
-                            <p>10% of total</p>
+                        <div class="milestone-status">
+                            <div class="status-badge completed"><span>&#10004;</span> Completed</div>
+                            <div class="status-sub">Disbursed via Escrow</div>
                         </div>
                     </div>
-                    <div class="milestone-status">
-                        <div class="status-badge completed"><span>&#10004;</span> Completed</div>
-                        <div class="status-sub">Paid on<br>Nov 20, 2025</div>
-                    </div>
                 </div>
-            </div>
+            <% } %>
 
         </div>
 
@@ -981,22 +872,22 @@
                 <div class="payment-summary-grid">
                     <div class="payment-val">
                         <p class="label">Total Contract Value</p>
-                        <p class="amount">₹ 75,000.00</p>
+                        <p class="amount">₹ <%= typeof totalBudget !== 'undefined' ? totalBudget : '0.00' %></p>
                     </div>
                     <div class="payment-val">
                         <p class="label">Total Paid</p>
-                        <p class="amount paid">₹ 75,000.00</p>
+                        <p class="amount paid">₹ <%= typeof totalPaid !== 'undefined' ? totalPaid : '0.00' %></p>
                     </div>
                     <div class="payment-val">
                         <p class="label">Remaining Amount</p>
-                        <p class="amount" style="color: var(--text-light);">₹ 0.00</p>
+                        <p class="amount" style="color: var(--text-light);">₹ <%= typeof remainingAmount !== 'undefined' ? remainingAmount : '0.00' %></p>
                     </div>
                 </div>
 
                 <div class="progress-wrapper">
                     <p>Completion Progress</p>
                     <div class="progress-circle">
-                        <div class="progress-inner">100%</div>
+                        <div class="progress-inner"><%= typeof progressPercent !== 'undefined' ? progressPercent : '100%' %></div>
                     </div>
                 </div>
             </div>
@@ -1013,16 +904,15 @@
                     </li>
                     <li>
                         <span class="icon">&#10004;</span>
-                        <span>All deadlines are as per the contract terms.</span>
+                        <span>All deliverables verified and confirmed under Talent-Hub escrow guidelines.</span>
                     </li>
                     <li>
                         <span class="icon">&#10004;</span>
-                        <span>Contact support for any queries or modifications.</span>
+                        <span>Official audit record generated for legal and tax compliance.</span>
                     </li>
                     <li>
                         <span class="icon">&#10004;</span>
-                        <span style="font-weight: 600; color: var(--success-green);">Contract is fully completed and all
-                            payments have been settled.</span>
+                        <span style="font-weight: 600; color: var(--success-green);">Contract is fully completed and all payments have been settled.</span>
                     </li>
                 </ul>
             </div>
@@ -1035,10 +925,10 @@
             <div class="sig-block">
                 <div class="sig-icon">&#127970;</div>
                 <div class="sig-details">
-                    <p class="for">For TechNova Solutions Pvt. Ltd.</p>
-                    <div class="sig-img">Arthur</div>
+                    <p class="for">For <%= typeof clientName !== 'undefined' ? clientName : 'Client' %></p>
+                    <div class="sig-img"><%= typeof clientName !== 'undefined' ? clientName : 'Client' %></div>
                     <p class="role">Authorized Signatory</p>
-                    <p class="date">Date: Nov 20, 2025</p>
+                    <p class="date">Date: <%= typeof currentDate !== 'undefined' ? currentDate : 'Completed' %></p>
                 </div>
             </div>
 
@@ -1053,24 +943,24 @@
             <div class="sig-block" style="flex-direction: row-reverse; text-align: right;">
                 <div class="sig-icon">&#128100;</div>
                 <div class="sig-details" style="align-items: flex-end; display: flex; flex-direction: column;">
-                    <p class="for">For Siva Prasad Kurra</p>
-                    <div class="sig-img">JohnDoe</div>
+                    <p class="for">For <%= typeof freelancerName !== 'undefined' ? freelancerName : 'Freelancer' %></p>
+                    <div class="sig-img"><%= typeof freelancerName !== 'undefined' ? freelancerName : 'Freelancer' %></div>
                     <p class="role">Freelancer</p>
-                    <p class="date">Date: Nov 20, 2025</p>
+                    <p class="date">Date: <%= typeof currentDate !== 'undefined' ? currentDate : 'Completed' %></p>
                 </div>
             </div>
         </div>
 
-        <!-- Bottom Dark Strip -->
-        <div class="bottom-dark-strip">
+        <!-- Bottom Light Strip -->
+        <div class="bottom-light-strip">
             <div class="left-text">
-                <span style="color: var(--success-green);">&#10004;</span> Secured by Talent Hub
+                <span style="color: var(--success-green); font-weight: 700;">&#10004;</span> Secured by Talent Hub
             </div>
             <div class="center-text">
                 Thank you for choosing Talent Hub. Let's build something amazing together!
             </div>
             <div class="right-text">
-                <span style="font-size: 12px;">&#127760;</span> www.talenthub.com
+                <span style="font-size: 12px; color: var(--primary-blue);">&#127760;</span> www.talenthub.com
             </div>
         </div>
 

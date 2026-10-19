@@ -55,6 +55,12 @@ router.post("/apply/:id", identifier, applyToContract);
 router.delete( "/withdraw/:id", identifier, withdrawContractApplication);
 router.get( "/applied-contracts", identifier, getAppliedContracts);
 
+// Worksheet Download (Client & Freelancer)
+router.get("/:id/worksheet/download", identifier, require("../controllers/contractDiaryController").downloadContractWorksheetPdf);
+
+// Legal Contract Download (Client & Freelancer)
+router.get("/:id/legal-contract/download", identifier, require("../controllers/contractController").downloadLegalContractPdf);
+
 // Get Single Contract (must be placed after static routes)
 router.get("/:id", identifier, getSingleContract);
 
