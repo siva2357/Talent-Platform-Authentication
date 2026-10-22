@@ -564,24 +564,35 @@ exports.getFreelancerFinanceReport = async (req, res) => {
       const totalPhases = (diary.phases || []).length;
       const completion = totalPhases > 0 ? Math.round((approvedPhases.length / totalPhases) * 100) : 0;
 
-      const rawReceived = contractTxns
-        .filter(t => t.type === 'Payment Released')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
-
-      // Total payment received for this contract cannot exceed the contract's earned amount
-      const receivedAmount = Math.min(earned, rawReceived || earned);
-
+      // Pending Payouts / Withdrawals
       const pendingTxns = contractTxns.filter(t => t.type === 'Payout' && t.status === 'Pending');
-      const pendingWithdrawnAmount = pendingTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const grossPendingWithdrawnAmount = pendingTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+      const pendingWithdrawnAmount = pendingTxns.reduce((sum, t) => sum + ((t.amount || 0) - (t.platformFee || 0)), 0);
       
-      const withdrawalTxns = contractTxns.filter(t => (t.type === 'Withdrawal' || (t.type === 'Payout' && t.status === 'Processed')));
+      // Processed Withdrawals / Payouts
+      const withdrawalTxns = contractTxns.filter(t => 
+        t.type === 'Withdrawal' || 
+        (t.type === 'Payout' && (t.status === 'Processed' || t.status === 'Paid' || t.status === 'Completed'))
+      );
       
       const grossWithdrawnAmount = withdrawalTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
-      const platformFeesDeducted = withdrawalTxns.reduce((sum, t) => sum + (t.platformFee || 0), 0);
-      const netWithdrawnAmount = grossWithdrawnAmount - platformFeesDeducted;
 
-      // Available balance should exclude both processed and pending withdrawals
-      const balance = Math.max(0, receivedAmount - grossWithdrawnAmount - pendingWithdrawnAmount);
+      // Platform fee calculations:
+      // Collect platform fees recorded on any payout/withdrawal transaction for this contract
+      const allPayoutTxns = contractTxns.filter(t => t.type === 'Payout' || t.type === 'Withdrawal');
+      const txnPlatformFees = allPayoutTxns.reduce((sum, t) => sum + (t.platformFee || 0), 0);
+
+      // Freelancer standard platform fee is 7.5% of earned amount
+      const standardPlatformFee = Math.round((earned * 0.075) * 100) / 100;
+      const platformFeesDeducted = txnPlatformFees > 0 ? txnPlatformFees : (earned > 0 ? standardPlatformFee : 0);
+
+      const netWithdrawnAmount = withdrawalTxns.reduce((sum, t) => sum + ((t.amount || 0) - (t.platformFee || 0)), 0);
+
+      // Net received amount by freelancer after platform fee deduction
+      const receivedAmount = Math.max(0, earned - platformFeesDeducted);
+
+      // Available balance should exclude both processed and pending gross withdrawals
+      const balance = Math.max(0, earned - grossWithdrawnAmount - grossPendingWithdrawnAmount);
 
       let mappedStatus = 'Ongoing';
       if (diary.overallStatus === 'completed') mappedStatus = 'Completed';
@@ -625,6 +636,7 @@ exports.getFreelancerFinanceReport = async (req, res) => {
         netWithdrawnAmount,
         platformFeesDeducted,
         pendingWithdrawnAmount,
+        grossPendingWithdrawnAmount,
         receivedAmount,
         lastPaymentDate,
         phases: strippedPhases

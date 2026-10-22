@@ -51,11 +51,8 @@ exports.completeProfile = async (req, res, next) => {
       const bucketName = role.toLowerCase() === "client" ? bucketMap.CLIENT_DATA : bucketMap.FREELANCER_DATA;
       let folder = role.toLowerCase() === "client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
 
-      const fullName = user.registrationDetails?.fullName;
-      if (fullName) {
-        const safeFullName = fullName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_");
-        folder = `${safeFullName}/${folder}`;
-      }
+      const userId = (user._id || user.id)?.toString();
+      folder = `${userId}/${folder}`;
 
       // Upload to GCP
       profilePhotoUrl = await uploadToGCP(req.file, bucketName, folder);
@@ -456,11 +453,8 @@ exports.updateProfile = async (req, res, next) => {
       const bucketName = role.toLowerCase() === "client" ? bucketMap.CLIENT_DATA : bucketMap.FREELANCER_DATA;
       let folder = role.toLowerCase() === "client" ? uploadSections.client.PROFILE_PHOTO : uploadSections.freelancer.PROFILE_PHOTO;
 
-      const fullName = user.registrationDetails?.fullName;
-      if (fullName) {
-        const safeFullName = fullName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_");
-        folder = `${safeFullName}/${folder}`;
-      }
+      const userId = (user._id || user.id)?.toString();
+      folder = `${userId}/${folder}`;
 
       // Upload to GCP
       profilePhotoUrl = await uploadToGCP(req.file, bucketName, folder);

@@ -43,9 +43,8 @@ exports.uploadFile = async (req, res) => {
         }
 
         console.log("=================================");
-        console.log("UPLOAD USER:", req.user);
         console.log("UPLOAD ROLE:", req.user?.role);
-        console.log("UPLOAD NAME:", req.user?.registrationDetails?.fullName);
+        console.log("UPLOAD USER ID:", req.user?._id?.toString());
         console.log("=================================");
 
         const bucketName = BUCKET_MAP[bucketKey];
@@ -79,19 +78,14 @@ exports.uploadFile = async (req, res) => {
             });
         }
 
-        const fullName = req.user.registrationDetails?.fullName;
+        const userId = (req.user._id || req.user.id)?.toString();
 
-        if (!fullName) {
+        if (!userId) {
             return res.status(400).json({
                 success: false,
-                message: "User full name missing"
+                message: "User ID missing"
             });
         }
-
-        const safeFullName = fullName
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]+/g, "_");
 
         const safeSubfolder = String(subfolder)
             .trim()
@@ -99,8 +93,8 @@ exports.uploadFile = async (req, res) => {
             .replace(/[^a-z0-9]+/g, "_");
 
         const folderPath = safeSubfolder
-            ? `${safeFullName}/${sectionFolder}/${safeSubfolder}`
-            : `${safeFullName}/${sectionFolder}`;
+            ? `${userId}/${sectionFolder}/${safeSubfolder}`
+            : `${userId}/${sectionFolder}`;
 
         const shouldReplace = String(replace).toLowerCase() === "true";
 

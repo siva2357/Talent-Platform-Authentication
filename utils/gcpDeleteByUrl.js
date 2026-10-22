@@ -3,7 +3,7 @@ const storage = require("../config/gcpStorage");
 /**
  * Deletes a single GCP file using its public URL
  * Example URL:
- * https://storage.googleapis.com/jobseeker-data/siva_prasad_kurra/project-files/file.jpg
+ * https://storage.googleapis.com/freelancer-files/64b5f8c8a1b2c3d4e5f6a7b8/profile-photo/file.jpg
  */
 exports.deleteFileFromGCPByUrl = async (fileUrl) => {
     if (!fileUrl) return;

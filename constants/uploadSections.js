@@ -15,6 +15,8 @@ module.exports = {
     },
     admin: {
         BLOG_MEDIA: "blog-media",
+        PROFILE_PHOTO: "profile-photo",
+        SUPPORT_REQUEST: "support-requests",
     }
 
 };
