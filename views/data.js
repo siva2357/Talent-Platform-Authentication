@@ -37,6 +37,12 @@ function getInitials(name, fallback = "TH") {
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }
 
+// Strip HTML tags helper for clean rendering of rich-text content
+function stripHtml(html) {
+  if (!html || typeof html !== "string") return "";
+  return html.replace(/<[^>]*>?/gm, " ").replace(/\s+/g, " ").trim();
+}
+
 /**
  * 1. Contract Template Data Builder (contract-template.ejs)
  */
@@ -50,20 +56,32 @@ function buildContractTemplateData(offer = {}, overrides = {}) {
   const freelancerName = freelancer.fullName || freelancer.registrationDetails?.fullName || "Freelancer Name";
   const freelancerEmail = freelancer.email || freelancer.registrationDetails?.email || "";
 
+  let formattedBudgetType = contract.contractType || contract.budgetType || "Fixed Price";
+  if (formattedBudgetType.toLowerCase().includes("fixed")) {
+    formattedBudgetType = "Fixed Price";
+  } else if (formattedBudgetType.toLowerCase().includes("hour")) {
+    formattedBudgetType = "Hourly Rate";
+  }
+
+  const budgetNum = Number(contract.estimatedBudget || 0);
+  const formattedBudget = budgetNum > 0
+    ? `₹${budgetNum.toLocaleString("en-IN", { minimumFractionDigits: 0 })}`
+    : `₹0`;
+
   return {
     logoBase64,
     contractTitle: contract.contractTitle || "Service Agreement",
-    agreementDate: formatDate(offer.updatedAt || new Date()),
+    agreementDate: formatDate(offer.signedAt || offer.updatedAt || new Date()),
     clientName,
     clientEmail,
     freelancerName,
     freelancerEmail,
-    estimatedBudget: `₹${contract.estimatedBudget || 0}`,
-    budgetType: contract.budgetType || "Fixed Price",
+    estimatedBudget: formattedBudget,
+    budgetType: formattedBudgetType,
     startDate: formatDate(contract.contractStartDate),
     endDate: formatDate(contract.contractEndDate),
-    scopeOfWork: offer.scopeOfWork || contract.contractDescription || "Professional services as outlined in the proposal.",
-    additionalTerms: offer.additionalTerms || "",
+    scopeOfWork: stripHtml(offer.scopeOfWork || contract.contractDescription || "Professional services as outlined in the proposal."),
+    additionalTerms: stripHtml(offer.additionalTerms || ""),
     offerStatus: offer.offerStatus || "none",
     clientSignature: offer.clientSignature || "",
     freelancerSignature: offer.freelancerSignature || "",
@@ -170,21 +188,43 @@ function buildLegalContractData(offer = {}, overrides = {}) {
   const freelancer = offer.freelancerId || {};
   const diary = overrides.diary || offer.diary || {};
   const freelancerProfile = overrides.freelancerProfile || {};
+  const clientProfile = overrides.clientProfile || {};
 
   const budgetNum = Number(contract.estimatedBudget || 0);
   const duration = overrides.duration || calculateDuration(contract.contractStartDate, contract.contractEndDate);
-  const contractCategory = overrides.contractCategory || contract.contractCategory || "Software Development";
+  const contractCategory = overrides.contractCategory || contract.contractCategory || contract.contractSubject || "Software Development";
 
   const freelancerTitle = overrides.freelancerTitle ||
+    freelancerProfile?.professionalDetails?.professionalHeadline ||
     freelancerProfile?.basicInformation?.professionalHeadline ||
     freelancer.registrationDetails?.professionalHeadline ||
     freelancer.headline ||
     "Senior Professional Freelancer";
 
   const freelancerPhone = overrides.freelancerPhone ||
+    freelancerProfile?.basicInformation?.phoneNumber ||
     freelancer.registrationDetails?.phoneNumber ||
     freelancer.phone ||
     "+91 98765 43210";
+
+  const freelancerLocation = overrides.freelancerLocation ||
+    ([freelancerProfile?.location?.city, freelancerProfile?.location?.state, freelancerProfile?.location?.country].filter(Boolean).join(", ")) ||
+    "Hyderabad, India";
+
+  const clientPhone = overrides.clientPhone ||
+    clientProfile?.basicInformation?.phoneNumber ||
+    client.registrationDetails?.phoneNumber ||
+    client.phone ||
+    "+91 98765 43210";
+
+  const clientAddress = overrides.clientAddress ||
+    ([clientProfile?.location?.city, clientProfile?.location?.state, clientProfile?.location?.country].filter(Boolean).join(", ")) ||
+    "123 Business Park, Hyderabad, Telangana - 500081, India";
+
+  const clientCompany = overrides.clientCompany ||
+    clientProfile?.professionalDetails?.companyType ||
+    clientProfile?.professionalDetails?.industry ||
+    "Client Enterprise";
 
   // Build Deliverables list (array of strings)
   let deliverables = [];
@@ -196,8 +236,9 @@ function buildLegalContractData(offer = {}, overrides = {}) {
     diary.phases.forEach(p => {
       if (Array.isArray(p.deliverables)) {
         p.deliverables.forEach(d => {
-          if (d && typeof d === "string" && d.trim()) {
-            deliverables.push(d.trim());
+          const stripped = stripHtml(d);
+          if (stripped) {
+            deliverables.push(stripped);
           }
         });
       }
@@ -206,7 +247,7 @@ function buildLegalContractData(offer = {}, overrides = {}) {
 
   // Parse from scopeOfWork / contractDescription if array empty
   if (deliverables.length === 0) {
-    const textToParse = offer.scopeOfWork || contract.contractDescription || "";
+    const textToParse = stripHtml(offer.scopeOfWork || contract.contractDescription || "");
     const lines = textToParse
       .split(/\r?\n/)
       .map(line => line.replace(/^[\s*•\-–—\d.)]+/, "").trim())
@@ -226,6 +267,7 @@ function buildLegalContractData(offer = {}, overrides = {}) {
       "Production deployment, system documentation and operational handover"
     ];
   }
+  deliverables = deliverables.map(d => stripHtml(d)).filter(Boolean);
 
   // Build Milestones list (array of objects)
   let milestones = [];
@@ -236,8 +278,8 @@ function buildLegalContractData(offer = {}, overrides = {}) {
       const amt = Number(p.amount || 0);
       return {
         milestoneNumber: idx + 1,
-        name: p.name || `Milestone ${idx + 1}`,
-        description: p.description || p.name || `Execution of Phase ${idx + 1}`,
+        name: stripHtml(p.name || `Milestone ${idx + 1}`),
+        description: stripHtml(p.description || p.name || `Execution of Phase ${idx + 1}`),
         amount: amt,
         amountFormatted: amt.toLocaleString("en-IN", { minimumFractionDigits: 0 }),
         releaseDate: p.deadline ? formatDate(p.deadline) : formatDate(contract.contractEndDate)
@@ -301,21 +343,38 @@ function buildLegalContractData(offer = {}, overrides = {}) {
     ? `₹${totalMilestonesSum.toLocaleString("en-IN", { minimumFractionDigits: 0 })}`
     : `₹${budgetNum.toLocaleString("en-IN", { minimumFractionDigits: 0 })}`;
 
+  const clientSignature = overrides.clientSignature || base.clientSignature || "";
+  const freelancerSignature = overrides.freelancerSignature || base.freelancerSignature || "";
+  const isAccepted = offer.offerStatus === "accepted" || contract.status === "in progress" || contract.status === "completed";
+  const clientSigned = Boolean(clientSignature || offer.signedAt || isAccepted);
+  const freelancerSigned = Boolean(freelancerSignature || (offer.signedAt && isAccepted) || isAccepted);
+  const contractId = contract._id?.toString() || offer.contractId?._id?.toString() || "2026-0001";
+
   return {
     ...base,
+    contractId,
     getInitials,
     clientInitials: getInitials(base.clientName, "CL"),
     freelancerInitials: getInitials(base.freelancerName, "FL"),
     freelancerTitle,
     freelancerPhone,
+    freelancerLocation,
+    clientPhone,
+    clientAddress,
+    clientCompany,
     contractCategory,
     duration,
     governingLaw: offer.governingLaw || "Laws of India",
     jurisdiction: offer.jurisdiction || "Hyderabad, India",
-    clientDesignation: "CEO & Authorized Signatory",
+    clientDesignation: overrides.clientDesignation || "Authorized Signatory",
     deliverables,
     milestones,
     totalMilestonesAmount,
+    clientSignature,
+    freelancerSignature,
+    clientSigned,
+    freelancerSigned,
+    signedStatus: isAccepted ? "Executed & Legally Binding" : "Pending Signatures",
     ...overrides
   };
 }

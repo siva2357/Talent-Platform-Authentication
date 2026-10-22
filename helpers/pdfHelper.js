@@ -130,9 +130,42 @@ function sendPdfResponse(res, pdfBuffer, filename = "document.pdf", inline = tru
   res.end(buffer);
 }
 
+/**
+ * Convert remote image URL to base64 Data URI for fast, reliable Puppeteer embedding.
+ * @param {string} imageUrl
+ * @returns {Promise<string>}
+ */
+async function urlToBase64(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== "string") return "";
+  if (imageUrl.startsWith("data:image/")) return imageUrl;
+  if (!imageUrl.startsWith("http://") && !imageUrl.startsWith("https://")) return imageUrl;
+
+  return new Promise((resolve) => {
+    const protocol = imageUrl.startsWith("https") ? require("https") : require("http");
+    const req = protocol.get(imageUrl, { timeout: 6000 }, (res) => {
+      if (res.statusCode !== 200) {
+        return resolve(imageUrl);
+      }
+      const chunks = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        const buffer = Buffer.concat(chunks);
+        const mimeType = res.headers["content-type"] || "image/png";
+        resolve(`data:${mimeType};base64,${buffer.toString("base64")}`);
+      });
+    });
+    req.on("error", () => resolve(imageUrl));
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(imageUrl);
+    });
+  });
+}
+
 module.exports = {
   generatePdfFromHtml,
   generatePdfFromTemplate,
   sendPdfResponse,
+  urlToBase64,
   VIEWS_DIR
 };

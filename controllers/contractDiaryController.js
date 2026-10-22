@@ -899,10 +899,11 @@ exports.getFreelancerAllDiaries = async (req, res) => {
 // ==========================================
 // SHARED: Download Contract Worksheet PDF (Client & Freelancer)
 // GET /api/contract-diary/worksheet/:contractId/download
+// GET /api/contracts/:id/worksheet/download
 // ==========================================
 exports.downloadContractWorksheetPdf = async (req, res) => {
   try {
-    const { contractId } = req.params;
+    const contractId = req.params.contractId || req.params.id;
     const userId = req.userId;
     const FreelancerProfile = require("../models/freelancerProfile");
     const { generatePdfFromTemplate, sendPdfResponse } = require("../helpers/pdfHelper");
@@ -923,7 +924,7 @@ exports.downloadContractWorksheetPdf = async (req, res) => {
       .populate("freelancerId", "fullName registrationDetails email");
 
     // 3. Authorization check
-    // The user must be the client who created the contract OR the freelancer assigned to it
+    // The user must be the client who created the contract OR the freelancer assigned to it OR admin
     const isClient = contract.clientId?._id
       ? contract.clientId._id.toString() === userId.toString()
       : contract.clientId?.toString() === userId.toString();
@@ -933,21 +934,22 @@ exports.downloadContractWorksheetPdf = async (req, res) => {
       : (diary?.freelancerId ? diary.freelancerId.toString() === userId.toString() : false);
 
     let freelancerUser = diary?.freelancerId;
-    if (!isClient && !isFreelancer) {
+    if (!freelancerUser) {
       const Offer = require("../models/offer");
       const acceptedOffer = await Offer.findOne({ contractId, offerStatus: "accepted" })
         .populate("freelancerId", "fullName registrationDetails email");
 
       if (acceptedOffer && acceptedOffer.freelancerId) {
-        if (acceptedOffer.freelancerId._id.toString() === userId.toString()) {
-          freelancerUser = acceptedOffer.freelancerId;
+        freelancerUser = acceptedOffer.freelancerId;
+        if (freelancerUser._id ? freelancerUser._id.toString() === userId.toString() : freelancerUser.toString() === userId.toString()) {
           isFreelancer = true;
-        } else {
-          return res.status(403).json({ success: false, message: "Unauthorized to access this contract worksheet" });
         }
-      } else {
-        return res.status(403).json({ success: false, message: "Unauthorized to access this contract worksheet" });
       }
+    }
+
+    const isAdmin = req.role === "admin";
+    if (!isClient && !isFreelancer && !isAdmin) {
+      return res.status(403).json({ success: false, message: "Unauthorized to access this contract worksheet" });
     }
 
     const freelancerIdForProfile = freelancerUser?._id || diary?.freelancerId?._id || diary?.freelancerId;

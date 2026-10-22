@@ -391,16 +391,39 @@ exports.getAdminTransactions = async (req, res) => {
         populate: { path: 'clientId', select: 'registrationDetails.fullName' }
       });
 
+    const handledContractIds = new Set();
+
     for (const p of payoutTxs) {
+      let clientFee = 0;
+      let clientPayment = p.amount;
+      // Freelancer deduction must be 7.5% of base spent
+      const freelancerDeduction = Math.round(p.amount * 0.075);
+      const freelancerPayout = p.amount - freelancerDeduction;
+
+      if (p.contractId?._id) {
+        const cIdStr = p.contractId._id.toString();
+        handledContractIds.add(cIdStr);
+
+        const contractTxs = await Transaction.find({ contractId: p.contractId._id });
+        const escrowTx = contractTxs.find(t => t.type === 'Escrow Funded' || t.type === 'Deposit');
+
+        clientFee = escrowTx ? (escrowTx.platformFee || 0) : Math.round(p.amount * 0.10);
+        clientPayment = escrowTx ? ((escrowTx.amount || 0) + clientFee) : (p.amount + clientFee);
+      }
+
+      const totalPlatformFee = clientFee + freelancerDeduction;
+
       formattedTxs.push({
         id: p._id.toString(),
         contractTitle: p.contractId?.contractTitle || "Direct Freelancer Payout",
         clientName: p.contractId?.clientId?.registrationDetails?.fullName || "-",
         freelancerName: p.userId?.registrationDetails?.fullName || "Freelancer",
-        budget: p.amount,
-        freelancerPayment: p.amount - (p.platformFee || 0),
-        amount: p.amount,
-        platformFee: p.platformFee || 0,
+        budget: clientPayment,
+        freelancerPayment: freelancerPayout,
+        amount: clientPayment,
+        platformFee: totalPlatformFee,
+        clientTax: clientFee,
+        freelancerDeduction: freelancerDeduction,
         status: p.status === 'Processed' || p.status === 'Paid' ? 'Completed' : (p.status === 'Pending' ? 'Pending' : p.status),
         date: p.createdAt ? p.createdAt.toISOString().split('T')[0] : "",
         type: "Payout"
@@ -413,14 +436,39 @@ exports.getAdminTransactions = async (req, res) => {
       .populate('applicants.freelancerId', 'registrationDetails.fullName');
 
     for (const contract of contracts) {
+      // If contract already has a payout transaction, it is already represented above
+      if (handledContractIds.has(contract._id.toString())) {
+        continue;
+      }
+
       const contractTxs = await Transaction.find({ contractId: contract._id });
-      const commission = contractTxs.reduce((sum, t) => sum + (t.platformFee || 0), 0);
+      const escrowTx = contractTxs.find(t => t.type === 'Escrow Funded' || t.type === 'Deposit');
 
       const freelancerUser = contract.applicants?.[0]?.freelancerId;
       const freelancerName = freelancerUser?.registrationDetails?.fullName || "Assigned Freelancer";
 
-      const clientPayment = (contract.spent && contract.spent > 0) ? contract.spent : (contract.estimatedBudget || 0);
-      const freelancerPayout = clientPayment;
+      const baseBudget = (contract.spent && contract.spent > 0) ? contract.spent : (contract.estimatedBudget || 0);
+      const clientFee = escrowTx ? (escrowTx.platformFee || 0) : Math.round(baseBudget * 0.10);
+      const clientPayment = escrowTx ? ((escrowTx.amount || 0) + clientFee) : (baseBudget + clientFee);
+
+      const freelancerDeduction = Math.round(baseBudget * 0.075);
+      const freelancerPayout = Math.max(0, baseBudget - freelancerDeduction);
+      const totalPlatformFee = clientFee + freelancerDeduction;
+
+      let status = 'Pending';
+      let type = 'Contract Escrow';
+
+      if (contract.status === 'completed') {
+        // Contract is completed, but freelancer payout has not been disbursed yet
+        status = 'Pending';
+        type = 'Payout';
+      } else if (contract.status === 'in progress') {
+        status = 'In Progress';
+        type = 'Contract Escrow';
+      } else {
+        status = 'Pending';
+        type = 'Contract Escrow';
+      }
 
       formattedTxs.push({
         id: contract._id.toString(),
@@ -430,10 +478,12 @@ exports.getAdminTransactions = async (req, res) => {
         budget: clientPayment,
         freelancerPayment: freelancerPayout,
         amount: clientPayment,
-        platformFee: commission > 0 ? commission : Math.round(clientPayment * 0.10),
-        status: contract.status === 'completed' ? 'Completed' : (contract.status === 'in progress' ? 'In Progress' : 'Pending'),
+        platformFee: totalPlatformFee,
+        clientTax: clientFee,
+        freelancerDeduction: freelancerDeduction,
+        status: status,
         date: contract.createdAt ? contract.createdAt.toISOString().split('T')[0] : "",
-        type: contract.status === 'completed' ? 'Contract Completed' : 'Contract Escrow'
+        type: type
       });
     }
 
@@ -461,9 +511,24 @@ exports.getAdminFinancialStats = async (req, res) => {
     const completedPayouts = payoutTxs.filter(t => t.status === 'Processed' || t.status === 'Completed' || t.status === 'Paid');
     const pendingPayouts = payoutTxs.filter(t => t.status === 'Pending');
 
+    // Count pending amounts for completed contracts without a payout transaction yet
+    const handledContractIds = new Set(
+      payoutTxs.filter(t => t.contractId).map(t => t.contractId.toString())
+    );
+
+    const unhandledCompletedContracts = await Contract.find({
+      status: 'completed',
+      _id: { $nin: Array.from(handledContractIds) }
+    });
+
+    const unhandledPendingAmount = unhandledCompletedContracts.reduce((sum, c) => {
+      const spent = (c.spent && c.spent > 0) ? c.spent : (c.estimatedBudget || 0);
+      return sum + Math.round(spent * 0.90);
+    }, 0);
+
     // Calculate total platform commissions across all platform transactions
     const platformCommissions = txs.reduce((sum, t) => sum + (t.platformFee || 0), 0);
-    const pendingWithdrawals = pendingPayouts.reduce((sum, t) => sum + (t.amount || 0), 0);
+    const pendingWithdrawals = pendingPayouts.reduce((sum, t) => sum + (t.amount || 0), 0) + unhandledPendingAmount;
     const successfulPayouts = completedPayouts.length;
 
     return res.status(200).json({
@@ -528,37 +593,73 @@ exports.processManualPayout = async (req, res) => {
 
     const { transactionId } = req.params;
 
+    // 1. Check if transactionId is an existing Transaction
+    let transaction = await Transaction.findById(transactionId);
 
-    const transaction = await Transaction.findById(transactionId);
-    if (!transaction) {
-      return res.status(404).json({ success: false, message: 'Transaction not found' });
+    if (transaction) {
+      if (transaction.type !== 'Payout' && transaction.type !== 'Withdrawal') {
+        return res.status(400).json({ success: false, message: 'Invalid transaction type for payout' });
+      }
+
+      if (transaction.status === 'Processed' || transaction.status === 'Paid') {
+        return res.status(400).json({ success: false, message: 'Payout has already been processed' });
+      }
+
+      const freelancer = await User.findById(transaction.userId);
+      if (!freelancer) {
+        return res.status(404).json({ success: false, message: 'Freelancer not found' });
+      }
+
+      // Mark transaction processed
+      transaction.status = 'Processed';
+      await transaction.save();
+
+      return res.status(200).json({ success: true, message: 'Payout processed successfully', transaction });
     }
 
-    if (transaction.type !== 'Payout' || transaction.status !== 'Pending') {
-      return res.status(400).json({ success: false, message: 'Invalid transaction type or status for payout' });
+    // 2. Check if transactionId is a Contract ID
+    const contract = await Contract.findById(transactionId).populate('applicants.freelancerId');
+    if (contract) {
+      const freelancerUser = contract.applicants?.[0]?.freelancerId;
+      if (!freelancerUser) {
+        return res.status(404).json({ success: false, message: 'No freelancer assigned to this contract' });
+      }
+
+      const freelancerId = freelancerUser._id || freelancerUser;
+      const freelancer = await User.findById(freelancerId);
+      if (!freelancer) {
+        return res.status(404).json({ success: false, message: 'Freelancer not found' });
+      }
+
+      const baseSpent = (contract.spent && contract.spent > 0) ? contract.spent : (contract.estimatedBudget || 0);
+      const freelancerFee = Math.round(baseSpent * 0.075);
+      const netPayout = Math.max(0, baseSpent - freelancerFee);
+
+      // Deduct baseSpent from freelancer wallet balance if present
+      if (freelancer.balance && freelancer.balance >= baseSpent) {
+        freelancer.balance -= baseSpent;
+        await freelancer.save();
+      } else if (freelancer.balance && freelancer.balance >= netPayout) {
+        freelancer.balance -= netPayout;
+        await freelancer.save();
+      }
+
+      // Create new processed Payout transaction
+      transaction = await Transaction.create({
+        userId: freelancer._id,
+        contractId: contract._id,
+        type: 'Payout',
+        amount: baseSpent,
+        platformFee: freelancerFee,
+        status: 'Processed',
+        description: `Manual payout processed by admin for contract "${contract.contractTitle}"`,
+        referenceId: `PO-${Math.floor(100000 + Math.random() * 900000)}`
+      });
+
+      return res.status(200).json({ success: true, message: 'Payout processed successfully', transaction });
     }
 
-    const freelancer = await User.findById(transaction.userId);
-    if (!freelancer) {
-      return res.status(404).json({ success: false, message: 'Freelancer not found' });
-    }
-
-    // In a real scenario, this is where you'd call RazorpayX API
-    // using axios to https://api.razorpay.com/v1/payouts
-    // For now, we simulate success
-
-    transaction.status = 'Processed';
-    // Deduct from freelancer balance
-    if (freelancer.balance >= transaction.amount) {
-      freelancer.balance -= transaction.amount;
-      await freelancer.save();
-    } else {
-      return res.status(400).json({ success: false, message: 'Insufficient freelancer balance' });
-    }
-
-    await transaction.save();
-
-    return res.status(200).json({ success: true, message: 'Payout processed successfully', transaction });
+    return res.status(404).json({ success: false, message: 'Transaction or Contract not found' });
 
   } catch (err) {
     return res.status(500).json({ success: false, message: err.message });

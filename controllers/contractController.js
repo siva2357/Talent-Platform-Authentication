@@ -43,6 +43,8 @@ exports.createContract = async (req, res) => {
     const contract = await Contract.create({
       clientId,
       contractTitle,
+      contractCategory,
+      currency: currency || "INR",
       estimatedBudget,
       contractStartDate,
       contractEndDate,
@@ -210,7 +212,8 @@ exports.updateContract = async (req, res) => {
     const clientId = req.userId;
     const {
       contractTitle,
-
+      contractCategory,
+      currency,
       estimatedBudget,
       contractStartDate,
       contractEndDate,
@@ -264,7 +267,13 @@ exports.updateContract = async (req, res) => {
       contract.contractTitle = contractTitle;
     }
 
+    if (contractCategory !== undefined) {
+      contract.contractCategory = contractCategory;
+    }
 
+    if (currency !== undefined) {
+      contract.currency = currency;
+    }
 
     if (estimatedBudget !== undefined) {
       contract.estimatedBudget = estimatedBudget;
@@ -1560,40 +1569,83 @@ exports.getFreelancerMyContracts = async (req, res) => {
 
 exports.downloadLegalContractPdf = async (req, res) => {
   try {
-    const contractId = req.params.id;
+    const contractId = req.params.id || req.params.contractId;
+    const User = require("../models/user");
+    const Contract = require("../models/contract");
     const Offer = require("../models/offer");
     const ContractDiary = require("../models/contractDiary");
+    const ClientProfile = require("../models/clientProfile");
+    const FreelancerProfile = require("../models/freelancerProfile");
     const { buildLegalContractData } = require("../views/data");
-    const { generatePdfFromTemplate, sendPdfResponse } = require("../helpers/pdfHelper");
+    const { generatePdfFromTemplate, sendPdfResponse, urlToBase64 } = require("../helpers/pdfHelper");
 
-    let offer = await Offer.findOne({ contractId })
+    let offer = await Offer.findOne({ contractId, offerStatus: "accepted" })
       .populate("clientId")
       .populate("freelancerId")
       .populate("contractId");
 
-    const diary = await ContractDiary.findOne({ contractId });
+    if (!offer) {
+      offer = await Offer.findOne({ contractId })
+        .populate("clientId")
+        .populate("freelancerId")
+        .populate("contractId");
+    }
 
-    let freelancerProfile = null;
-    if (offer?.freelancerId) {
-      freelancerProfile = await FreelancerProfile.findOne({
-        userId: offer.freelancerId._id || offer.freelancerId
-      });
+    const diary = await ContractDiary.findOne({ contractId })
+      .populate("clientId")
+      .populate("freelancerId");
+
+    let contract = offer?.contractId;
+    if (!contract || typeof contract === "string") {
+      contract = await Contract.findById(contractId).populate("clientId");
+    }
+
+    if (!contract) {
+      return res.status(404).json({ success: false, message: "Contract not found" });
     }
 
     if (!offer) {
-      const contract = await Contract.findById(contractId).populate("clientId");
-      if (!contract) {
-        return res.status(404).json({ success: false, message: "Contract not found" });
-      }
       offer = {
         contractId: contract,
         clientId: contract.clientId,
+        freelancerId: diary?.freelancerId || null,
         scopeOfWork: contract.contractDescription,
-        offerStatus: "none"
+        offerStatus: (contract.status === "in progress" || contract.status === "completed") ? "accepted" : "none"
       };
+    } else {
+      if (!offer.contractId) offer.contractId = contract;
+      if (!offer.clientId && contract.clientId) offer.clientId = contract.clientId;
+      if (!offer.freelancerId && diary?.freelancerId) offer.freelancerId = diary.freelancerId;
     }
 
-    const data = buildLegalContractData(offer, { diary, freelancerProfile });
+    const freelancerId = offer.freelancerId?._id || offer.freelancerId || diary?.freelancerId?._id || diary?.freelancerId;
+    const clientId = offer.clientId?._id || offer.clientId || contract.clientId?._id || contract.clientId;
+
+    // Authorization: Client, Freelancer, or Admin
+    const userId = req.userId ? req.userId.toString() : "";
+    const isClient = clientId ? clientId.toString() === userId : false;
+    const isFreelancer = freelancerId ? freelancerId.toString() === userId : false;
+    const isAdmin = req.role === "admin";
+
+    if (!isClient && !isFreelancer && !isAdmin) {
+      return res.status(403).json({ success: false, message: "Unauthorized to access this legal contract" });
+    }
+
+    const [freelancerProfile, clientProfile, clientSigB64, freelancerSigB64] = await Promise.all([
+      freelancerId ? FreelancerProfile.findOne({ userId: freelancerId }) : Promise.resolve(null),
+      clientId ? ClientProfile.findOne({ userId: clientId }) : Promise.resolve(null),
+      offer.clientSignature ? urlToBase64(offer.clientSignature) : Promise.resolve(""),
+      offer.freelancerSignature ? urlToBase64(offer.freelancerSignature) : Promise.resolve("")
+    ]);
+
+    const data = buildLegalContractData(offer, {
+      diary,
+      freelancerProfile,
+      clientProfile,
+      clientSignature: clientSigB64 || offer.clientSignature || "",
+      freelancerSignature: freelancerSigB64 || offer.freelancerSignature || ""
+    });
+
     const pdfBuffer = await generatePdfFromTemplate("legal-contract.ejs", data, {
       margin: { top: "0", right: "0", bottom: "0", left: "0" },
       printBackground: true
@@ -1602,7 +1654,7 @@ exports.downloadLegalContractPdf = async (req, res) => {
     sendPdfResponse(res, pdfBuffer, `Legal_Contract_${contractId}.pdf`, false);
   } catch (error) {
     console.error("Error downloading legal contract PDF in contractController:", error);
-    res.status(500).json({ success: false, message: "Failed to download legal contract PDF" });
+    res.status(500).json({ success: false, message: "Failed to download legal contract PDF: " + error.message });
   }
 };
 
