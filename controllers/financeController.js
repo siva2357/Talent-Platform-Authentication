@@ -1,5 +1,6 @@
 const User = require("../models/user");
 const Transaction = require("../models/transaction");
+const Contract = require("../models/contract");
 const ContractDiary = require("../models/contractDiary");
 const Razorpay = require("razorpay");
 const crypto = require("crypto");
@@ -557,9 +558,18 @@ exports.getFreelancerFinanceReport = async (req, res) => {
       // Filter transactions associated with this contract
       const contractTxns = txns.filter(t => t.contractId && t.contractId.toString() === contractId);
 
-      const receivedAmount = contractTxns
+      const approvedPhases = (diary.phases || []).filter(p => p.status === 'approved');
+      const earned = approvedPhases.reduce((sum, p) => sum + (p.amount || 0), 0);
+      const budget = Number(diary.contractId?.estimatedBudget || (diary.phases || []).reduce((sum, p) => sum + (p.amount || 0), 0));
+      const totalPhases = (diary.phases || []).length;
+      const completion = totalPhases > 0 ? Math.round((approvedPhases.length / totalPhases) * 100) : 0;
+
+      const rawReceived = contractTxns
         .filter(t => t.type === 'Payment Released')
-        .reduce((sum, t) => sum + t.amount, 0);
+        .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+      // Total payment received for this contract cannot exceed the contract's earned amount
+      const receivedAmount = Math.min(earned, rawReceived || earned);
 
       const pendingTxns = contractTxns.filter(t => t.type === 'Payout' && t.status === 'Pending');
       const pendingWithdrawnAmount = pendingTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
@@ -572,12 +582,6 @@ exports.getFreelancerFinanceReport = async (req, res) => {
 
       // Available balance should exclude both processed and pending withdrawals
       const balance = Math.max(0, receivedAmount - grossWithdrawnAmount - pendingWithdrawnAmount);
-
-      const approvedPhases = (diary.phases || []).filter(p => p.status === 'approved');
-      const earned = approvedPhases.reduce((sum, p) => sum + (p.amount || 0), 0);
-      const budget = (diary.phases || []).reduce((sum, p) => sum + (p.amount || 0), 0);
-      const totalPhases = (diary.phases || []).length;
-      const completion = totalPhases > 0 ? Math.round((approvedPhases.length / totalPhases) * 100) : 0;
 
       let mappedStatus = 'Ongoing';
       if (diary.overallStatus === 'completed') mappedStatus = 'Completed';

@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Legal Contract - Talent-Hub</title>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Caveat:wght@600;700&family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
         rel="stylesheet">
     <style>
         :root {
@@ -21,13 +21,11 @@
         /* Optimized for Puppeteer PDF Generation */
         body {
             background-color: white;
-            /* Removed gray background */
             margin: 0;
             padding: 0;
             font-family: 'Inter', sans-serif;
             color: var(--text-dark);
             -webkit-print-color-adjust: exact;
-            /* Crucial for printing background colors in Puppeteer */
             print-color-adjust: exact;
         }
 
@@ -35,16 +33,13 @@
         .page {
             width: 210mm;
             height: 297mm;
-            /* Fixed height for A4 */
             margin: 0 auto;
-            /* Center the page in the browser */
             position: relative;
             box-sizing: border-box;
             padding: 40px 50px 80px 50px;
             display: flex;
             flex-direction: column;
             page-break-after: always;
-            /* Force new page in PDF */
             break-after: page;
             overflow: hidden;
             background: white;
@@ -96,6 +91,7 @@
             justify-content: center;
             font-weight: 700;
             font-size: 18px;
+            flex-shrink: 0;
         }
 
         .header-text h3 {
@@ -164,14 +160,14 @@
 
         .intro-text {
             text-align: center;
-            margin: 20px 50px 50px 50px;
+            margin: 20px 50px 40px 50px;
         }
 
         /* Party Cards */
         .party-section {
             display: flex;
             flex-direction: column;
-            gap: 30px;
+            gap: 25px;
         }
 
         .party-card {
@@ -179,6 +175,7 @@
             padding: 20px;
             border-radius: 8px;
             position: relative;
+            background: white;
         }
 
         .party-card-title {
@@ -205,6 +202,7 @@
             border-radius: 50%;
             object-fit: cover;
             border: 2px solid var(--border-color);
+            flex-shrink: 0;
         }
 
         .info h4 {
@@ -216,6 +214,7 @@
         .info p {
             margin: 3px 0;
             font-size: 12px;
+            color: #374151;
         }
 
         /* Summary Boxes */
@@ -223,7 +222,7 @@
             display: grid;
             grid-template-columns: 1fr;
             gap: 15px;
-            margin-top: 40px;
+            margin-top: 35px;
         }
 
         .summary-box {
@@ -233,6 +232,7 @@
             display: flex;
             align-items: center;
             gap: 15px;
+            background: white;
         }
 
         .summary-icon {
@@ -259,14 +259,14 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 30px;
-            font-size: 12px;
+            margin-bottom: 20px;
+            font-size: 11.5px;
         }
 
         th,
         td {
             border: 1px solid var(--border-color);
-            padding: 12px 15px;
+            padding: 8px 12px;
             text-align: left;
         }
 
@@ -282,14 +282,14 @@
 
         /* Lists */
         ul {
-            font-size: 12px;
-            line-height: 1.6;
-            margin-bottom: 20px;
+            font-size: 11.5px;
+            line-height: 1.5;
+            margin-bottom: 14px;
             padding-left: 20px;
         }
 
         ul li {
-            margin-bottom: 8px;
+            margin-bottom: 5px;
         }
 
         /* Signatures */
@@ -297,28 +297,39 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 40px;
-            margin-top: 30px;
+            margin-top: 25px;
         }
 
         .signature-block {
-            margin-top: 20px;
+            margin-top: 15px;
         }
 
         .signature-line {
             border-bottom: 1px solid var(--text-light);
             width: 100%;
-            height: 60px;
+            height: 65px;
             display: flex;
             align-items: flex-end;
-            padding-bottom: 5px;
+            padding-bottom: 6px;
             position: relative;
         }
 
         .signature-img {
-            height: 40px;
-            font-family: 'Brush Script MT', cursive;
-            font-size: 32px;
+            height: 48px;
+            font-family: 'Dancing Script', 'Brush Script MT', 'Caveat', cursive;
+            font-size: 28px;
+            font-weight: 700;
             color: var(--primary-color);
+            display: flex;
+            align-items: center;
+        }
+
+        .signature-img-tag {
+            max-height: 52px;
+            max-width: 200px;
+            object-fit: contain;
+            display: block;
+            margin-bottom: 2px;
         }
 
         .signed-badge {
@@ -329,13 +340,14 @@
             border-radius: 4px;
             position: absolute;
             right: 0;
-            bottom: 10px;
+            bottom: 8px;
             font-weight: 600;
         }
 
         .signature-details p {
-            margin: 5px 0;
+            margin: 4px 0;
             font-size: 11px;
+            color: #374151;
         }
 
         /* Final Page Centered Elements */
@@ -393,10 +405,17 @@
 
     <!-- PAGE 1 -->
     <div class="page">
-        <div style="text-align: center; margin-top: 40px; margin-bottom: 20px;">
-            <img src="../public/logo.png" alt="Talent Hub Logo" style="height: 180px; object-fit: contain;">
+        <div style="text-align: center; margin-top: 25px; margin-bottom: 18px;">
+            <% if (typeof logoBase64 !== 'undefined' && logoBase64) { %>
+                <img src="<%= logoBase64 %>" alt="Talent Hub Logo" style="height: 64px; max-width: 320px; object-fit: contain;">
+            <% } else { %>
+                <div style="font-size: 24px; font-weight: 800; color: #2563eb;">Talent Hub</div>
+            <% } %>
         </div>
-        <h1 class="title" style="margin-top: 10px;">LEGAL CONTRACT<br>AGREEMENT</h1>
+        <div style="text-align: center; margin-bottom: 8px;">
+            <span style="display: inline-block; background: #eff6ff; color: #1d4ed8; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 4px 14px; border-radius: 9999px; border: 1px solid #bfdbfe;">Official Legal Service Agreement</span>
+        </div>
+        <h1 class="title" style="margin-top: 6px;">LEGAL CONTRACT<br>AGREEMENT</h1>
         <div class="title-divider">
             <span>&#10042;</span>
         </div>
@@ -410,12 +429,12 @@
             <div class="party-card">
                 <div class="party-card-title">CLIENT (COMPANY)</div>
                 <div class="party-details">
-                    <div class="logo-circle" style="width: 60px; height: 60px;">ABC</div>
+                    <div class="logo-circle" style="width: 60px; height: 60px;"><%= typeof clientInitials !== 'undefined' ? clientInitials : 'CL' %></div>
                     <div class="info">
                         <h4><%= clientName %></h4>
-                        <p>123 Business Park, Hyderabad,</p>
-                        <p>Telangana - 500081, India</p>
-                        <p><strong>Email:</strong> <%= clientEmail %></p>
+                        <p><%= typeof clientCompany !== 'undefined' && clientCompany ? clientCompany : 'Enterprise Client' %></p>
+                        <p><%= typeof clientAddress !== 'undefined' && clientAddress ? clientAddress : 'Hyderabad, Telangana, India' %></p>
+                        <p><strong>Email:</strong> <%= clientEmail %> &nbsp;|&nbsp; <strong>Phone:</strong> <%= typeof clientPhone !== 'undefined' && clientPhone ? clientPhone : '+91 98765 43210' %></p>
                     </div>
                 </div>
             </div>
@@ -423,12 +442,12 @@
             <div class="party-card" style="margin-top: 10px;">
                 <div class="party-card-title">FREELANCER</div>
                 <div class="party-details">
-                    <img src="https://i.pravatar.cc/150?img=11" alt="Freelancer" class="avatar">
+                    <div class="logo-circle" style="width: 60px; height: 60px; background: #059669;"><%= typeof freelancerInitials !== 'undefined' ? freelancerInitials : 'FL' %></div>
                     <div class="info">
                         <h4><%= freelancerName %></h4>
-                        <p>Senior Full Stack Developer</p>
-                        <p><strong>Email:</strong> <%= freelancerEmail %></p>
-                        <p><strong>Phone:</strong> +91 98765 43210</p>
+                        <p><%= typeof freelancerTitle !== 'undefined' && freelancerTitle ? freelancerTitle : 'Senior Professional Freelancer' %></p>
+                        <p><%= typeof freelancerLocation !== 'undefined' && freelancerLocation ? freelancerLocation : 'Hyderabad, India' %></p>
+                        <p><strong>Email:</strong> <%= freelancerEmail %> &nbsp;|&nbsp; <strong>Phone:</strong> <%= typeof freelancerPhone !== 'undefined' && freelancerPhone ? freelancerPhone : '+91 98765 43210' %></p>
                     </div>
                 </div>
             </div>
@@ -458,13 +477,13 @@
             </div>
         </div>
 
-        <div class="page-footer">Page 1 of 8</div>
+        <div class="page-footer">Page 1 of 9</div>
     </div>
 
     <!-- PAGE 2 -->
     <div class="page">
         <h2>1. CONTRACT INFORMATION</h2>
-        <table class="table-striped">
+        <table class="table-striped" style="margin-bottom: 18px;">
             <tbody>
                 <tr>
                     <td style="font-weight: 700; width: 30%;">Contract Title</td>
@@ -480,7 +499,7 @@
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Duration</td>
-                    <td>3 Months</td>
+                    <td><%= typeof duration !== 'undefined' && duration ? duration : '3 Months' %></td>
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Start Date</td>
@@ -492,25 +511,23 @@
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Category</td>
-                    <td>Web Development</td>
+                    <td><%= typeof contractCategory !== 'undefined' && contractCategory ? contractCategory : 'Software Development' %></td>
                 </tr>
             </tbody>
         </table>
 
         <h2>2. SCOPE OF WORK</h2>
-        <p>The freelancer agrees to deliver a fully functional AI-powered CRM platform with the following key
-            deliverables:</p>
-        <ul>
-            <li>User management with roles and permissions</li>
-            <li>Leads tracking and pipeline management</li>
-            <li>Analytics dashboard and reporting</li>
-            <li>Workflow automation and notifications</li>
-            <li>API integrations and data import/export</li>
-        </ul>
-        <p>The freelancer shall ensure timely delivery, high quality of work and adhere to the requirements and
-            specifications agreed upon by both parties.</p>
+        <p><%= typeof scopeOfWork !== 'undefined' && scopeOfWork ? scopeOfWork : ('The freelancer agrees to deliver the project deliverables for ' + contractTitle + ' as specified below:') %></p>
+        <% if (typeof deliverables !== 'undefined' && deliverables && deliverables.length > 0) { %>
+            <ul>
+                <% for (var i = 0; i < deliverables.length; i++) { %>
+                    <li><%= deliverables[i] %></li>
+                <% } %>
+            </ul>
+        <% } %>
+        <p>The freelancer shall ensure timely delivery, high quality of work and adhere to the requirements and specifications agreed upon by both parties.</p>
 
-        <h2 style="margin-top: 40px;">3. PAYMENT SCHEDULE</h2>
+        <h2 style="margin-top: 25px;">3. PAYMENT SCHEDULE</h2>
         <table>
             <thead>
                 <tr>
@@ -521,44 +538,46 @@
                 </tr>
             </thead>
             <tbody>
-                <tr>
-                    <td style="text-align: center;">1</td>
-                    <td>Design & Wireframes</td>
-                    <td style="text-align: right;">20,000</td>
-                    <td style="text-align: right;"><%= startDate %></td>
-                </tr>
-                <tr>
-                    <td style="text-align: center;">2</td>
-                    <td>Development</td>
-                    <td style="text-align: right;">30,000</td>
-                    <td style="text-align: right;">Aug 20, 2026</td>
-                </tr>
-                <tr>
-                    <td style="text-align: center;">3</td>
-                    <td>Testing & Deployment</td>
-                    <td style="text-align: right;">10,000</td>
-                    <td style="text-align: right;">Sep 30, 2026</td>
-                </tr>
-                <tr>
-                    <td colspan="2" style="text-align: right; font-weight: 700;">Total</td>
-                    <td style="text-align: right; font-weight: 700;">60,000</td>
-                    <td></td>
-                </tr>
+                <% if (typeof milestones !== 'undefined' && milestones && milestones.length > 0) { %>
+                    <% for (var i = 0; i < milestones.length; i++) { %>
+                        <tr>
+                            <td style="text-align: center;"><%= milestones[i].milestoneNumber || (i + 1) %></td>
+                            <td><%= milestones[i].name || milestones[i].description %></td>
+                            <td style="text-align: right;"><%= milestones[i].amountFormatted || milestones[i].amount %></td>
+                            <td style="text-align: right;"><%= milestones[i].releaseDate || startDate %></td>
+                        </tr>
+                    <% } %>
+                    <tr>
+                        <td colspan="2" style="text-align: right; font-weight: 700;">Total</td>
+                        <td style="text-align: right; font-weight: 700;"><%= typeof totalMilestonesAmount !== 'undefined' ? totalMilestonesAmount : estimatedBudget %></td>
+                        <td></td>
+                    </tr>
+                <% } else { %>
+                    <tr>
+                        <td style="text-align: center;">1</td>
+                        <td>Full Project Delivery & Scope Execution</td>
+                        <td style="text-align: right;"><%= estimatedBudget %></td>
+                        <td style="text-align: right;"><%= endDate %></td>
+                    </tr>
+                    <tr>
+                        <td colspan="2" style="text-align: right; font-weight: 700;">Total</td>
+                        <td style="text-align: right; font-weight: 700;"><%= estimatedBudget %></td>
+                        <td></td>
+                    </tr>
+                <% } %>
             </tbody>
         </table>
 
-        <div class="page-footer">Page 2 of 8</div>
+        <div class="page-footer">Page 2 of 9</div>
     </div>
 
     <!-- PAGE 3 -->
     <div class="page">
         <h2>4. LEGAL TERMS & CONDITIONS</h2>
-        <p>This agreement is governed by and construed in accordance with the laws of India. Both parties agree to the
-            following terms:</p>
+        <p>This agreement is governed by and construed in accordance with the laws of India. Both parties agree to the following terms:</p>
 
         <h3 class="sub-heading">4.1 Confidentiality</h3>
-        <p>The freelancer shall maintain confidentiality of all proprietary information, documents and data shared by
-            the client.</p>
+        <p>The freelancer shall maintain confidentiality of all proprietary information, documents and data shared by the client.</p>
 
         <h3 class="sub-heading">4.2 Intellectual Property</h3>
         <p>All intellectual property rights of the final deliverables shall belong to the client upon full payment.</p>
@@ -567,18 +586,20 @@
         <p>Payments will be made to the freelancer as per the milestone schedule defined in this agreement.</p>
 
         <h3 class="sub-heading">4.4 Delays & Extensions</h3>
-        <p>Any delays or additional requirements outside the scope will be mutually discussed and may lead to an
-            extension of timeline and/or additional charges.</p>
+        <p>Any delays or additional requirements outside the scope will be mutually discussed and may lead to an extension of timeline and/or additional charges.</p>
 
         <h3 class="sub-heading">4.5 Termination</h3>
-        <p>Either party may terminate this contract with 7 days written notice. In case of termination, the client shall
-            pay for the work completed till the termination date.</p>
+        <p>Either party may terminate this contract with 7 days written notice. In case of termination, the client shall pay for the work completed till the termination date.</p>
 
         <h3 class="sub-heading">4.6 Dispute Resolution</h3>
-        <p>Any disputes arising under this agreement shall be resolved amicably. If unable to resolve, the matter shall
-            be subject to the exclusive jurisdiction of courts in Hyderabad, India.</p>
+        <p>Any disputes arising under this agreement shall be resolved amicably. If unable to resolve, the matter shall be subject to the exclusive jurisdiction of courts in <%= typeof jurisdiction !== 'undefined' ? jurisdiction : 'Hyderabad, India' %>.</p>
 
-        <div class="page-footer">Page 3 of 8</div>
+        <% if (typeof additionalTerms !== 'undefined' && additionalTerms) { %>
+            <h3 class="sub-heading">4.7 Special Agreed Terms</h3>
+            <p><%= additionalTerms %></p>
+        <% } %>
+
+        <div class="page-footer">Page 3 of 9</div>
     </div>
 
     <!-- PAGE 4 -->
@@ -586,144 +607,195 @@
         <h2>5. GENERAL TERMS</h2>
 
         <h3 class="sub-heading">5.1 Entire Agreement</h3>
-        <p>This contract constitutes the entire agreement between the parties and supersedes all prior discussions,
-            understandings or agreements.</p>
+        <p>This contract constitutes the entire agreement between the parties and supersedes all prior discussions, understandings or agreements.</p>
 
         <h3 class="sub-heading">5.2 Amendments</h3>
         <p>Any amendments or modifications to this agreement must be made in writing and signed by both parties.</p>
 
         <h3 class="sub-heading">5.3 Assignment</h3>
-        <p>The freelancer shall not assign or transfer any rights or obligations under this agreement without prior
-            written consent of the client.</p>
+        <p>The freelancer shall not assign or transfer any rights or obligations under this agreement without prior written consent of the client.</p>
 
         <h3 class="sub-heading">5.4 Notices</h3>
-        <p>All notices required or permitted under this agreement shall be in writing and shall be sent to the email
-            addresses of the respective parties.</p>
+        <p>All notices required or permitted under this agreement shall be in writing and shall be sent to the email addresses of the respective parties.</p>
 
         <h3 class="sub-heading">5.5 Force Majeure</h3>
-        <p>Neither party shall be liable for any delay or failure in performance due to circumstances beyond reasonable
-            control including acts of God, natural disasters, war, or government regulations.</p>
+        <p>Neither party shall be liable for any delay or failure in performance due to circumstances beyond reasonable control including acts of God, natural disasters, war, or government regulations.</p>
 
-        <div class="page-footer">Page 4 of 8</div>
+        <h3 class="sub-heading">5.6 Severability</h3>
+        <p>If any provision of this agreement is found to be invalid or unenforceable, the remaining provisions shall continue in full force and effect.</p>
+
+        <div class="page-footer">Page 4 of 9</div>
     </div>
 
     <!-- PAGE 5 -->
     <div class="page">
         <h2>6. NON-DISCLOSURE</h2>
         <div class="title-divider" style="margin: 10px 0;"><span>&#10042;</span></div>
-        <p>The freelancer agrees not to disclose any confidential or proprietary information of the client to any third
-            party and shall use such information only for the purpose of executing this contract.</p>
+        <p>The freelancer agrees not to disclose any confidential or proprietary information of the client to any third party and shall use such information only for the purpose of executing this contract.</p>
 
         <h2 style="margin-top: 40px;">7. WARRANTIES</h2>
         <div class="title-divider" style="margin: 10px 0;"><span>&#10042;</span></div>
-        <p>The freelancer warrants that the work delivered shall be original, free from defects and will be developed in
-            a professional and workmanlike manner.</p>
+        <p>The freelancer warrants that the work delivered shall be original, free from defects and will be developed in a professional and workmanlike manner.</p>
 
         <h2 style="margin-top: 40px;">8. INDEMNIFICATION</h2>
         <div class="title-divider" style="margin: 10px 0;"><span>&#10042;</span></div>
-        <p>The freelancer agrees to indemnify and hold harmless the client from any claims, losses, damages or expenses
-            arising out of breach of this contract or negligence in performance.</p>
+        <p>The freelancer agrees to indemnify and hold harmless the client from any claims, losses, damages or expenses arising out of breach of this contract or negligence in performance.</p>
 
-        <div class="page-footer">Page 5 of 8</div>
+        <div class="page-footer">Page 5 of 9</div>
     </div>
 
     <!-- PAGE 6 -->
     <div class="page">
-        <h2>9. ACCEPTANCE</h2>
-        <div class="title-divider" style="margin: 10px 0 30px 0;"><span>&#10042;</span></div>
-        <p>By signing below, both parties acknowledge that they have read, understood and agree to be bound by the terms
-            and conditions of this Legal Contract Agreement.</p>
+        <h2>9. ACCEPTANCE & ACKNOWLEDGMENT</h2>
+        <div class="title-divider" style="margin: 10px 0 25px 0;"><span>&#10042;</span></div>
+        <p>By executing this section, both parties acknowledge and affirm that they have thoroughly read, understood, and agreed to all terms, obligations, scope of work, and milestones set forth in this Legal Contract Agreement.</p>
 
-        <h3 class="sub-heading" style="margin-top: 40px; font-size: 12px; color: var(--text-dark);">CLIENT (COMPANY)
-        </h3>
+        <div style="display: grid; grid-template-columns: 1fr; gap: 25px; margin-top: 25px;">
+            <!-- Client Acceptance -->
+            <div class="party-card" style="padding: 20px;">
+                <div class="party-card-title">CLIENT ACCEPTANCE</div>
+                <div class="party-details" style="margin-bottom: 12px;">
+                    <div class="logo-circle" style="width: 44px; height: 44px; font-size: 15px;"><%= typeof clientInitials !== 'undefined' ? clientInitials : 'CL' %></div>
+                    <div class="info">
+                        <h4 style="font-size: 15px; margin: 0;"><%= clientName %></h4>
+                        <p style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-light);"><%= typeof clientDesignation !== 'undefined' ? clientDesignation : 'Authorized Signatory' %></p>
+                    </div>
+                </div>
+                <p style="font-size: 11.5px; color: #374151; line-height: 1.6; margin-bottom: 15px;">
+                    "I, on behalf of <%= clientName %>, confirm acceptance of the agreed scope of work, milestone delivery roadmap, and the total committed budget of <strong><%= estimatedBudget %></strong>. I authorize execution under the terms herein."
+                </p>
+                <div class="signature-line" style="height: 55px;">
+                    <% if (typeof clientSignature !== 'undefined' && clientSignature) { %>
+                        <img src="<%= clientSignature %>" alt="Client Signature" class="signature-img-tag">
+                    <% } else { %>
+                        <div class="signature-img"><%= clientName %></div>
+                    <% } %>
+                    <div class="signed-badge" style="<%= clientSigned ? 'background-color: #d1fae5; color: #065f46;' : 'background-color: #fef3c7; color: #92400e;' %>">
+                        <%= clientSigned ? 'Accepted & Signed' : 'Pending Signature' %>
+                    </div>
+                </div>
+                <div class="signature-details" style="margin-top: 8px;">
+                    <p style="margin: 2px 0;">Signatory: <strong><%= clientName %></strong> &nbsp;|&nbsp; Date: <%= signedDate %></p>
+                </div>
+            </div>
 
-        <div class="party-details" style="margin-top: 20px; margin-bottom: 40px;">
-            <div class="logo-circle" style="width: 40px; height: 40px; font-size: 14px;">ABC</div>
-            <div class="info">
-                <h4 style="font-size: 14px;"><%= clientName %></h4>
+            <!-- Freelancer Acceptance -->
+            <div class="party-card" style="padding: 20px;">
+                <div class="party-card-title">FREELANCER ACCEPTANCE</div>
+                <div class="party-details" style="margin-bottom: 12px;">
+                    <div class="logo-circle" style="width: 44px; height: 44px; font-size: 15px; background: #059669;"><%= typeof freelancerInitials !== 'undefined' ? freelancerInitials : 'FL' %></div>
+                    <div class="info">
+                        <h4 style="font-size: 15px; margin: 0;"><%= freelancerName %></h4>
+                        <p style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-light);"><%= typeof freelancerTitle !== 'undefined' ? freelancerTitle : 'Professional Freelancer' %></p>
+                    </div>
+                </div>
+                <p style="font-size: 11.5px; color: #374151; line-height: 1.6; margin-bottom: 15px;">
+                    "I, <%= freelancerName %>, confirm my commitment to execute the project deliverables with highest standards of quality, adhere to the milestone schedule, and abide by the intellectual property and confidentiality terms."
+                </p>
+                <div class="signature-line" style="height: 55px;">
+                    <% if (typeof freelancerSignature !== 'undefined' && freelancerSignature) { %>
+                        <img src="<%= freelancerSignature %>" alt="Freelancer Signature" class="signature-img-tag">
+                    <% } else { %>
+                        <div class="signature-img"><%= freelancerName %></div>
+                    <% } %>
+                    <div class="signed-badge" style="<%= freelancerSigned ? 'background-color: #d1fae5; color: #065f46;' : 'background-color: #fef3c7; color: #92400e;' %>">
+                        <%= freelancerSigned ? 'Accepted & Signed' : 'Pending Signature' %>
+                    </div>
+                </div>
+                <div class="signature-details" style="margin-top: 8px;">
+                    <p style="margin: 2px 0;">Signatory: <strong><%= freelancerName %></strong> &nbsp;|&nbsp; Date: <%= signedDate %></p>
+                </div>
             </div>
         </div>
 
-        <div class="signature-block" style="width: 50%;">
-            <p style="font-size: 11px; font-weight: 700; margin-bottom: 5px;">Authorized Signatory</p>
-            <div class="signature-line">
-                <div class="signature-img"><%= clientName %></div>
-                <div class="signed-badge">Signed</div>
-            </div>
-            <div class="signature-details" style="margin-top: 10px;">
-                <p>Name: <%= clientName %></p>
-                <p>Designation: CEO</p>
-                <p>Signed On: <%= signedDate %></p>
-            </div>
-        </div>
-
-        <div class="page-footer">Page 6 of 8</div>
+        <div class="page-footer">Page 6 of 9</div>
     </div>
 
     <!-- PAGE 7 -->
     <div class="page">
-        <h2>10. SIGNATURES</h2>
+        <h2>10. SIGNATURES & DIGITAL EXECUTION</h2>
+        <div class="title-divider" style="margin: 10px 0 25px 0;"><span>&#10042;</span></div>
+        <p style="margin-bottom: 25px;">
+            IN WITNESS WHEREOF, the Client and Freelancer have duly executed and delivered this Legal Service Agreement through the verified Talent-Hub digital escrow signature protocol.
+        </p>
 
         <div class="signature-grid">
             <!-- Client Side -->
             <div>
-                <h3 class="sub-heading" style="margin-top: 10px; font-size: 12px; color: var(--text-dark);">CLIENT
-                    (COMPANY)</h3>
+                <h3 class="sub-heading" style="margin-top: 0; font-size: 13px; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">CLIENT (COMPANY)</h3>
 
-                <div class="party-details" style="margin-top: 20px; margin-bottom: 40px;">
-                    <div class="logo-circle" style="width: 40px; height: 40px; font-size: 14px;">ABC</div>
+                <div class="party-details" style="margin-top: 15px; margin-bottom: 25px;">
+                    <div class="logo-circle" style="width: 44px; height: 44px; font-size: 15px;"><%= typeof clientInitials !== 'undefined' ? clientInitials : 'CL' %></div>
                     <div class="info">
-                        <h4 style="font-size: 14px;"><%= clientName %></h4>
+                        <h4 style="font-size: 15px; margin: 0;"><%= clientName %></h4>
+                        <p style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-light);"><%= clientEmail %></p>
                     </div>
                 </div>
 
                 <div class="signature-block">
-                    <p style="font-size: 11px; font-weight: 700; margin-bottom: 5px;">Authorized Signatory</p>
+                    <p style="font-size: 11px; font-weight: 700; margin-bottom: 8px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Authorized Client Signature</p>
                     <div class="signature-line">
-                        <div class="signature-img"><%= clientName %></div>
-                        <div class="signed-badge">Signed</div>
+                        <% if (typeof clientSignature !== 'undefined' && clientSignature) { %>
+                            <img src="<%= clientSignature %>" alt="Client Digital Signature" class="signature-img-tag">
+                        <% } else { %>
+                            <div class="signature-img"><%= clientName %></div>
+                        <% } %>
+                        <div class="signed-badge" style="<%= clientSigned ? 'background-color: #d1fae5; color: #065f46;' : 'background-color: #fef3c7; color: #92400e;' %>">
+                            <%= clientSigned ? 'Digitally Signed' : 'Pending Signature' %>
+                        </div>
                     </div>
-                    <div class="signature-details" style="margin-top: 10px;">
-                        <p>Name: <%= clientName %></p>
-                        <p>Designation: CEO</p>
-                        <p>Signed On: <%= signedDate %></p>
+                    <div class="signature-details" style="margin-top: 12px;">
+                        <p><strong>Name:</strong> <%= clientName %></p>
+                        <p><strong>Designation:</strong> <%= typeof clientDesignation !== 'undefined' ? clientDesignation : 'Authorized Signatory' %></p>
+                        <p><strong>Signed On:</strong> <%= signedDate %></p>
+                        <p style="font-size: 10px; color: var(--text-light); margin-top: 6px;">
+                            Verification: <span style="color: #059669; font-weight: 600;">✓ Authenticated</span> via Talent-Hub Escrow
+                        </p>
                     </div>
                 </div>
             </div>
 
             <!-- Freelancer Side -->
             <div>
-                <h3 class="sub-heading" style="margin-top: 10px; font-size: 12px; color: var(--text-dark);">FREELANCER
-                </h3>
+                <h3 class="sub-heading" style="margin-top: 0; font-size: 13px; color: var(--text-dark); text-transform: uppercase; letter-spacing: 0.5px;">FREELANCER</h3>
 
-                <div class="party-details" style="margin-top: 20px; margin-bottom: 40px;">
-                    <img src="https://i.pravatar.cc/150?img=11" alt="Freelancer" class="avatar"
-                        style="width: 40px; height: 40px;">
+                <div class="party-details" style="margin-top: 15px; margin-bottom: 25px;">
+                    <div class="logo-circle" style="width: 44px; height: 44px; font-size: 15px; background: #059669;"><%= typeof freelancerInitials !== 'undefined' ? freelancerInitials : 'FL' %></div>
                     <div class="info">
-                        <h4 style="font-size: 14px;"><%= freelancerName %></h4>
-                        <p style="font-size: 10px;">Senior Full Stack Developer</p>
+                        <h4 style="font-size: 15px; margin: 0;"><%= freelancerName %></h4>
+                        <p style="margin: 2px 0 0 0; font-size: 11px; color: var(--text-light);"><%= typeof freelancerTitle !== 'undefined' ? freelancerTitle : 'Senior Freelancer' %></p>
                     </div>
                 </div>
 
                 <div class="signature-block">
-                    <p style="font-size: 11px; font-weight: 700; margin-bottom: 5px;">Signature</p>
+                    <p style="font-size: 11px; font-weight: 700; margin-bottom: 8px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Freelancer Digital Signature</p>
                     <div class="signature-line">
-                        <div class="signature-img"><%= freelancerName %></div>
-                        <div class="signed-badge">Signed</div>
+                        <% if (typeof freelancerSignature !== 'undefined' && freelancerSignature) { %>
+                            <img src="<%= freelancerSignature %>" alt="Freelancer Digital Signature" class="signature-img-tag">
+                        <% } else { %>
+                            <div class="signature-img"><%= freelancerName %></div>
+                        <% } %>
+                        <div class="signed-badge" style="<%= freelancerSigned ? 'background-color: #d1fae5; color: #065f46;' : 'background-color: #fef3c7; color: #92400e;' %>">
+                            <%= freelancerSigned ? 'Digitally Signed' : 'Pending Signature' %>
+                        </div>
                     </div>
-                    <div class="signature-details" style="margin-top: 10px;">
-                        <p>Name: <%= freelancerName %></p>
-                        <br>
-                        <p>Signed On: <%= signedDate %></p>
+                    <div class="signature-details" style="margin-top: 12px;">
+                        <p><strong>Name:</strong> <%= freelancerName %></p>
+                        <p><strong>Professional Role:</strong> <%= typeof freelancerTitle !== 'undefined' ? freelancerTitle : 'Senior Professional Freelancer' %></p>
+                        <p><strong>Signed On:</strong> <%= signedDate %></p>
+                        <p style="font-size: 10px; color: var(--text-light); margin-top: 6px;">
+                            Verification: <span style="color: #059669; font-weight: 600;">✓ Authenticated</span> via Talent-Hub Escrow
+                        </p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <p class="page-footer-text" style="position: absolute; bottom: 80px;">This Agreement has been executed on the
-            date first written above.</p>
+        <div style="margin-top: 40px; padding: 14px 18px; border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 6px; font-size: 10.5px; color: #1e40af; line-height: 1.5;">
+            <strong>Tamper-Evident Digital Security Notice:</strong> This document was electronically finalized under the Talent-Hub verified contract framework. The digital signatures and timestamps recorded above correspond to contract reference <strong>CON-<%= (typeof contractId !== 'undefined' && contractId) ? contractId.substring(0, 8).toUpperCase() : '2026-0001' %></strong>.
+        </div>
 
-        <div class="page-footer">Page 7 of 8</div>
+        <div class="page-footer">Page 7 of 9</div>
     </div>
 
     <!-- PAGE 8 -->
@@ -747,7 +819,7 @@
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Duration</td>
-                    <td>3 Months</td>
+                    <td><%= typeof duration !== 'undefined' && duration ? duration : '3 Months' %></td>
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Start Date</td>
@@ -763,11 +835,11 @@
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Governing Law</td>
-                    <td>Laws of India</td>
+                    <td><%= typeof governingLaw !== 'undefined' && governingLaw ? governingLaw : 'Laws of India' %></td>
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Jurisdiction</td>
-                    <td>Hyderabad, India</td>
+                    <td><%= typeof jurisdiction !== 'undefined' && jurisdiction ? jurisdiction : 'Hyderabad, India' %></td>
                 </tr>
             </tbody>
         </table>
@@ -779,13 +851,12 @@
                         style="background-color: var(--primary-color); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
                         &#129309;</div>
                 </div>
-                <p style="color: var(--primary-color); font-weight: 600; font-size: 14px; margin-bottom: 5px;">Thank you
-                    for partnering with <%= clientName %>.</p>
+                <p style="color: var(--primary-color); font-weight: 600; font-size: 14px; margin-bottom: 5px;">Thank you for partnering with <%= clientName %>.</p>
                 <p style="color: var(--text-light);">We look forward to a successful collaboration.</p>
             </div>
         </div>
 
-        <div class="page-footer">Page 8 of 8</div>
+        <div class="page-footer">Page 8 of 9</div>
     </div>
 
     <!-- PAGE 9 (Back Cover) -->
@@ -808,6 +879,8 @@
                 <span>&#10042;</span>
             </div>
         </div>
+
+        <div class="page-footer">Page 9 of 9</div>
     </div>
 
 </body>

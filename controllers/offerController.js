@@ -5,7 +5,7 @@ const User = require("../models/user");
 const Notification = require("../models/notification");
 const path = require("path");
 const { generatePdfFromTemplate, sendPdfResponse } = require("../helpers/pdfHelper");
-const { buildContractTemplateData } = require("../views/data");
+const { buildLegalContractData } = require("../views/data");
 const {
   sendContractOfferEmail,
   sendOfferAcceptedNotification,
@@ -387,10 +387,25 @@ exports.getOfferPDF = async (req, res) => {
       return res.status(404).json({ success: false, message: "Offer not found" });
     }
 
-    const data = buildContractTemplateData(offer);
+    // Enrich legal contract with ContractDiary milestones and FreelancerProfile if available
+    let diary = null;
+    let freelancerProfile = null;
+    try {
+      const ContractDiary = require("../models/contractDiary");
+      diary = await ContractDiary.findOne({ contractId: offer.contractId?._id || offer.contractId });
+      const FreelancerProfile = require("../models/freelancerProfile");
+      freelancerProfile = await FreelancerProfile.findOne({ userId: offer.freelancerId?._id || offer.freelancerId });
+    } catch (e) {
+      console.warn("Non-fatal: could not query contract diary or profile:", e.message);
+    }
 
-    // Generate PDF using centralized helper
-    const pdfBuffer = await generatePdfFromTemplate("contract-template.ejs", data);
+    const data = buildLegalContractData(offer, { diary, freelancerProfile });
+
+    // Generate PDF with exact zero margin options so A4 layout fits without clipping
+    const pdfBuffer = await generatePdfFromTemplate("legal-contract.ejs", data, {
+      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+      printBackground: true
+    });
 
     // Send PDF inline so it displays in iframe and can be downloaded
     sendPdfResponse(res, pdfBuffer, `contract-${offer._id}.pdf`, true);
