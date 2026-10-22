@@ -11,7 +11,7 @@ const defaultAdmin = {
   registrationDetails: {
     fullName: "Admin User",
     userName: "admin",
-    email: "admin@gmail.com",
+    email: "creativehub.official08@gmail.com",
     password: "Siva@2357", // ensure this exists
     profilePicture: {
       fileName: "Profile picture",
