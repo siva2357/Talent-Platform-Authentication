@@ -531,10 +531,12 @@ exports.deleteProfile = async (req, res, next) => {
   try {
     const user = req.user;
     const role = user.role;
+    const userId = (user._id || user.id)?.toString();
 
     const Transaction = require("../models/transaction");
     const Notification = require("../models/notification");
     const SupportRequest = require("../models/supportRequest");
+    const Feedback = require("../models/feedback");
 
     const fullName = user.registrationDetails?.fullName || "";
     const safeFullName = fullName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "_");
@@ -542,12 +544,19 @@ exports.deleteProfile = async (req, res, next) => {
     if (role === "client") {
       const profile = await ClientProfile.findOne({ userId: user._id });
 
-      // 1. Delete ALL client files from GCP
-      if (safeFullName) {
+      // 1. Delete ALL client files from GCP by userId
+      if (userId) {
+        try {
+          await deleteFolderFromGCP(bucketMap.CLIENT_DATA, userId);
+        } catch (delErr) {
+          console.error("Failed to delete client GCP folder by userId:", delErr);
+        }
+      }
+      if (safeFullName && safeFullName !== userId) {
         try {
           await deleteFolderFromGCP(bucketMap.CLIENT_DATA, safeFullName);
         } catch (delErr) {
-          console.error("Failed to delete client GCP folder:", delErr);
+          // Non-fatal fallback for legacy folders
         }
       }
 
@@ -559,37 +568,56 @@ exports.deleteProfile = async (req, res, next) => {
       await Application.deleteMany({ contractId: { $in: contractIds } });
       await Application.deleteMany({ clientId: user._id });
 
-      // 4. Purge contract diaries (database records only)
+      // 4. Purge contract offers
+      await Offer.deleteMany({ clientId: user._id });
+      if (contractIds.length > 0) {
+        await Offer.deleteMany({ contractId: { $in: contractIds } });
+      }
+
+      // 5. Purge contract diaries (database records only)
       await ContractDiary.deleteMany({ contractId: { $in: contractIds } });
       await ContractDiary.deleteMany({ clientId: user._id });
 
-      // 5. Delete contracts themselves
+      // 6. Purge feedbacks
+      await Feedback.deleteMany({ clientId: user._id });
+      if (contractIds.length > 0) {
+        await Feedback.deleteMany({ contractId: { $in: contractIds } });
+      }
+
+      // 7. Delete contracts themselves
       await Contract.deleteMany({ clientId: user._id });
 
-      // 6. Purge support requests (database records only)
+      // 8. Purge support requests (database records only)
       await SupportRequest.deleteMany({ userId: user._id });
 
-      // 7. Purge notifications
+      // 9. Purge notifications
       await Notification.deleteMany({ userId: user._id });
 
-      // 8. Purge transactions
+      // 10. Purge transactions
       await Transaction.deleteMany({ userId: user._id });
       if (contractIds.length > 0) {
         await Transaction.deleteMany({ contractId: { $in: contractIds } });
       }
 
-      // 9. Delete client profile document
+      // 11. Delete client profile document
       await ClientProfile.deleteOne({ userId: user._id });
 
     } else if (role === "freelancer") {
       const profile = await FreelancerProfile.findOne({ userId: user._id });
 
-      // 1. Delete ALL freelancer files from GCP
-      if (safeFullName) {
+      // 1. Delete ALL freelancer files from GCP by userId
+      if (userId) {
+        try {
+          await deleteFolderFromGCP(bucketMap.FREELANCER_DATA, userId);
+        } catch (delErr) {
+          console.error("Failed to delete freelancer GCP folder by userId:", delErr);
+        }
+      }
+      if (safeFullName && safeFullName !== userId) {
         try {
           await deleteFolderFromGCP(bucketMap.FREELANCER_DATA, safeFullName);
         } catch (delErr) {
-          console.error("Failed to delete freelancer GCP folder:", delErr);
+          // Non-fatal fallback for legacy folders
         }
       }
 
@@ -599,19 +627,39 @@ exports.deleteProfile = async (req, res, next) => {
       // 3. Purge applications submitted by freelancer
       await Application.deleteMany({ freelancerId: user._id });
 
-      // 4. Purge contract diaries
+      // 4. Purge contract offers for freelancer
+      await Offer.deleteMany({ freelancerId: user._id });
+
+      // 5. Purge contract diaries
       await ContractDiary.deleteMany({ freelancerId: user._id });
 
-      // 5. Purge support requests
+      // 6. Purge feedbacks for freelancer
+      await Feedback.deleteMany({ freelancerId: user._id });
+
+      // 7. Remove freelancer from applicants in any active contracts
+      await Contract.updateMany(
+        {},
+        { $pull: { applicants: { freelancerId: user._id } } }
+      );
+
+      // 8. Remove freelancer from savedTalents in client profiles
+      if (profile?._id) {
+        await ClientProfile.updateMany(
+          {},
+          { $pull: { savedTalents: profile._id } }
+        );
+      }
+
+      // 9. Purge support requests
       await SupportRequest.deleteMany({ userId: user._id });
 
-      // 6. Purge notifications
+      // 10. Purge notifications
       await Notification.deleteMany({ userId: user._id });
 
-      // 7. Purge transactions
+      // 11. Purge transactions
       await Transaction.deleteMany({ userId: user._id });
 
-      // 8. Delete freelancer profile
+      // 12. Delete freelancer profile
       await FreelancerProfile.deleteOne({ userId: user._id });
     }
 
