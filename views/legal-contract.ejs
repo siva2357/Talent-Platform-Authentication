@@ -333,8 +333,6 @@
         }
 
         .signed-badge {
-            background-color: #d1fae5;
-            color: #065f46;
             font-size: 10px;
             padding: 3px 8px;
             border-radius: 4px;
@@ -342,6 +340,16 @@
             right: 0;
             bottom: 8px;
             font-weight: 600;
+        }
+
+        .signed-badge.signed {
+            background-color: #d1fae5;
+            color: #065f46;
+        }
+
+        .signed-badge.pending {
+            background-color: #fef3c7;
+            color: #92400e;
         }
 
         .signature-details p {
@@ -442,17 +450,16 @@
                             <%= clientName %>
                         </h4>
                         <p>
-                            <%= typeof clientCompany !=='undefined' && clientCompany ? clientCompany
-                                : 'Enterprise Client' %>
+                            <%= typeof clientCompany !=='undefined' && clientCompany ? clientCompany : (typeof
+                                clientName !=='undefined' ? clientName : 'Client Organization' ) %>
                         </p>
                         <p>
                             <%= typeof clientAddress !=='undefined' && clientAddress ? clientAddress
-                                : 'Hyderabad, Telangana, India' %>
+                                : 'Address not specified' %>
                         </p>
                         <p><strong>Email:</strong>
                             <%= clientEmail %> &nbsp;|&nbsp; <strong>Phone:</strong>
-                                <%= typeof clientPhone !=='undefined' && clientPhone ? clientPhone : '+91 98765 43210'
-                                    %>
+                                <%= typeof clientPhone !=='undefined' && clientPhone ? clientPhone : 'N/A' %>
                         </p>
                     </div>
                 </div>
@@ -470,16 +477,16 @@
                         </h4>
                         <p>
                             <%= typeof freelancerTitle !=='undefined' && freelancerTitle ? freelancerTitle
-                                : 'Senior Professional Freelancer' %>
+                                : 'Freelancer' %>
                         </p>
                         <p>
                             <%= typeof freelancerLocation !=='undefined' && freelancerLocation ? freelancerLocation
-                                : 'Hyderabad, India' %>
+                                : 'Remote' %>
                         </p>
                         <p><strong>Email:</strong>
                             <%= freelancerEmail %> &nbsp;|&nbsp; <strong>Phone:</strong>
-                                <%= typeof freelancerPhone !=='undefined' && freelancerPhone ? freelancerPhone
-                                    : '+91 98765 43210' %>
+                                <%= typeof freelancerPhone !=='undefined' && freelancerPhone ? freelancerPhone : 'N/A'
+                                    %>
                         </p>
                     </div>
                 </div>
@@ -545,7 +552,7 @@
                 <tr>
                     <td style="font-weight: 700;">Duration</td>
                     <td>
-                        <%= typeof duration !=='undefined' && duration ? duration : '3 Months' %>
+                        <%= typeof duration !=='undefined' && duration ? duration : 'As per agreed timeline' %>
                     </td>
                 </tr>
                 <tr>
@@ -563,29 +570,35 @@
                 <tr>
                     <td style="font-weight: 700;">Category</td>
                     <td>
-                        <%= typeof contractCategory !=='undefined' && contractCategory ? contractCategory
-                            : 'Software Development' %>
+                        <%= typeof contractCategory !=='undefined' && contractCategory ? contractCategory : (typeof
+                            contractSubject !=='undefined' && contractSubject ? contractSubject : 'General Services' )
+                            %>
                     </td>
                 </tr>
             </tbody>
         </table>
 
         <h2>2. SCOPE OF WORK</h2>
-        <p>
-            <%= typeof scopeOfWork !=='undefined' && scopeOfWork ? scopeOfWork : ('The freelancer agrees to deliver the
-                project deliverables for ' + contractTitle + ' as specified below:') %>
-        </p>
+        <div class="scope-of-work-content"
+            style="font-size: 12px; line-height: 1.8; color: #374151; margin-bottom: 20px;">
+            <% if (typeof scopeOfWork !=='undefined' && scopeOfWork) { %>
+                <%- scopeOfWork %>
+                    <% } else if (typeof contractDescription !=='undefined' && contractDescription) { %>
+                        <%- contractDescription %>
+                            <% } else { %>
+                                <p>Deliverables and project execution for <%= contractTitle %> as mutually agreed by
+                                        both parties.</p>
+                                <% } %>
+        </div>
         <% if (typeof deliverables !=='undefined' && deliverables && deliverables.length> 0) { %>
-            <ul>
+            <ul style="margin: 10px 0 20px 20px;">
                 <% for (var i=0; i < deliverables.length; i++) { %>
-                    <li>
+                    <li style="margin-bottom: 6px;">
                         <%= deliverables[i] %>
                     </li>
                     <% } %>
             </ul>
             <% } %>
-                <p>The freelancer shall ensure timely delivery, high quality of work and adhere to the requirements and
-                    specifications agreed upon by both parties.</p>
 
                 <div class="page-footer">Page 2 of 9</div>
     </div>
@@ -616,8 +629,8 @@
 
         <h3 class="sub-heading">3.6 Dispute Resolution</h3>
         <p>Any disputes arising under this agreement shall be resolved amicably. If unable to resolve, the matter shall
-            be subject to the exclusive jurisdiction of courts in <%= typeof jurisdiction !=='undefined' ? jurisdiction
-                : 'Hyderabad, India' %>.</p>
+            be subject to the exclusive jurisdiction of courts in <%= typeof jurisdiction !=='undefined' && jurisdiction
+                ? jurisdiction : 'India' %>.</p>
 
         <% if (typeof additionalTerms !=='undefined' && additionalTerms) { %>
             <h3 class="sub-heading">3.7 Special Agreed Terms</h3>
@@ -717,9 +730,7 @@
                                 <%= clientName %>
                             </div>
                             <% } %>
-                                <div class="signed-badge" style :"<%=clientSigned
-                                    ? 'background-color: #d1fae5; color: #065f46;'
-                                    : 'background-color: #fef3c7; color: #92400e;' %>">
+                                <div class="signed-badge <%= clientSigned ? 'signed' : 'pending' %>">
                                     <%= clientSigned ? 'Accepted & Signed' : 'Pending Signature' %>
                                 </div>
                 </div>
@@ -760,9 +771,7 @@
                                 <%= freelancerName %>
                             </div>
                             <% } %>
-                                <div class="signed-badge" style:"<%=freelancerSigned
-                                    ? 'background-color: #d1fae5; color: #065f46;'
-                                    : 'background-color: #fef3c7; color: #92400e;' %>">
+                                <div class="signed-badge <%= freelancerSigned ? 'signed' : 'pending' %>">
                                     <%= freelancerSigned ? 'Accepted & Signed' : 'Pending Signature' %>
                                 </div>
                 </div>
@@ -820,9 +829,7 @@
                                     <%= clientName %>
                                 </div>
                                 <% } %>
-                                    <div class="signed-badge" style:"<%=clientSigned
-                                        ? 'background-color: #d1fae5; color: #065f46;'
-                                        : 'background-color: #fef3c7; color: #92400e;' %>">
+                                    <div class="signed-badge <%= clientSigned ? 'signed' : 'pending' %>">
                                         <%= clientSigned ? 'Digitally Signed' : 'Pending Signature' %>
                                     </div>
                     </div>
@@ -877,9 +884,7 @@
                                     <%= freelancerName %>
                                 </div>
                                 <% } %>
-                                    <div class="signed-badge" style:"<%=freelancerSigned
-                                        ? 'background-color: #d1fae5; color: #065f46;'
-                                        : 'background-color: #fef3c7; color: #92400e;' %>">
+                                    <div class="signed-badge <%= freelancerSigned ? 'signed' : 'pending' %>">
                                         <%= freelancerSigned ? 'Digitally Signed' : 'Pending Signature' %>
                                     </div>
                     </div>
@@ -942,7 +947,7 @@
                 <tr>
                     <td style="font-weight: 700;">Duration</td>
                     <td>
-                        <%= typeof duration !=='undefined' && duration ? duration : '3 Months' %>
+                        <%= typeof duration !=='undefined' && duration ? duration : 'As per agreed timeline' %>
                     </td>
                 </tr>
                 <tr>
@@ -960,20 +965,20 @@
                 <tr>
                     <td style="font-weight: 700;">Payment Terms</td>
                     <td>
-                        <%= typeof paymentTerms !=='undefined' && paymentTerms ? paymentTerms
-                            : 'As per agreed contract terms' %>
+                        <%= typeof paymentTerms !=='undefined' && paymentTerms ? paymentTerms : (budgetType
+                            + ' - Escrow Protected' ) %>
                     </td>
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Governing Law</td>
                     <td>
-                        <%= typeof governingLaw !=='undefined' && governingLaw ? governingLaw : 'Laws of India' %>
+                        <%= typeof governingLaw !=='undefined' && governingLaw ? governingLaw : 'Indian Law' %>
                     </td>
                 </tr>
                 <tr>
                     <td style="font-weight: 700;">Jurisdiction</td>
                     <td>
-                        <%= typeof jurisdiction !=='undefined' && jurisdiction ? jurisdiction : 'Hyderabad, India' %>
+                        <%= typeof jurisdiction !=='undefined' && jurisdiction ? jurisdiction : 'India' %>
                     </td>
                 </tr>
             </tbody>

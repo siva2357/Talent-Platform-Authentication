@@ -1164,6 +1164,265 @@ async function sendSupportTicketStatusEmail(email, { fullName, ticketId, subject
   });
 }
 
+/**
+ * 16. Contract Diary - Milestone Created Notification (to Freelancer)
+ */
+async function sendMilestoneCreatedEmail(email, {
+  freelancerName,
+  clientName,
+  contractTitle,
+  milestoneName,
+  amount,
+  deadline,
+  description,
+  contractId
+}) {
+  const greeting = freelancerName ? `Hello <strong>${freelancerName}</strong>,` : "Hello,";
+  const formattedAmount = amount ? `₹${Number(amount).toLocaleString("en-IN")}` : "₹0";
+  const deadlineStr = deadline
+    ? new Date(deadline).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+    : "Timeline as agreed";
+  const contractUrl = `${FRONTEND_URL}/contract-diary/${contractId || ""}`;
+
+  const contentHtml = `
+    <h2 class="content-heading" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">
+      New Milestone Added! 🎯
+    </h2>
+    <p style="margin: 0 0 12px 0; font-size: 13px; color: #475569;">
+      ${greeting} <strong>${clientName || "The Client"}</strong> has added a new project milestone <strong>"${milestoneName}"</strong> for contract <strong>${contractTitle || "Project"}</strong>.
+    </p>
+
+    <div class="inner-box" style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 14px; margin: 12px 0;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size: 13px; width: 100%;">
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #166534; font-weight: 600; width: 110px;">Milestone:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a; font-weight: 700;">${milestoneName}</td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #166534; font-weight: 600;">Contract:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a;">${contractTitle || "Contract Project"}</td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #166534; font-weight: 600;">Budget:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #15803d; font-weight: 700;">${formattedAmount}</td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #166534; font-weight: 600;">Due Date:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a;">${deadlineStr}</td>
+        </tr>
+        ${
+          description
+            ? `<tr>
+                <td class="table-label" style="padding-top: 4px; color: #166534; font-weight: 600; vertical-align: top;">Scope:</td>
+                <td class="table-value" style="padding-top: 4px; color: #334155;">${description}</td>
+              </tr>`
+            : ""
+        }
+      </table>
+    </div>
+
+    <p style="margin: 0 0 14px 0; font-size: 12px; color: #64748b;">
+      You can track progress, upload deliverables, and manage milestone revisions in your contract diary workspace.
+    </p>
+
+    <div class="btn-container" style="text-align: center; margin: 14px 0 6px 0;">
+      <a href="${contractUrl}" class="btn-cta" style="display: inline-block; background: #16a34a; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
+        Open Contract Diary →
+      </a>
+    </div>
+  `;
+
+  return sendMailSafe({
+    to: email,
+    subject: `Talent-Hub - New Milestone Added: "${milestoneName}" (${contractTitle || "Project"})`,
+    html: wrapEmailHtml({
+      title: "New Milestone Added",
+      badge: "Contract Milestone",
+      accentGradient: "linear-gradient(90deg, #10b981 0%, #059669 100%)",
+      contentHtml
+    })
+  });
+}
+
+/**
+ * 17. Contract Diary - Milestone Deliverables Submitted Notification (to Client)
+ */
+async function sendMilestoneSubmittedEmail(email, {
+  clientName,
+  freelancerName,
+  contractTitle,
+  milestoneName,
+  freelancerNote,
+  attachmentsCount,
+  contractId
+}) {
+  const greeting = clientName ? `Hello <strong>${clientName}</strong>,` : "Hello,";
+  const contractUrl = `${FRONTEND_URL}/contract-progress/${contractId || ""}`;
+
+  const contentHtml = `
+    <h2 class="content-heading" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">
+      Milestone Deliverables Submitted 📦
+    </h2>
+    <p style="margin: 0 0 12px 0; font-size: 13px; color: #475569;">
+      ${greeting} <strong>${freelancerName || "The Freelancer"}</strong> has submitted deliverables for milestone <strong>"${milestoneName}"</strong> on contract <strong>${contractTitle || "Contract"}</strong>.
+    </p>
+
+    <div class="inner-box" style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 14px; margin: 12px 0;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size: 13px; width: 100%;">
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #1e40af; font-weight: 600; width: 110px;">Milestone:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a; font-weight: 700;">${milestoneName}</td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #1e40af; font-weight: 600;">Submitted By:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a;">${freelancerName || "Freelancer"}</td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #1e40af; font-weight: 600;">Status:</td>
+          <td class="table-value" style="padding-bottom: 6px;">
+            <span style="display: inline-block; background-color: #dbeafe; color: #1e40af; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">
+              Under Review
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #1e40af; font-weight: 600;">Attachments:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a;">${attachmentsCount || 0} file(s)</td>
+        </tr>
+        ${
+          freelancerNote
+            ? `<tr>
+                <td class="table-label" style="padding-top: 4px; color: #1e40af; font-weight: 600; vertical-align: top;">Freelancer Note:</td>
+                <td class="table-value" style="padding-top: 4px; color: #334155;">${freelancerNote}</td>
+              </tr>`
+            : ""
+        }
+      </table>
+    </div>
+
+    <p style="margin: 0 0 14px 0; font-size: 12px; color: #64748b;">
+      Please inspect the deliverables. You can approve the work to release payment from escrow, or request revisions with specific feedback.
+    </p>
+
+    <div class="btn-container" style="text-align: center; margin: 14px 0 6px 0;">
+      <a href="${contractUrl}" class="btn-cta" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
+        Review Deliverables Now →
+      </a>
+    </div>
+  `;
+
+  return sendMailSafe({
+    to: email,
+    subject: `Talent-Hub - Deliverables Submitted: "${milestoneName}" (${contractTitle || "Project"})`,
+    html: wrapEmailHtml({
+      title: "Deliverables Submitted",
+      badge: "Milestone Submission",
+      accentGradient: "linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%)",
+      contentHtml
+    })
+  });
+}
+
+/**
+ * 18. Contract Diary - Milestone Reviewed Notification (Approved & Paid or Changes Requested) (to Freelancer)
+ */
+async function sendMilestoneReviewedEmail(email, {
+  freelancerName,
+  clientName,
+  contractTitle,
+  milestoneName,
+  amount,
+  action,
+  clientFeedback,
+  contractId
+}) {
+  const isApproved = action === "approve";
+  const greeting = freelancerName ? `Hello <strong>${freelancerName}</strong>,` : "Hello,";
+  const contractUrl = `${FRONTEND_URL}/contract-diary/${contractId || ""}`;
+
+  const title = isApproved ? "Milestone Approved & Paid 🎉" : "Milestone Revisions Requested ⚠️";
+  const badge = isApproved ? "Payment Released" : "Revisions Requested";
+  const accentGradient = isApproved
+    ? "linear-gradient(90deg, #10b981 0%, #059669 100%)"
+    : "linear-gradient(90deg, #f59e0b 0%, #d97706 100%)";
+  const boxBg = isApproved ? "#f0fdf4" : "#fffbeb";
+  const boxBorder = isApproved ? "#bbf7d0" : "#fde68a";
+  const labelColor = isApproved ? "#166534" : "#92400e";
+  const statusBadgeBg = isApproved ? "#16a34a" : "#d97706";
+  const statusText = isApproved ? "Approved & Paid" : "Changes Requested";
+
+  const mainMessage = isApproved
+    ? `Great news! <strong>${clientName || "The Client"}</strong> has reviewed and approved your work for milestone <strong>"${milestoneName}"</strong>. Escrow payment of <strong>₹${Number(amount || 0).toLocaleString("en-IN")}</strong> has been released to your balance!`
+    : `<strong>${clientName || "The Client"}</strong> has reviewed milestone <strong>"${milestoneName}"</strong> on contract <strong>${contractTitle || "Contract"}</strong> and requested revisions before approval.`;
+
+  const contentHtml = `
+    <h2 class="content-heading" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">
+      ${title}
+    </h2>
+    <p style="margin: 0 0 12px 0; font-size: 13px; color: #475569;">
+      ${greeting} ${mainMessage}
+    </p>
+
+    <div class="inner-box" style="background-color: ${boxBg}; border: 1px solid ${boxBorder}; border-radius: 6px; padding: 14px; margin: 12px 0;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size: 13px; width: 100%;">
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: ${labelColor}; font-weight: 600; width: 110px;">Milestone:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a; font-weight: 700;">${milestoneName}</td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: ${labelColor}; font-weight: 600;">Status:</td>
+          <td class="table-value" style="padding-bottom: 6px;">
+            <span style="display: inline-block; background-color: ${statusBadgeBg}; color: #ffffff; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; text-transform: uppercase;">
+              ${statusText}
+            </span>
+          </td>
+        </tr>
+        ${
+          isApproved && amount
+            ? `<tr>
+                <td class="table-label" style="padding-bottom: 6px; color: ${labelColor}; font-weight: 600;">Released:</td>
+                <td class="table-value" style="padding-bottom: 6px; color: #15803d; font-weight: 700;">₹${Number(amount).toLocaleString("en-IN")}</td>
+              </tr>`
+            : ""
+        }
+        ${
+          clientFeedback
+            ? `<tr>
+                <td class="table-label" style="padding-top: 4px; color: ${labelColor}; font-weight: 600; vertical-align: top;">Client Feedback:</td>
+                <td class="table-value" style="padding-top: 4px; color: #334155;">${clientFeedback}</td>
+              </tr>`
+            : ""
+        }
+      </table>
+    </div>
+
+    <p style="margin: 0 0 14px 0; font-size: 12px; color: #64748b;">
+      ${
+        isApproved
+          ? "The earnings have been added to your Talent-Hub wallet. You can review your transaction history anytime."
+          : "Please check the client's notes, update your deliverables, and resubmit through the contract diary."
+      }
+    </p>
+
+    <div class="btn-container" style="text-align: center; margin: 14px 0 6px 0;">
+      <a href="${contractUrl}" class="btn-cta" style="display: inline-block; background: ${isApproved ? '#16a34a' : '#d97706'}; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
+        ${isApproved ? 'Open Contract Diary →' : 'Submit Revisions →'}
+      </a>
+    </div>
+  `;
+
+  return sendMailSafe({
+    to: email,
+    subject: `Talent-Hub - ${isApproved ? 'Milestone Approved & Paid' : 'Revisions Requested'}: "${milestoneName}"`,
+    html: wrapEmailHtml({
+      title,
+      badge,
+      accentGradient,
+      contentHtml
+    })
+  });
+}
+
 module.exports = {
   getTransporter,
   sendMailSafe,
@@ -1182,5 +1441,8 @@ module.exports = {
   sendInterviewScheduledClientNotification,
   sendSupportTicketCreatedEmail,
   sendSupportTicketReplyEmail,
-  sendSupportTicketStatusEmail
+  sendSupportTicketStatusEmail,
+  sendMilestoneCreatedEmail,
+  sendMilestoneSubmittedEmail,
+  sendMilestoneReviewedEmail
 };

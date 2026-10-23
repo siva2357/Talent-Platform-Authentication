@@ -3,13 +3,19 @@ const Application = require("../models/application");
 const User = require("../models/user");
 const Transaction = require("../models/transaction");
 const Contract = require("../models/contract");
+const {
+  sendMilestoneCreatedEmail,
+  sendMilestoneReviewedEmail,
+  sendMilestoneSubmittedEmail,
+} = require("../utils/emailSender");
+
 
 
 async function getDiaryAndVerify(diaryId, userId, role) {
   const diary = await ContractDiary.findById(diaryId)
     .populate("contractId", "contractTitle estimatedBudget budgetType contractStartDate contractEndDate contractDescription techStack spent")
-    .populate("clientId", "registrationDetails.fullName registrationDetails.email")
-    .populate("freelancerId", "registrationDetails.fullName registrationDetails.email");
+    .populate("clientId", "fullName email registrationDetails.fullName registrationDetails.email")
+    .populate("freelancerId", "fullName email registrationDetails.fullName registrationDetails.email");
 
   if (!diary) return { error: "Contract diary not found", status: 404 };
 
@@ -120,25 +126,49 @@ exports.addPhase = async (req, res) => {
       deadline: deadline ? new Date(deadline) : undefined,
       amount: phaseAmount,
       status: "pending",
+      deliverables: Array.isArray(req.body.deliverables) ? req.body.deliverables : [],
+      acceptanceCriteria: Array.isArray(req.body.acceptanceCriteria) ? req.body.acceptanceCriteria : [],
       clientAttachments: mappedClientAttachments
     });
     await syncContractStatus(diary);
     await diary.save();
 
+    const clientName = diary.clientId?.registrationDetails?.fullName || diary.clientId?.fullName || "Client";
+    const freelancerName = diary.freelancerId?.registrationDetails?.fullName || diary.freelancerId?.fullName || "Freelancer";
+    const contractTitle = diary.contractId?.contractTitle || "Contract";
+    const contractId = diary.contractId?._id || diary.contractId;
+
     // In-app notification for Freelancer
     try {
       const Notification = require("../models/notification");
-      const clientName = diary.clientId?.registrationDetails?.fullName || "Client";
-      const contractTitle = diary.contractId?.contractTitle || "Contract";
       await Notification.create({
         userId: diary.freelancerId._id || diary.freelancerId,
         role: "freelancer",
         title: "New Milestone Added",
         message: `${clientName} added milestone "${name}" (₹${phaseAmount}) to contract "${contractTitle}".`,
-        link: "/user/contracts"
+        link: `/contract-diary/${contractId}`
       });
     } catch (notifErr) {
       console.error("Failed to notify freelancer on new phase:", notifErr);
+    }
+
+    // Email trigger for Freelancer on new phase creation
+    try {
+      const freelancerEmail = diary.freelancerId?.email || diary.freelancerId?.registrationDetails?.email;
+      if (freelancerEmail) {
+        await sendMilestoneCreatedEmail(freelancerEmail, {
+          freelancerName,
+          clientName,
+          contractTitle,
+          milestoneName: name,
+          amount: phaseAmount,
+          deadline,
+          description: description || "",
+          contractId
+        });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send milestone created email:", emailErr);
     }
 
     return res.status(200).json({ success: true, message: "Phase added and funded successfully", phases: diary.phases });
@@ -422,12 +452,14 @@ exports.reviewPhase = async (req, res) => {
     await diary.save();
 
     // In-app notification for Freelancer on review
+    const clientName = diary.clientId?.registrationDetails?.fullName || diary.clientId?.fullName || "Client";
+    const freelancerName = diary.freelancerId?.registrationDetails?.fullName || diary.freelancerId?.fullName || "Freelancer";
+    const contractTitle = diary.contractId?.contractTitle || "Contract";
+    const contractId = diary.contractId?._id || diary.contractId;
+    const isApproved = action === "approve";
+
     try {
       const Notification = require("../models/notification");
-      const clientName = diary.clientId?.registrationDetails?.fullName || "Client";
-      const contractTitle = diary.contractId?.contractTitle || "Contract";
-      const isApproved = action === "approve";
-
       await Notification.create({
         userId: diary.freelancerId._id || diary.freelancerId,
         role: "freelancer",
@@ -435,10 +467,29 @@ exports.reviewPhase = async (req, res) => {
         message: isApproved
           ? `${clientName} approved milestone "${phase.name}" for "${contractTitle}". ₹${phase.amount || 0} released to your balance!`
           : `${clientName} requested revisions for milestone "${phase.name}" on "${contractTitle}". Check client feedback.`,
-        link: "/user/contracts"
+        link: `/contract-diary/${contractId}`
       });
     } catch (notifErr) {
       console.error("Failed to notify freelancer on phase review:", notifErr);
+    }
+
+    // Email trigger for Freelancer on review (Approved & Paid or Changes Requested)
+    try {
+      const freelancerEmail = diary.freelancerId?.email || diary.freelancerId?.registrationDetails?.email;
+      if (freelancerEmail) {
+        await sendMilestoneReviewedEmail(freelancerEmail, {
+          freelancerName,
+          clientName,
+          contractTitle,
+          milestoneName: phase.name,
+          amount: phase.amount || 0,
+          action,
+          clientFeedback: clientFeedback || "",
+          contractId
+        });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send milestone reviewed email:", emailErr);
     }
 
     return res.status(200).json({
@@ -659,20 +710,41 @@ exports.submitPhaseUpdate = async (req, res) => {
 
     await diary.save();
 
+    const freelancerName = diary.freelancerId?.registrationDetails?.fullName || diary.freelancerId?.fullName || "Freelancer";
+    const clientName = diary.clientId?.registrationDetails?.fullName || diary.clientId?.fullName || "Client";
+    const contractTitle = diary.contractId?.contractTitle || "Contract";
+    const contractId = diary.contractId?._id || diary.contractId;
+
     // In-app notification for Client
     try {
       const Notification = require("../models/notification");
-      const freelancerName = diary.freelancerId?.registrationDetails?.fullName || "Freelancer";
-      const contractTitle = diary.contractId?.contractTitle || "Contract";
       await Notification.create({
         userId: diary.clientId._id || diary.clientId,
         role: "client",
         title: "Milestone Deliverables Submitted",
         message: `${freelancerName} submitted work deliverables for milestone "${phase.name}" on "${contractTitle}".`,
-        link: "/user/contracts"
+        link: `/contract-progress/${contractId}`
       });
     } catch (notifErr) {
       console.error("Failed to notify client on milestone submission:", notifErr);
+    }
+
+    // Email trigger for Client on milestone submission
+    try {
+      const clientEmail = diary.clientId?.email || diary.clientId?.registrationDetails?.email;
+      if (clientEmail) {
+        await sendMilestoneSubmittedEmail(clientEmail, {
+          clientName,
+          freelancerName,
+          contractTitle,
+          milestoneName: phase.name,
+          freelancerNote: freelancerNote || "",
+          attachmentsCount: revisionAttachments.length,
+          contractId
+        });
+      }
+    } catch (emailErr) {
+      console.error("Failed to send milestone submitted email:", emailErr);
     }
 
     return res.status(200).json({
@@ -779,11 +851,11 @@ exports.getDiaryByContractId = async (req, res) => {
       )
       .populate(
         "clientId",
-        "registrationDetails.fullName registrationDetails.email"
+        "fullName email registrationDetails.fullName registrationDetails.email"
       )
       .populate(
         "freelancerId",
-        "registrationDetails.fullName registrationDetails.email"
+        "fullName email registrationDetails.fullName registrationDetails.email"
       );
 
     const fundedTxns = await Transaction.find({
@@ -792,6 +864,16 @@ exports.getDiaryByContractId = async (req, res) => {
       status: "Paid"
     });
     const funded = fundedTxns.reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const spentVal = (diary.phases || [])
+      .filter(p => p.status === "approved")
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    contract.spent = spentVal;
+    if (diary.contractId && typeof diary.contractId === "object") {
+      diary.contractId.spent = spentVal;
+      diary.contractId.funded = funded;
+    }
 
     return res.status(200).json({
 
@@ -806,7 +888,7 @@ exports.getDiaryByContractId = async (req, res) => {
         contractEndDate: contract.contractEndDate,
         contractDescription: contract.contractDescription,
         techStack: contract.techStack,
-        spent: contract.spent || 0,
+        spent: spentVal,
         funded
       },
 
