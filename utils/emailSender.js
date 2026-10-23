@@ -615,25 +615,73 @@ async function sendApplicationStageEmail(email, {
   assessmentTitle,
   assessmentDescription
 }) {
-  const isInterview = statusText?.toLowerCase().includes("interview");
-  const isAssessment = statusText?.toLowerCase().includes("assessment");
-  const isHired = statusText?.toLowerCase().includes("hired");
-  const isDeclined = statusText?.toLowerCase().includes("declined") || statusText?.toLowerCase().includes("rejected");
+  const lowerStatus = (statusText || "").toLowerCase();
+  const isInterview = lowerStatus.includes("interview");
+  const isAssessment = lowerStatus.includes("assessment");
+  const isHired = lowerStatus.includes("hired");
+  const isDeclined = lowerStatus.includes("declined") || lowerStatus.includes("rejected");
 
   let badgeColor = "#ede9fe";
   let textColor = "#6d28d9";
+  let headingTitle = "Application Stage Updated";
+  let introMessage = `Hello <strong>${freelancerName || "Freelancer"}</strong>, your application status for <strong>${contractTitle || "the contract"}</strong> has been updated by <strong>${clientName || "the Client"}</strong>.`;
+
   if (isHired) {
     badgeColor = "#dcfce7";
     textColor = "#15803d";
+    headingTitle = "Congratulations - You're Hired! 🚀";
+    introMessage = `Congratulations <strong>${freelancerName || "Freelancer"}</strong>! <strong>${clientName || "The Client"}</strong> has selected you for <strong>${contractTitle || "the contract"}</strong>.`;
   } else if (isDeclined) {
     badgeColor = "#fee2e2";
     textColor = "#b91c1c";
+    headingTitle = "Application Update";
+    introMessage = `Hello <strong>${freelancerName || "Freelancer"}</strong>, thank you for your time. Your application for <strong>${contractTitle || "the contract"}</strong> was not selected by <strong>${clientName || "the Client"}</strong>.`;
+  } else if (lowerStatus.includes("shortlist")) {
+    badgeColor = "#fef3c7";
+    textColor = "#b45309";
+    headingTitle = "Application Shortlisted! 🌟";
+    introMessage = `Congratulations <strong>${freelancerName || "Freelancer"}</strong>! Your application for <strong>${contractTitle || "the contract"}</strong> has been shortlisted by <strong>${clientName || "the Client"}</strong> for further review.`;
+  } else if (lowerStatus.includes("assessment assigned")) {
+    badgeColor = "#eff6ff";
+    textColor = "#1d4ed8";
+    headingTitle = "Assessment Task Assigned 📝";
+    introMessage = `Hello <strong>${freelancerName || "Freelancer"}</strong>, an assessment task has been assigned for <strong>${contractTitle || "the contract"}</strong> by <strong>${clientName || "the Client"}</strong>.`;
+  } else if (lowerStatus.includes("assessment submitted")) {
+    badgeColor = "#e0f2fe";
+    textColor = "#0369a1";
+    headingTitle = "Assessment Submitted Successfully 🚀";
+    introMessage = `Hello <strong>${freelancerName || "Freelancer"}</strong>, your assessment submission for <strong>${contractTitle || "the contract"}</strong> has been received and forwarded to <strong>${clientName || "the Client"}</strong> for evaluation.`;
+  } else if (lowerStatus.includes("assessment passed")) {
+    badgeColor = "#dcfce7";
+    textColor = "#15803d";
+    headingTitle = "Assessment Passed 🎉";
+    introMessage = `Great news <strong>${freelancerName || "Freelancer"}</strong>! You passed the assessment stage for <strong>${contractTitle || "the contract"}</strong>.`;
+  } else if (lowerStatus.includes("assessment failed")) {
+    badgeColor = "#fee2e2";
+    textColor = "#b91c1c";
+    headingTitle = "Assessment Update";
+    introMessage = `Hello <strong>${freelancerName || "Freelancer"}</strong>, an update has been posted regarding your assessment for <strong>${contractTitle || "the contract"}</strong>.`;
+  } else if (lowerStatus.includes("interview scheduled")) {
+    badgeColor = "#faf5ff";
+    textColor = "#7e22ce";
+    headingTitle = "Interview Scheduled 🗓";
+    introMessage = `Hello <strong>${freelancerName || "Freelancer"}</strong>, an interview for <strong>${contractTitle || "the contract"}</strong> has been scheduled with <strong>${clientName || "the Client"}</strong>.`;
+  } else if (lowerStatus.includes("interview completed")) {
+    badgeColor = "#f3e8ff";
+    textColor = "#6b21a8";
+    headingTitle = "Interview Completed ✔";
+    introMessage = `Hello <strong>${freelancerName || "Freelancer"}</strong>, your interview for <strong>${contractTitle || "the contract"}</strong> was marked as completed by <strong>${clientName || "the Client"}</strong>.`;
+  } else if (lowerStatus.includes("application submitted")) {
+    badgeColor = "#e0f2fe";
+    textColor = "#0369a1";
+    headingTitle = "Application Submitted Successfully 🎯";
+    introMessage = `Hello <strong>${freelancerName || "Freelancer"}</strong>, your application for <strong>${contractTitle || "the contract"}</strong> has been successfully submitted to <strong>${clientName || "the Client"}</strong>.`;
   }
 
   const contentHtml = `
-    <h2 class="content-heading" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Application Stage Updated</h2>
+    <h2 class="content-heading" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">${headingTitle}</h2>
     <p style="margin: 0 0 12px 0; font-size: 13px; color: #475569;">
-      Hello <strong>${freelancerName || "Freelancer"}</strong>, your application status for <strong>${contractTitle || "the contract"}</strong> has been updated by <strong>${clientName || "the Client"}</strong>.
+      ${introMessage}
     </p>
 
     <!-- Stage Status Box -->
@@ -658,7 +706,7 @@ async function sendApplicationStageEmail(email, {
         ${
           feedback
             ? `<tr>
-                <td class="table-label" style="color: #64748b; font-weight: 600; vertical-align: top; padding-top: 4px;">Feedback:</td>
+                <td class="table-label" style="color: #64748b; font-weight: 600; vertical-align: top; padding-top: 4px;">Feedback/Notes:</td>
                 <td class="table-value" style="color: #334155; padding-top: 4px;">${feedback}</td>
               </tr>`
             : ""
@@ -688,23 +736,29 @@ async function sendApplicationStageEmail(email, {
         ? `
         <!-- Assessment Details Card -->
         <div class="inner-box" style="background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 12px 14px; margin: 12px 0;">
-          <div style="font-size: 12px; font-weight: 700; color: #1d4ed8; margin-bottom: 4px;">📝 Assessment Task Assigned</div>
+          <div style="font-size: 12px; font-weight: 700; color: #1d4ed8; margin-bottom: 4px;">📝 Assessment Task</div>
           <div style="font-size: 12px; color: #1e3a8a; font-weight: 600;">${assessmentTitle}</div>
           ${assessmentDescription ? `<div style="font-size: 11px; color: #475569; margin-top: 3px;">${assessmentDescription}</div>` : ""}
         </div>`
         : ""
     }
 
-    <p style="margin: 0; font-size: 12px; color: #64748b;">
-      Visit your <strong>Proposals & Interviews</strong> tab to review details and respond promptly.
+    <p style="margin: 0 0 14px 0; font-size: 12px; color: #64748b;">
+      Visit your <strong>Proposals & Interviews</strong> tab to review details and track your application progress.
     </p>
+
+    <div class="btn-container" style="text-align: center; margin: 14px 0 6px 0;">
+      <a href="${FRONTEND_URL}/proposal-offers" class="btn-cta" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
+        View Application Details →
+      </a>
+    </div>
   `;
 
   return sendMailSafe({
     to: email,
     subject: `Talent-Hub - Application Update: ${contractTitle || "Project"} (${statusText})`,
     html: wrapEmailHtml({
-      title: "Application Updated",
+      title: headingTitle,
       badge: "Hiring Pipeline",
       contentHtml
     })
@@ -776,6 +830,158 @@ async function sendApplicationWithdrawnNotification(email, { clientName, freelan
     html: wrapEmailHtml({
       title: "Application Withdrawn",
       badge: "Hiring Pipeline",
+      contentHtml
+    })
+  });
+}
+
+/**
+ * 11. Client: Freelancer Assessment Submitted Notification
+ */
+async function sendAssessmentSubmittedNotification(email, { 
+  clientName, 
+  freelancerName, 
+  contractTitle, 
+  contractId,
+  assessmentTitle, 
+  notes 
+}) {
+  const applicantLink = contractId 
+    ? `${FRONTEND_URL}/applicants/${contractId}` 
+    : `${FRONTEND_URL}/manage-contract`;
+
+  const contentHtml = `
+    <h2 class="content-heading" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Assessment Submitted! 📝</h2>
+    <p style="margin: 0 0 12px 0; font-size: 13px; color: #475569;">
+      Hello <strong>${clientName || "Client"}</strong>, candidate <strong>${freelancerName || "A candidate"}</strong> has submitted their assessment for your project:
+    </p>
+
+    <div class="inner-box" style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin: 12px 0;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size: 13px; width: 100%;">
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #64748b; font-weight: 600; width: 120px;">Project:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a; font-weight: 700;">${contractTitle || "Contract Project"}</td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #64748b; font-weight: 600;">Candidate:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #2563eb; font-weight: 700;">${freelancerName || "Freelancer"}</td>
+        </tr>
+        ${
+          assessmentTitle
+            ? `<tr>
+                <td class="table-label" style="padding-bottom: 6px; color: #64748b; font-weight: 600;">Assessment:</td>
+                <td class="table-value" style="padding-bottom: 6px; color: #0f172a;">${assessmentTitle}</td>
+              </tr>`
+            : ""
+        }
+        ${
+          notes
+            ? `<tr>
+                <td class="table-label" style="color: #64748b; font-weight: 600; vertical-align: top;">Notes/Submission:</td>
+                <td class="table-value" style="color: #334155;">${notes}</td>
+              </tr>`
+            : ""
+        }
+      </table>
+    </div>
+
+    <p style="margin: 0 0 14px 0; font-size: 12px; color: #64748b;">
+      Please review their assessment submission in the hiring portal to proceed with evaluation or schedule an interview.
+    </p>
+
+    <div class="btn-container" style="text-align: center; margin: 14px 0 6px 0;">
+      <a href="${applicantLink}" class="btn-cta" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
+        Review Assessment Submission →
+      </a>
+    </div>
+  `;
+
+  return sendMailSafe({
+    to: email,
+    subject: `Talent-Hub - Assessment Submitted by ${freelancerName || "Freelancer"} for ${contractTitle || "Project"}`,
+    html: wrapEmailHtml({
+      title: "Assessment Submitted",
+      badge: "Hiring Pipeline",
+      contentHtml
+    })
+  });
+}
+
+/**
+ * 12. Client: Interview Scheduled Confirmation
+ */
+async function sendInterviewScheduledClientNotification(email, { 
+  clientName, 
+  freelancerName, 
+  contractTitle, 
+  contractId,
+  interviewDate,
+  interviewTime,
+  interviewLink,
+  description 
+}) {
+  const applicantLink = contractId 
+    ? `${FRONTEND_URL}/applicants/${contractId}` 
+    : `${FRONTEND_URL}/manage-contract`;
+
+  const contentHtml = `
+    <h2 class="content-heading" style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #0f172a;">Interview Scheduled 🗓</h2>
+    <p style="margin: 0 0 12px 0; font-size: 13px; color: #475569;">
+      Hello <strong>${clientName || "Client"}</strong>, your interview with <strong>${freelancerName || "Candidate"}</strong> for <strong>${contractTitle || "the contract"}</strong> has been confirmed.
+    </p>
+
+    <!-- Interview Schedule Card -->
+    <div class="inner-box" style="background-color: #faf5ff; border: 1px solid #e9d5ff; border-radius: 6px; padding: 14px; margin: 12px 0;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size: 13px; width: 100%;">
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #64748b; font-weight: 600; width: 110px;">Candidate:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a; font-weight: 700;">${freelancerName || "Candidate"}</td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #64748b; font-weight: 600;">Project:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #0f172a;">${contractTitle || "Contract Project"}</td>
+        </tr>
+        <tr>
+          <td class="table-label" style="padding-bottom: 6px; color: #64748b; font-weight: 600;">Date & Time:</td>
+          <td class="table-value" style="padding-bottom: 6px; color: #7e22ce; font-weight: 700;">${interviewDate || "TBD"} ${interviewTime || ""}</td>
+        </tr>
+        ${
+          description
+            ? `<tr>
+                <td class="table-label" style="color: #64748b; font-weight: 600; vertical-align: top; padding-top: 4px;">Notes:</td>
+                <td class="table-value" style="color: #334155; padding-top: 4px;">${description}</td>
+              </tr>`
+            : ""
+        }
+      </table>
+      ${
+        interviewLink
+          ? `<div style="margin-top: 10px;">
+              <a href="${interviewLink}" class="btn-cta" style="display: inline-block; background-color: #7c3aed; color: #ffffff; text-decoration: none; font-size: 12px; font-weight: 700; padding: 7px 16px; border-radius: 4px;">
+                Join Meeting / Call →
+              </a>
+            </div>`
+          : ""
+      }
+    </div>
+
+    <p style="margin: 0 0 14px 0; font-size: 12px; color: #64748b;">
+      You can manage your schedule and view candidate details directly from your dashboard.
+    </p>
+
+    <div class="btn-container" style="text-align: center; margin: 14px 0 6px 0;">
+      <a href="${applicantLink}" class="btn-cta" style="display: inline-block; background: #2563eb; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 13px; padding: 10px 22px; border-radius: 6px;">
+        View Applicant Pipeline →
+      </a>
+    </div>
+  `;
+
+  return sendMailSafe({
+    to: email,
+    subject: `Talent-Hub - Interview Confirmed with ${freelancerName || "Candidate"} for ${contractTitle || "Project"}`,
+    html: wrapEmailHtml({
+      title: "Interview Scheduled",
+      badge: "Interview Pipeline",
       contentHtml
     })
   });
@@ -972,6 +1178,8 @@ module.exports = {
   sendApplicationStageEmail,
   sendNewApplicationNotification,
   sendApplicationWithdrawnNotification,
+  sendAssessmentSubmittedNotification,
+  sendInterviewScheduledClientNotification,
   sendSupportTicketCreatedEmail,
   sendSupportTicketReplyEmail,
   sendSupportTicketStatusEmail

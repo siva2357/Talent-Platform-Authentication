@@ -3,7 +3,11 @@ const Contract = require("../models/contract");
 const FreelancerProfile = require("../models/freelancerProfile");
 const User = require("../models/user");
 const Notification = require("../models/notification");
-const { sendApplicationStageEmail } = require("../utils/emailSender");
+const { 
+  sendApplicationStageEmail, 
+  sendAssessmentSubmittedNotification,
+  sendInterviewScheduledClientNotification 
+} = require("../utils/emailSender");
 
 const notifyFreelancerStageUpdate = async (application, statusText, extra = {}) => {
   try {
@@ -11,47 +15,54 @@ const notifyFreelancerStageUpdate = async (application, statusText, extra = {}) 
     const contract = await Contract.findById(application.contractId);
     const clientUser = await User.findById(application.clientId);
     const clientName = clientUser?.registrationDetails?.fullName || "Client";
+    const contractTitle = contract?.contractTitle || "Contract";
 
     let notifTitle = `Stage Update: ${statusText}`;
-    let notifMessage = `Your application status for "${contract?.contractTitle || 'Contract'}" has been updated to "${statusText}" by ${clientName}.`;
+    let notifMessage = `Your application status for "${contractTitle}" has been updated to "${statusText}" by ${clientName}.`;
 
     const lowerStatus = statusText.toLowerCase();
-    if (lowerStatus.includes("shortlist")) {
+    if (lowerStatus.includes("application submitted")) {
+      notifTitle = "Application Submitted";
+      notifMessage = `Your application for "${contractTitle}" has been submitted successfully.`;
+    } else if (lowerStatus.includes("shortlist")) {
       notifTitle = "Application Shortlisted";
-      notifMessage = `Congratulations! Your application for "${contract?.contractTitle}" has been shortlisted by ${clientName}.`;
-    } else if (lowerStatus.includes("interview scheduled")) {
-      notifTitle = "Interview Scheduled";
-      notifMessage = `An interview for "${contract?.contractTitle}" has been scheduled with ${clientName}.`;
-    } else if (lowerStatus.includes("interview completed")) {
-      notifTitle = "Interview Completed";
-      notifMessage = `Your interview for "${contract?.contractTitle}" was marked as completed by ${clientName}.`;
+      notifMessage = `Congratulations! Your application for "${contractTitle}" has been shortlisted by ${clientName}.`;
     } else if (lowerStatus.includes("assessment assigned")) {
       notifTitle = "Assessment Task Assigned";
-      notifMessage = `An assessment task has been assigned for "${contract?.contractTitle}" by ${clientName}.`;
+      notifMessage = `An assessment task has been assigned for "${contractTitle}" by ${clientName}.`;
+    } else if (lowerStatus.includes("assessment submitted")) {
+      notifTitle = "Assessment Submitted";
+      notifMessage = `Your assessment for "${contractTitle}" has been submitted successfully to ${clientName}.`;
     } else if (lowerStatus.includes("assessment passed")) {
       notifTitle = "Assessment Passed 🎉";
-      notifMessage = `You passed the assessment for "${contract?.contractTitle}".`;
+      notifMessage = `You passed the assessment stage for "${contractTitle}".`;
     } else if (lowerStatus.includes("assessment failed")) {
       notifTitle = "Assessment Update";
-      notifMessage = `Your assessment for "${contract?.contractTitle}" was marked as failed.`;
+      notifMessage = `Your assessment for "${contractTitle}" was marked as failed by ${clientName}.`;
+    } else if (lowerStatus.includes("interview scheduled")) {
+      notifTitle = "Interview Scheduled";
+      notifMessage = `An interview for "${contractTitle}" has been scheduled with ${clientName}.`;
+    } else if (lowerStatus.includes("interview completed")) {
+      notifTitle = "Interview Completed";
+      notifMessage = `Your interview for "${contractTitle}" was marked as completed by ${clientName}.`;
     } else if (lowerStatus.includes("hired")) {
       notifTitle = "Application Accepted - Hired! 🚀";
-      notifMessage = `Congratulations! ${clientName} has selected you for "${contract?.contractTitle}".`;
+      notifMessage = `Congratulations! ${clientName} has selected you for "${contractTitle}".`;
     } else if (lowerStatus.includes("declined") || lowerStatus.includes("rejected")) {
       notifTitle = "Application Update";
-      notifMessage = `Your application for "${contract?.contractTitle}" was not selected by ${clientName}.`;
+      notifMessage = `Your application for "${contractTitle}" was not selected by ${clientName}.`;
     }
 
-    // 1. Create in-app notification
+    // 1. Create in-app notification for Freelancer
     await Notification.create({
       userId: application.freelancerId,
       role: "freelancer",
       title: notifTitle,
       message: notifMessage,
-      link: "/user/proposals"
+      link: "/proposal-offers"
     });
 
-    // 2. Send email notification
+    // 2. Send email notification to Freelancer
     if (freelancerUser?.registrationDetails?.email) {
       const interviewDate = application.interview?.date 
         ? new Date(application.interview.date).toLocaleDateString("en-US", { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })
@@ -60,7 +71,7 @@ const notifyFreelancerStageUpdate = async (application, statusText, extra = {}) 
       await sendApplicationStageEmail(freelancerUser.registrationDetails.email, {
         freelancerName: freelancerUser.registrationDetails.fullName,
         clientName,
-        contractTitle: contract?.contractTitle,
+        contractTitle,
         statusText,
         feedback: extra.feedback || application.interview?.feedback || application.assessment?.notes,
         interviewDate: extra.interviewDate || interviewDate,
@@ -161,7 +172,27 @@ exports.rejectApplication = async (req, res) => {
 
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, "Declined");
+    await notifyFreelancerStageUpdate(application, "Declined", {
+      feedback: req.body.reason || req.body.feedback || req.body.notes
+    });
+
+    // In-app notification for Client
+    try {
+      const freelancerUser = await User.findById(application.freelancerId);
+      const contract = await Contract.findById(application.contractId);
+      const freelancerName = freelancerUser?.registrationDetails?.fullName || "Candidate";
+      const contractTitle = contract?.contractTitle || "Contract";
+
+      await Notification.create({
+        userId: application.clientId,
+        role: "client",
+        title: "Application Declined",
+        message: `You have declined the application from ${freelancerName} for "${contractTitle}".`,
+        link: `/applicants/${application.contractId}`
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify client on rejection:", notifErr);
+    }
 
     return res.status(200).json({
       success: true,
@@ -221,7 +252,10 @@ exports.scheduleAssessment = async (req, res) => {
 
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, "assessment assigned");
+    await notifyFreelancerStageUpdate(application, "Assessment Assigned", {
+      assessmentTitle: req.body.title,
+      assessmentDescription: req.body.description
+    });
 
     return res.status(200).json({
       success: true,
@@ -268,25 +302,49 @@ exports.submitAssessment = async (req, res) => {
     }
 
     application.applicationStatus = "assessment completed";
+    if (req.body.notes) {
+      if (!application.assessment) application.assessment = {};
+      application.assessment.notes = req.body.notes;
+    }
     await application.save();
 
-    // In-app notification for Client
+    // In-app notification & Email for Client
     try {
       const freelancerUser = await User.findById(application.freelancerId);
+      const clientUser = await User.findById(application.clientId);
       const contract = await Contract.findById(application.contractId);
       const freelancerName = freelancerUser?.registrationDetails?.fullName || "A freelancer";
+      const clientName = clientUser?.registrationDetails?.fullName || "Client";
       const contractTitle = contract?.contractTitle || "Contract";
+      const assessmentTitle = application.assessment?.title || "Assessment";
 
       await Notification.create({
         userId: application.clientId,
         role: "client",
         title: "Assessment Submitted",
         message: `${freelancerName} has submitted their assessment for "${contractTitle}". Please review the submission.`,
-        link: "/user/hired-talent?tab=offers"
+        link: `/applicants/${application.contractId}`
       });
+
+      if (clientUser?.registrationDetails?.email) {
+        await sendAssessmentSubmittedNotification(clientUser.registrationDetails.email, {
+          clientName,
+          freelancerName,
+          contractTitle,
+          contractId: application.contractId,
+          assessmentTitle,
+          notes: req.body.notes || application.assessment?.notes
+        });
+      }
     } catch (notifErr) {
       console.error("Failed to notify client on assessment submission:", notifErr);
     }
+
+    // Confirmation notification & email to Freelancer
+    await notifyFreelancerStageUpdate(application, "Assessment Submitted", {
+      assessmentTitle: application.assessment?.title,
+      feedback: req.body.notes
+    });
 
     return res.status(200).json({
       success: true,
@@ -348,7 +406,11 @@ exports.assessmentResult = async (req, res) => {
 
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, result === "passed" ? "Assessment Passed" : "Assessment Failed");
+    await notifyFreelancerStageUpdate(
+      application, 
+      result === "passed" ? "Assessment Passed" : "Assessment Failed", 
+      { feedback: req.body.notes }
+    );
 
     return res.status(200).json({
       success: true,
@@ -412,7 +474,47 @@ exports.scheduleInterview = async (req, res) => {
 
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, "Interview Scheduled");
+    const formattedDate = parsedDate.toLocaleDateString("en-US", { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+
+    // 1. Notify Freelancer (In-app + Email)
+    await notifyFreelancerStageUpdate(application, "Interview Scheduled", {
+      interviewDate: formattedDate,
+      interviewTime: req.body.time,
+      interviewLink: req.body.link,
+      feedback: req.body.description
+    });
+
+    // 2. Notify Client (In-app + Email confirmation)
+    try {
+      const clientUser = await User.findById(application.clientId);
+      const freelancerUser = await User.findById(application.freelancerId);
+      const contract = await Contract.findById(application.contractId);
+      const freelancerName = freelancerUser?.registrationDetails?.fullName || "Candidate";
+      const contractTitle = contract?.contractTitle || "Contract";
+
+      await Notification.create({
+        userId: application.clientId,
+        role: "client",
+        title: "Interview Scheduled",
+        message: `Interview scheduled with ${freelancerName} for "${contractTitle}" on ${formattedDate} at ${req.body.time || 'scheduled time'}.`,
+        link: `/applicants/${application.contractId}`
+      });
+
+      if (clientUser?.registrationDetails?.email) {
+        await sendInterviewScheduledClientNotification(clientUser.registrationDetails.email, {
+          clientName: clientUser.registrationDetails.fullName,
+          freelancerName,
+          contractTitle,
+          contractId: application.contractId,
+          interviewDate: formattedDate,
+          interviewTime: req.body.time,
+          interviewLink: req.body.link,
+          description: req.body.description
+        });
+      }
+    } catch (clientErr) {
+      console.error("Failed to notify client on interview scheduling:", clientErr);
+    }
 
     return res.status(200).json({
       success: true,
@@ -467,7 +569,9 @@ exports.interviewResult = async (req, res) => {
 
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, "Interview Completed");
+    await notifyFreelancerStageUpdate(application, "Interview Completed", {
+      feedback: req.body.feedback
+    });
 
     return res.status(200).json({
       success: true,
@@ -523,7 +627,32 @@ exports.finalizeApplication = async (req, res) => {
 
     await application.save();
 
-    await notifyFreelancerStageUpdate(application, result === "hired" ? "Hired" : "Declined");
+    // 1. Notify Freelancer (In-app + Email)
+    await notifyFreelancerStageUpdate(
+      application, 
+      result === "hired" ? "Hired" : "Declined",
+      { feedback: req.body.feedback || req.body.notes || application.interview?.feedback }
+    );
+
+    // 2. In-app notification for Client
+    try {
+      const freelancerUser = await User.findById(application.freelancerId);
+      const contract = await Contract.findById(application.contractId);
+      const freelancerName = freelancerUser?.registrationDetails?.fullName || "Candidate";
+      const contractTitle = contract?.contractTitle || "Contract";
+
+      await Notification.create({
+        userId: application.clientId,
+        role: "client",
+        title: result === "hired" ? "Candidate Hired! 🎉" : "Application Closed",
+        message: result === "hired"
+          ? `You have selected and hired ${freelancerName} for "${contractTitle}". You can now proceed to issue a legal contract offer.`
+          : `Application for ${freelancerName} on "${contractTitle}" has been closed.`,
+        link: `/applicants/${application.contractId}`
+      });
+    } catch (notifErr) {
+      console.error("Failed to notify client on application finalization:", notifErr);
+    }
 
     return res.status(200).json({
       success: true,

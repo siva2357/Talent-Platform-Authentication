@@ -5,7 +5,7 @@ const FreelancerProfile = require("../models/freelancerProfile");
 const Application = require("../models/application");
 const User = require("../models/user");
 const Notification = require("../models/notification");
-const { sendNewApplicationNotification, sendApplicationWithdrawnNotification } = require("../utils/emailSender");
+const { sendNewApplicationNotification, sendApplicationWithdrawnNotification, sendApplicationStageEmail } = require("../utils/emailSender");
 const { createContractSchema } = require("../schemas/contractSchemas");
 
 
@@ -1040,7 +1040,7 @@ exports.applyToContract = async (req, res) => {
           role: "client",
           title: "New Contract Application",
           message: `${freelancerUser?.registrationDetails?.fullName || "A freelancer"} has applied for your contract "${contract.contractTitle}".`,
-          link: "/user/hired-talent?tab=offers"
+          link: `/applicants/${contract._id}`
         });
 
         if (clientUser.registrationDetails?.email) {
@@ -1058,10 +1058,20 @@ exports.applyToContract = async (req, res) => {
         role: "freelancer",
         title: "Proposal Submitted",
         message: `Your application for "${contract.contractTitle}" has been submitted successfully.`,
-        link: "/user/proposals"
+        link: "/proposal-offers"
       });
+
+      // Email confirmation for Freelancer
+      if (freelancerUser?.registrationDetails?.email) {
+        await sendApplicationStageEmail(freelancerUser.registrationDetails.email, {
+          freelancerName: freelancerUser.registrationDetails.fullName,
+          clientName: clientUser?.registrationDetails?.fullName || "Client",
+          contractTitle: contract.contractTitle,
+          statusText: "Application Submitted"
+        });
+      }
     } catch (err) {
-      console.error("Failed to notify client on application:", err);
+      console.error("Failed to notify on application submission:", err);
     }
 
     return res.status(200).json({
@@ -1155,7 +1165,7 @@ exports.withdrawContractApplication = async (req, res) => {
           role: "client",
           title: "Contract Application Withdrawn",
           message: `${freelancerUser?.registrationDetails?.fullName || "A freelancer"} has withdrawn their application for the contract "${contract.contractTitle}".`,
-          link: "/user/hired-talent?tab=offers"
+          link: `/applicants/${contract._id}`
         });
 
         if (clientUser.registrationDetails?.email) {
